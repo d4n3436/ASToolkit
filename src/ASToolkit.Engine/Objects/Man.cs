@@ -69,12 +69,12 @@ public sealed class Man : Unit
                 return ActionDamage(var1, var2, var3, target);
             case ActionCode.GetAmmo:
                 if (var1 != 0 && var1 != WeaponSlot)
-                    return (uint)var1 < (uint)SlotAmmo.Length ? SlotAmmo[var1] : 0;
+                    return var1 >= 0 && var1 < SlotAmmo.Length ? SlotAmmo[var1] : 0;
 
                 return base.Action(act, 0, 0, 0, null);
             case ActionCode.AddAmmo:
                 // TODO: Port AS1's write before the slot array for a negative slot; the port returns 0
-                if ((uint)var2 >= (uint)SlotAmmo.Length)
+                if (var2 < 0 || var2 >= SlotAmmo.Length)
                     return 0;
 
                 if (var2 != 0 && var2 != WeaponSlot)
@@ -87,7 +87,7 @@ public sealed class Man : Unit
 
                 if (HasGoal || Link is { HasGoal: true })
                 {
-                    AttackResult = AttackTact(Math.Max(Map.FrameTime, Vid.GetVisualFrameDuration(Animation)));
+                    AttackResult = AttackTact((int)Math.Max((uint)Map.FrameTime, (uint)Vid.GetVisualFrameDuration(Animation)));
                 }
 
                 ChangeAnimation(!Speed.IsExactlyZero() ? SpriteAnimation.Go : SpriteAnimation.Stand);
@@ -175,7 +175,7 @@ public sealed class Man : Unit
         if ((int)Vid.Id > PlayerIdLimit)
         {
             var armed = Vid.LinkVid;
-            int capacity = armed is not null && armed.FightChild != 0 && armed.WeaponIndex != 0 ? armed.AmmoCapacity : Vid.AmmoCapacity;
+            int capacity = armed is not null && armed.FightChild != 0 && armed.WeaponIndex != 0 ? armed.Weapon.Ammo : Vid.Weapon.Ammo;
             base.Action(ActionCode.AddAmmo, capacity - base.Action(ActionCode.GetAmmo, 0, 0, 0, null), 0, 0, null);
 
             return;
@@ -276,7 +276,7 @@ public sealed class Man : Unit
                 height = player.Z + AimRiseCap;
             }
         }
-        else if (weapon.Targets == OldSpriteType.Unit)
+        else if (weapon.Weapon.Targets == OldSpriteType.Unit)
         {
             height = Map.GetGroundZ(cursor with { Y = cursor.Y + UnitAimLift }) + UnitAimLift;
         }

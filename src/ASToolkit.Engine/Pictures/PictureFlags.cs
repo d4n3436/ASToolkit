@@ -4,7 +4,7 @@ namespace ASToolkit.Engine;
 /// Specifies which images a picture has and how its sprite file is made.
 /// </summary>
 [Flags]
-public enum PictureFlags : uint
+public enum PictureFlags
 {
     /// <summary>
     /// The picture has no flags.

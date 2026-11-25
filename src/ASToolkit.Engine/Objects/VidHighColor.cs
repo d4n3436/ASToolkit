@@ -16,14 +16,22 @@ public sealed class VidHighColor : VidSoftware
     /// </summary>
     /// <param name="id">The object ID.</param>
     /// <param name="gameObject">The object record.</param>
-    /// <param name="weapon">The weapon record.</param>
+    /// <param name="weapons">The weapon table.</param>
     /// <param name="file">The sprite file.</param>
     /// <param name="totalFrames">The frame count of the sprite file.</param>
     /// <param name="format">The channel layout of the 16-bit back buffer.</param>
-    public VidHighColor(KnownObject id, in GameObject gameObject, in WeaponRecord weapon, in VidResource file, int totalFrames, HighColorFormat format)
-        : base(id, gameObject, weapon, file, totalFrames, format)
+    public VidHighColor(KnownObject id, in GameObject gameObject, AlienShooterWeaponRecord[] weapons, in VidResource file, int totalFrames, HighColorFormat format)
+        : base(id, gameObject, weapons, file, totalFrames, format)
     {
     }
+
+    private VidHighColor(VidHighColor source)
+        : base(source)
+    {
+    }
+
+    [EngineRoutine(0x004126e0)]
+    internal override Vid CreateMirror() => new VidHighColor(this);
 
     /// <inheritdoc/>
     protected override bool IsHighColor => true;

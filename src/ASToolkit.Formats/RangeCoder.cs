@@ -66,4 +66,14 @@ public sealed class RangeCoder
         encoder.Encode(last.GetStart(EndSymbol), last.GetFrequency(EndSymbol), FrequencyModel.TotalBits);
         return encoder.Finish();
     }
+
+    /// <summary>
+    /// Decompresses data into a buffer. Data shorter than the shortest coded size is copied unchanged.
+    /// </summary>
+    /// <param name="input">The compressed data.</param>
+    /// <param name="output">The buffer the decompressed data is written to, as long as the data before compression.</param>
+    /// <param name="used">The number of bytes of <paramref name="input"/> that were read.</param>
+    /// <returns>The number of bytes written to <paramref name="output"/>.</returns>
+    [EngineRoutine(0x00425b90)]
+    public int Decode(ReadOnlySpan<byte> input, Span<byte> output, out int used) => RangeDecoder.Decode(input, output, _models, BytesPerValue, out used);
 }

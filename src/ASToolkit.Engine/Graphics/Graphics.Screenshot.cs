@@ -12,10 +12,6 @@ public sealed partial class Graphics
     private const byte TgaDescriptor = 1;
     private const int TrueColorPixelSize = 3;
 
-    private static ReadOnlySpan<byte> SaveSizeText => "size in SaveTGA"u8;
-
-    private static ReadOnlySpan<byte> SaveNoPictureText => "SaveTGA-not picture"u8;
-
     [EngineRoutine(0x00430fc0)]
     internal void SaveScreen(IGameFileSystem fileSystem, string path, Rectangle area)
     {
@@ -52,7 +48,7 @@ public sealed partial class Graphics
     {
         if (picture.Length == 0)
         {
-            Error?.Error("PICTURE ''"u8, LogError.Text, 0, SaveNoPictureText);
+            Error?.Error("PICTURE ''"u8, LogError.Text, 0, "SaveTGA-not picture"u8);
             return;
         }
 
@@ -68,7 +64,7 @@ public sealed partial class Graphics
 
         if (area.X + area.Width > pictureSize.Width || area.Y + area.Height > pictureSize.Height)
         {
-            Error?.Error("PICTURE ''"u8, LogError.Invalid, 0, SaveSizeText);
+            Error?.Error("PICTURE ''"u8, LogError.Invalid, 0, "size in SaveTGA"u8);
             return;
         }
 

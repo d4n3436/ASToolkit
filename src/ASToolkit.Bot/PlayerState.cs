@@ -20,11 +20,9 @@ internal sealed class PlayerState
 
     public float Speed => _map.Player.MaxSpeed / Vid.PerMillisecond;
 
-    public bool HasDynamite => _map.ReadScriptNumber(ExplosivesVariable) > 0;
+    public bool HasDynamite => _map.ReadScriptNumber("PlayerExplosive"u8) > 0;
 
     private static ReadOnlySpan<byte> ItemsVariable => "PlayerItem"u8;
-
-    private static ReadOnlySpan<byte> ExplosivesVariable => "PlayerExplosive"u8;
 
     public bool HoldsWeapon(int slot) => slot is >= 0 and < Sprite.WeaponSlots && _map.Player.Items.Contains(Sprite.WeaponItemBase + slot);
 
@@ -70,7 +68,7 @@ internal sealed class PlayerState
         };
     }
 
-    private bool CanTakeAmmo(int slot) => HoldsWeapon(slot) && GetAmmo(slot) < (GetWeapon(slot)?.AmmoCapacity ?? 0);
+    private bool CanTakeAmmo(int slot) => HoldsWeapon(slot) && GetAmmo(slot) < (GetWeapon(slot)?.Weapon.Ammo ?? 0);
 
     private int GetArmorHp()
     {

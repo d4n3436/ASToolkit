@@ -30,8 +30,6 @@ internal sealed class Player
     private readonly SpriteList _sprites = new();
     private bool _isTurningLegs;
 
-    private static ReadOnlySpan<byte> UnitsSection => "Units"u8;
-
     [EngineRoutine(0x00413060)]
     public Player(Map map, ControlSettings settings)
     {
@@ -345,6 +343,6 @@ internal sealed class Player
         Span<byte> key = stackalloc byte[UnitKeyLength];
         ((int)Hovered.Vid.Id).TryFormat(key, out int written, provider: CultureInfo.InvariantCulture);
 
-        return Profile.GetString(_map.FileSystem, Map.StringsFile, UnitsSection, key[..written]);
+        return Profile.GetString(_map.FileSystem, Map.StringsFile, "Units"u8, key[..written]);
     }
 }

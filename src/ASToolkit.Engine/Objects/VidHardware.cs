@@ -34,27 +34,40 @@ public sealed class VidHardware : Vid
 
     private static readonly Vector3 GroundObjectSize = new(256, 256, 1);
     private readonly List<HardwareTile> _tiles = [];
-    private readonly HighColorFormat _format;
     private TextureData[] _surfaces = [];
+    private readonly HighColorFormat _format;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="VidHardware"/> class.
     /// </summary>
     /// <param name="id">The object ID.</param>
     /// <param name="gameObject">The object record.</param>
-    /// <param name="weapon">The weapon record.</param>
+    /// <param name="weapons">The weapon table.</param>
     /// <param name="file">The sprite file.</param>
     /// <param name="totalFrames">The frame count of the sprite file.</param>
     /// <param name="format">The layout of the 16-bit colors that palette surfaces are converted to.</param>
-    public VidHardware(KnownObject id, in GameObject gameObject, in WeaponRecord weapon, in VidResource file, int totalFrames, HighColorFormat format)
-        : base(id, gameObject, weapon, file, totalFrames)
+    public VidHardware(KnownObject id, in GameObject gameObject, AlienShooterWeaponRecord[] weapons, in VidResource file, int totalFrames, HighColorFormat format)
+        : base(id, gameObject, weapons, file, totalFrames)
     {
         _format = format;
     }
 
+    [EngineRoutine(0x004196a0)]
+    private VidHardware(VidHardware source)
+        : base(source)
+    {
+        _format = source._format;
+        _tiles = source._tiles;
+        _surfaces = source._surfaces;
+        SurfaceCount = source.SurfaceCount;
+    }
+
+    [EngineRoutine(0x00412750)]
+    internal override Vid CreateMirror() => new VidHardware(this);
+
     [EngineRoutine(0x00419750)]
-    internal VidHardware(KnownObject id, Size size, in WeaponRecord weapon, MyError? error)
-        : base(id, new GameObject(SpriteClass.Primitive, GroundObjectSize), weapon, Map.DefaultSpriteSpeed)
+    internal VidHardware(KnownObject id, Size size, AlienShooterWeaponRecord[] weapons, MyError? error)
+        : base(id, new GameObject(SpriteClass.Primitive, GroundObjectSize), weapons, Map.DefaultSpriteSpeed)
     {
         FileType = GroundType;
         FrameSize = size;
@@ -77,7 +90,7 @@ public sealed class VidHardware : Vid
             }
         }
 
-        SurfaceCount = texture;
+        SurfaceCount = (short)texture;
         _surfaces = new TextureData[texture];
         for (int surface = 0; surface < texture; surface += 2)
         {
@@ -92,19 +105,9 @@ public sealed class VidHardware : Vid
         }
     }
 
-    internal int SurfaceCount { get; private set; }
-
-    private static ReadOnlySpan<byte> PaletteText => "palette %i"u8;
-
-    private static ReadOnlySpan<byte> LoadDxtText => "Load DXT"u8;
+    internal short SurfaceCount { get; private set; }
 
     private static ReadOnlySpan<byte> TextureText => "texture"u8;
-
-    private static ReadOnlySpan<byte> CannotDecodeText => "Can't decode"u8;
-
-    private static ReadOnlySpan<byte> CannotDecodeDepthText => "Can't decode z"u8;
-
-    private static ReadOnlySpan<byte> InvalidDepthSizeText => "ZBuffer: invalid size"u8;
 
     /// <summary>
     /// Draws a built terrain sprite into every tile it touches.
@@ -406,7 +409,7 @@ public sealed class VidHardware : Vid
         var colors = MemoryMarshal.Cast<byte, VidPackedColor>(paletteBytes);
         if (hasPalette)
         {
-            Report(error, LogError.Text, format == VidPixelFormat.P8 ? 1 : 0, PaletteText);
+            Report(error, LogError.Text, format == VidPixelFormat.P8 ? 1 : 0, "palette %i"u8);
             if (format == VidPixelFormat.P8)
             {
                 palette = new uint[colors.Length];
@@ -419,14 +422,14 @@ public sealed class VidHardware : Vid
 
         if (surface.Failure == VidSurfaceFailure.Decode)
         {
-            Report(error, LogError.Load, index, CannotDecodeText);
+            Report(error, LogError.Load, index, "Can't decode"u8);
         }
 
         int area = surface.Size.Width * surface.Size.Height;
         var stream = surface.Data.Span;
         if (!hasPalette && surface.StreamSize < area * sizeof(ushort))
         {
-            Report(error, LogError.Text, 0, LoadDxtText);
+            Report(error, LogError.Text, 0, "Load DXT"u8);
             stream.CopyTo(MemoryMarshal.AsBytes(texels.AsSpan()));
         }
         else
@@ -500,13 +503,13 @@ public sealed class VidHardware : Vid
         }
         else if (depthSurface.StreamSize != size.Height * depthSize.Width * sizeof(ushort))
         {
-            Report(error, LogError.Load, depthSurface.StreamSize, InvalidDepthSizeText);
+            Report(error, LogError.Load, depthSurface.StreamSize, "ZBuffer: invalid size"u8);
         }
         else
         {
             if (depthSurface.Failure == VidSurfaceFailure.DepthDecode)
             {
-                Report(error, LogError.Load, depthSurface.DecodedSize, CannotDecodeDepthText);
+                Report(error, LogError.Load, depthSurface.DecodedSize, "Can't decode z"u8);
             }
 
             depthSurface.Data.Span.CopyTo(MemoryMarshal.AsBytes(depths.AsSpan()));
@@ -520,7 +523,7 @@ public sealed class VidHardware : Vid
         for (int i = 0; i < file.TextureFrameCount; i++)
         {
             file.TryGetTextureFrame(i, out var frame);
-            if ((uint)frame.Surface >= (uint)_surfaces.Length || _surfaces[frame.Surface].IsEmpty)
+            if (frame.Surface < 0 || frame.Surface >= _surfaces.Length || _surfaces[frame.Surface].IsEmpty)
             {
                 _tiles.Clear();
                 return;

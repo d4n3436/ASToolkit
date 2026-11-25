@@ -15,7 +15,8 @@ public partial class VidSoftware : Vid
     private protected const int TrueColorPaletteSize = PaletteEntries * sizeof(uint);
     private protected const int HighColorPaletteSize = PaletteEntries * sizeof(ushort);
     private protected const int ArmyPalettes = 4;
-    private protected const int FrameHeader = 4;
+    private const int HeadFieldsSize = 5 * sizeof(short);
+    private const int PackedPaletteSize = PaletteEntries * 3;
     private protected const int AliasBody = sizeof(short);
     private protected const ushort HighColorGreenMask = 0x7fe0;
     private protected const ushort HighColorBlueMask = 0x1f;
@@ -29,41 +30,34 @@ public partial class VidSoftware : Vid
     private const int DepthRunPixelSize = 3;
     private const int DepthSampleSize = 2;
 
-    private static readonly int MissingFramesLength = Unsafe.SizeOf<VidFrameHeader>() + Unsafe.SizeOf<VidRowsHeader>();
-
-    private byte[] _palettes = [];
-    private ReadOnlyMemory<byte> _frames;
+    private int _bufferSize;
+    private byte[] _buffer = [];
 
     /// <summary>
     /// Initializes a new instance of the <see cref="VidSoftware"/> class.
     /// </summary>
     /// <param name="id">The object ID.</param>
     /// <param name="gameObject">The object record.</param>
-    /// <param name="weapon">The weapon record.</param>
+    /// <param name="weapons">The weapon table.</param>
     /// <param name="file">The sprite file.</param>
     /// <param name="totalFrames">The frame count of the sprite file.</param>
     /// <param name="format">The channel layout of the 16-bit back buffer.</param>
-    public VidSoftware(KnownObject id, in GameObject gameObject, in WeaponRecord weapon, in VidResource file, int totalFrames, HighColorFormat format)
-        : base(id, gameObject, weapon, file, totalFrames)
+    public VidSoftware(KnownObject id, in GameObject gameObject, AlienShooterWeaponRecord[] weapons, in VidResource file, int totalFrames, HighColorFormat format)
+        : base(id, gameObject, weapons, file, totalFrames)
     {
         Format = format;
-        NextMirror = this;
     }
 
-    /// <summary>
-    /// Gets the channel layout of the 16-bit back buffer.
-    /// </summary>
-    public HighColorFormat Format { get; }
-
-    /// <summary>
-    /// Gets the palettes of the sprite file, holding the current palette or one palette per army, followed by the palette as the file stores it.
-    /// </summary>
-    public ReadOnlySpan<byte> Palettes => _palettes;
-
-    /// <summary>
-    /// Gets the frame records.
-    /// </summary>
-    public ReadOnlySpan<byte> Frames => _frames.Span;
+    [EngineRoutine(0x00415280)]
+    private protected VidSoftware(VidSoftware source)
+        : base(source)
+    {
+        Format = source.Format;
+        FrameOffsets = source.FrameOffsets;
+        _bufferSize = source._bufferSize;
+        _buffer = source._buffer;
+        CopyHeights(source);
+    }
 
     /// <summary>
     /// Gets the start of each frame record in <see cref="Frames"/>.
@@ -71,14 +65,27 @@ public partial class VidSoftware : Vid
     public int[] FrameOffsets { get; private set; } = [];
 
     /// <summary>
-    /// Gets or sets the next sprite file in the ring of files that share one buffer.
+    /// Gets the palettes of the sprite file, holding the current palette or one palette per army, followed by the palette as the file stores it.
     /// </summary>
-    public VidSoftware NextMirror { get; set; }
+    public ReadOnlySpan<byte> Palettes => _buffer.AsSpan(0, FileType.HasFlag(VidType.Palette) ? GetPaletteSize() * (FileType.HasFlag(VidType.PaletteVariants) ? ArmyPalettes + 1 : 2) : 0);
+
+    /// <summary>
+    /// Gets the palettes followed by the frame records.
+    /// </summary>
+    public ReadOnlySpan<byte> Frames => _buffer;
+
+    /// <summary>
+    /// Gets the channel layout of the 16-bit back buffer.
+    /// </summary>
+    public HighColorFormat Format { get; }
 
     /// <summary>
     /// Gets a value indicating whether the sprite file draws to the 16-bit back buffer.
     /// </summary>
     protected virtual bool IsHighColor => false;
+
+    [EngineRoutine(0x004153e0)]
+    internal override Vid CreateMirror() => new VidSoftware(this);
 
     /// <summary>
     /// Gets the size of one palette in bytes.
@@ -108,29 +115,68 @@ public partial class VidSoftware : Vid
         }
     }
 
+    [EngineRoutine(0x00415440)]
+    internal override void Destruct(MyError? error)
+    {
+        if (NextMirror == this)
+        {
+            _buffer = [];
+            FrameOffsets = [];
+            MemoryInUse -= _bufferSize;
+            _bufferSize = 0;
+        }
+
+        base.Destruct(error);
+    }
+
     [EngineRoutine(0x004154b0)]
     internal override void Load(in VidResource file, ReadOnlyMemory<byte> data, MyError? error)
     {
-        if (FileType.HasFlag(VidType.Palette) && file.Palette.IsEmpty)
+        var resource = default(Resource);
+        resource.Open(null, data.Span, Resource.AnyTag);
+        resource.GoBegin("HEAD"u8);
+        resource.Read(stackalloc byte[HeadFieldsSize]);
+        var coder = FileType.HasFlag(VidType.RangeCoded) ? new RangeCoder(1) : null;
+        bool hasPalette = FileType.HasFlag(VidType.Palette);
+        Span<uint> colors = stackalloc uint[PaletteEntries];
+        if (hasPalette)
         {
-            Report(error, LogError.Load, 0, "PAL "u8);
+            if (resource.GoNext("PAL "u8) == Resource.Found)
+            {
+                Span<byte> record = stackalloc byte[TrueColorPaletteSize];
+                resource.Read(record[..(FileType.HasFlag(VidType.CurrentVersion) ? TrueColorPaletteSize : PackedPaletteSize)]);
+                ReadPalette(record, colors);
+            }
+            else
+            {
+                // TODO: Port the uninitialized palette of a file without PAL
+                Report(error, LogError.Load, 0, "PAL "u8);
+            }
         }
 
-        if (file.FrameRecords.IsEmpty)
+        if (resource.GoNext("DATA"u8) != Resource.Found)
         {
             Report(error, LogError.Load, 0, "DATA"u8);
         }
 
-        if (FileType.HasFlag(VidType.Palette))
+        int paletteSize = GetPaletteSize();
+        _bufferSize = resource.ChunkSize;
+        if (hasPalette)
         {
-            int paletteSize = GetPaletteSize();
-            Span<uint> colors = stackalloc uint[PaletteEntries];
-            ReadPalette(file.Palette.Span, colors);
-            _palettes = new byte[paletteSize * 2];
-            StorePalette(colors, paletteSize);
+            _bufferSize += paletteSize * 2;
         }
 
-        LoadFrameRecords(file);
+        _buffer = new byte[_bufferSize];
+        FrameOffsets = new int[FileFrameCount];
+        int position = 0;
+        if (hasPalette)
+        {
+            StorePalette(colors, paletteSize);
+            position = paletteSize * 2;
+        }
+
+        LoadFrameRecords(ref resource, coder, position, error);
+        MemoryInUse += _bufferSize;
         if (!Properties.HasFlag(ObjectProperties.BuildVidZToGridZ) || !FileType.HasFlag(VidType.Palette) || !FileType.HasFlag(VidType.Runs8Bit))
             return;
 
@@ -160,7 +206,7 @@ public partial class VidSoftware : Vid
     internal override void SetGamma(Gamma gamma, int army, Gamma ambient, MyError? error)
     {
         int size = GetPaletteSize();
-        if (_palettes.Length == 0 || !FileType.HasFlag(VidType.Palette))
+        if (_buffer.Length == 0 || !FileType.HasFlag(VidType.Palette))
             return;
 
         if ((uint)army > AllArmies)
@@ -183,10 +229,10 @@ public partial class VidSoftware : Vid
                 return;
             }
 
-            _palettes.AsSpan(size, size).CopyTo(_palettes);
+            _buffer.AsSpan(size, size).CopyTo(_buffer);
             if (ambientApplies)
             {
-                ApplyGamma(_palettes.AsSpan(0, size), gamma);
+                ApplyGamma(_buffer.AsSpan(0, size), gamma);
             }
 
             return;
@@ -198,8 +244,8 @@ public partial class VidSoftware : Vid
             SplitPalettes(size);
         }
 
-        var slot = _palettes.AsSpan(size * army, size);
-        _palettes.AsSpan(size * ArmyPalettes, size).CopyTo(slot);
+        var slot = _buffer.AsSpan(size * army, size);
+        _buffer.AsSpan(size * ArmyPalettes, size).CopyTo(slot);
         ApplyGamma(slot, ambientApplies ? gamma.Add(ambient) : gamma);
     }
 
@@ -236,18 +282,24 @@ public partial class VidSoftware : Vid
 
     private void SplitPalettes(int size)
     {
-        byte[] split = new byte[size * (ArmyPalettes + 1)];
-        _palettes.AsSpan(size, size).CopyTo(split.AsSpan(size * ArmyPalettes));
+        _bufferSize += size * 3;
+        MemoryInUse += size * 3;
+        byte[] split = new byte[_bufferSize];
+        _buffer.AsSpan(size).CopyTo(split.AsSpan(size * ArmyPalettes));
         split.AsSpan(size * ArmyPalettes, size).CopyTo(split.AsSpan(0, size));
         split.AsSpan(size * ArmyPalettes, size).CopyTo(split.AsSpan(size, size));
         split.AsSpan(0, size * 2).CopyTo(split.AsSpan(size * 2, size * 2));
-        _palettes = split;
+        _buffer = split;
+        for (int frame = 0; frame < FrameOffsets.Length; frame++)
+        {
+            FrameOffsets[frame] += size * 3;
+        }
 
         FileType |= VidType.PaletteVariants;
         for (var mirror = NextMirror; mirror != this; mirror = mirror.NextMirror)
         {
             mirror.FileType |= VidType.PaletteVariants;
-            mirror._palettes = _palettes;
+            ((VidSoftware)mirror)._buffer = _buffer;
         }
     }
 
@@ -280,65 +332,62 @@ public partial class VidSoftware : Vid
     {
         if (paletteSize == TrueColorPaletteSize)
         {
-            MemoryMarshal.Cast<uint, byte>(colors).CopyTo(_palettes);
+            MemoryMarshal.Cast<uint, byte>(colors).CopyTo(_buffer);
         }
         else
         {
-            var pixels = MemoryMarshal.Cast<byte, ushort>(_palettes.AsSpan(0, paletteSize));
+            var pixels = MemoryMarshal.Cast<byte, ushort>(_buffer.AsSpan(0, paletteSize));
             for (int i = 0; i < PaletteEntries; i++)
             {
                 pixels[i] = Format.Pack(colors[i]);
             }
         }
 
-        _palettes.AsSpan(0, paletteSize).CopyTo(_palettes.AsSpan(paletteSize));
+        _buffer.AsSpan(0, paletteSize).CopyTo(_buffer.AsSpan(paletteSize));
     }
 
-    private void LoadFrameRecords(in VidResource file)
+    private void LoadFrameRecords(ref Resource resource, RangeCoder? coder, int position, MyError? error)
     {
-        var records = file.FrameRecords;
-        FrameOffsets = new int[FileFrameCount];
         bool isConverted = !FileType.HasFlag(VidType.Palette) && Format.IsRgb555 && IsHighColor && !FileType.HasFlag(VidType.Blended);
-        byte[] converted = [];
-        if (isConverted)
+        int length = 0;
+        for (int frame = 0; frame < FileFrameCount; frame++)
         {
-            int total = 0;
-            foreach (var record in records)
+            resource.Read(MemoryMarshal.AsBytes(new Span<int>(ref length)));
+            int missing = 0;
+            if (length != 0)
             {
-                total += Math.Max(0, record.Length - FrameHeader);
+                int count = coder is null ? (int)Math.Min((uint)length, (uint)resource.Remaining) : length;
+                if (count < 0 || position < 0 || count > _buffer.Length - position)
+                    throw new InvalidDataException($"Frame {frame} of '{Path}' does not fit in its frame buffer.");
+
+                var destination = _buffer.AsSpan(position, count);
+                missing = coder is null ? length - count + resource.Read(destination) : resource.ReadPacked(destination, coder);
             }
 
-            converted = new byte[total];
-        }
-
-        var source = file.Data.Span;
-        int position = 0;
-        for (int frame = 0; frame < FileFrameCount && frame < records.Length; frame++)
-        {
-            var body = records[frame].Span[FrameHeader..];
-            if (body.Length == AliasBody)
+            if (missing != 0)
             {
-                int target = MemoryMarshal.Read<short>(body);
+                Report(error, LogError.Load, length - missing, "Can't decode software"u8);
+            }
+
+            if (length == AliasBody)
+            {
+                int target = position >= 0 && position <= _buffer.Length - sizeof(short) ? MemoryMarshal.Read<short>(_buffer.AsSpan(position)) : 0;
                 // TODO: Port the unchecked alias read
                 FrameOffsets[frame] = target >= 0 && target < FileFrameCount ? FrameOffsets[target] : 0;
-                continue;
-            }
-
-            if (isConverted)
-            {
-                body.CopyTo(converted.AsSpan(position));
-                ConvertRowsToRgb555(converted, position);
-                FrameOffsets[frame] = position;
-                position += body.Length;
             }
             else
             {
-                FrameOffsets[frame] = (int)Unsafe.ByteOffset(ref MemoryMarshal.GetReference(source), ref MemoryMarshal.GetReference(body));
-            }
-        }
+                if (isConverted)
+                {
+                    ConvertRowsToRgb555(_buffer, position);
+                }
 
-        // TODO: Port the uninitialized frame buffer of a file without DATA
-        _frames = records.IsEmpty ? new byte[MissingFramesLength] : isConverted ? converted : file.Data;
+                FrameOffsets[frame] = position;
+                position += length;
+            }
+
+            resource.GoNextSub("DATA"u8);
+        }
     }
 
     private void MarkOpaqueCells(Span<short> grid, FrameRows rows)

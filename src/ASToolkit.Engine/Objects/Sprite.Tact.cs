@@ -106,7 +106,7 @@ public partial class Sprite
 
         var state = Animation;
 
-        if (CreatedAt == Map.Time || Map.Time - Map.Time % Vid.GetVisualFrameDuration(state) <= Map.Time - Map.FrameTime)
+        if (CreatedAt == Map.Time || (uint)(Map.Time - (int)((uint)Map.Time % (uint)Vid.GetVisualFrameDuration(state))) <= (uint)(Map.Time - Map.FrameTime))
             return;
 
         if (Command is not Command.None && this is { Command: < Command.Build, HasGoal: false })
@@ -249,7 +249,7 @@ public partial class Sprite
         }
     }
 
-    private static float GetKeyTime(in WeaponRecord weapon, int key) =>
+    private static float GetKeyTime(in AlienShooterWeaponRecord weapon, int key) =>
         key < 0 ? BitConverter.Int32BitsToSingle(weapon.AnimationPeriod)
         : key < WeaponRecord.KeyframeCount ? weapon.KeyTimes[key] : BitConverter.Int32BitsToSingle(weapon.RedKeys[0]);
 }

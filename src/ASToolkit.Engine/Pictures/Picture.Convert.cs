@@ -213,7 +213,7 @@ public partial class Picture
                 uint value;
                 if (Flags.HasFlag(PictureFlags.Depth))
                 {
-                    value = (uint)(short)GetDepth(point);
+                    value = (uint)GetDepth(point);
                     crc = CrcTable[(crc & 0xff) ^ (byte)value] ^ crc >> BitsPerByte;
                     crc = CrcTable[(crc & 0xff) ^ (byte)(value >> BitsPerByte)] ^ crc >> BitsPerByte;
                 }

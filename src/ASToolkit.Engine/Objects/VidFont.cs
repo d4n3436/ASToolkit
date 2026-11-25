@@ -17,18 +17,31 @@ public sealed class VidFont : Vid
     /// </summary>
     /// <param name="id">The object ID.</param>
     /// <param name="gameObject">The object record.</param>
-    /// <param name="weapon">The weapon record.</param>
+    /// <param name="weapons">The weapon table.</param>
     /// <param name="maxTextureSize">The largest texture width and height the device accepts.</param>
-    public VidFont(KnownObject id, in GameObject gameObject, in WeaponRecord weapon, int maxTextureSize)
-        : base(id, gameObject, weapon, Map.DefaultSpriteSpeed, GlyphCount, ObjectLayer.Ground, null)
+    public VidFont(KnownObject id, in GameObject gameObject, AlienShooterWeaponRecord[] weapons, int maxTextureSize)
+        : base(id, gameObject, weapons, Map.DefaultSpriteSpeed, GlyphCount, ObjectLayer.Ground, null)
     {
         MaxTextureSize = maxTextureSize;
     }
 
+    [EngineRoutine(0x00415070)]
+    private VidFont(VidFont source)
+        : base(source)
+    {
+        MaxTextureSize = source.MaxTextureSize;
+        Font = source.Font;
+        GlyphSize = source.GlyphSize;
+        Style = source.Style;
+    }
+
+    [EngineRoutine(0x00412850)]
+    internal override Vid CreateMirror() => new VidFont(this);
+
     /// <summary>
-    /// Gets the largest texture width and height the device accepts.
+    /// Gets the font of this object ID, or <see langword="null"/> before the sprite file loads.
     /// </summary>
-    public int MaxTextureSize { get; }
+    public D3DFont? Font { get; private set; }
 
     /// <summary>
     /// Gets the height and width of the glyphs of the font, in pixels.
@@ -41,9 +54,9 @@ public sealed class VidFont : Vid
     public D3DFontStyle Style { get; private set; }
 
     /// <summary>
-    /// Gets the font of this object ID, or <see langword="null"/> before the sprite file loads.
+    /// Gets the largest texture width and height the device accepts.
     /// </summary>
-    public D3DFont? Font { get; private set; }
+    public int MaxTextureSize { get; }
 
     /// <summary>
     /// Draws the text of a sprite with the glyphs of the font.

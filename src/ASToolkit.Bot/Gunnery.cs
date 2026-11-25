@@ -56,7 +56,7 @@ internal sealed class Gunnery
             var weapon = _state.GetWeapon(slot);
 
             if (!_state.HasAmmo(slot) || weapon is null || !weapon.IsArmed ||
-                distance > weapon.BattleRange ||
+                distance > weapon.Weapon.BattleRange ||
                 !HasClearAim(target, _map.Player.Position.AsVector2(), slot))
                 continue;
 
@@ -108,7 +108,7 @@ internal sealed class Gunnery
         if (payload is null || payload.Damage <= 0 || payload.IsExplosive || spread <= 0 || offset.LengthSquared() < 1)
             return point;
 
-        float room = torso.BattleRange - GetDistance(target);
+        float room = torso.Weapon.BattleRange - GetDistance(target);
         float overshoot = MathF.Min(spread * MathF.Sqrt(2), room - 1);
 
         if (overshoot <= 0)
@@ -215,7 +215,7 @@ internal sealed class Gunnery
     {
         float spread = GetSpread(torso, out _);
         float distance = GetDistance(target);
-        float overshoot = MathF.Max(0, MathF.Min(spread * MathF.Sqrt(2), torso.BattleRange - distance - 1));
+        float overshoot = MathF.Max(0, MathF.Min(spread * MathF.Sqrt(2), torso.Weapon.BattleRange - distance - 1));
 
         return spread * distance / Math.Max(1, distance + overshoot);
     }
@@ -236,11 +236,11 @@ internal sealed class Gunnery
 
     private float GetSpread(Vid torso, out Vid? payload)
     {
-        float spread = torso.Aim;
+        float spread = torso.Weapon.Aim;
         payload = torso.FightChild == 0 ? null : _map.FindVid((KnownObject)Math.Abs((int)torso.FightChild));
         while (payload is not null && payload.Damage <= 0 && payload.FightChild != 0)
         {
-            spread += payload.Aim;
+            spread += payload.Weapon.Aim;
             payload = _map.FindVid((KnownObject)Math.Abs((int)payload.FightChild));
         }
 

@@ -110,7 +110,7 @@ internal sealed class Message
         {
             var message = _pending[index];
 
-            if ((uint)(_map.Time - _map.FrameTime) < (uint)message.Time)
+            if ((uint)_map.FrameTime < (uint)message.Time)
             {
                 _pending[index] = message with { Time = message.Time - _map.Time + _map.FrameTime };
                 continue;

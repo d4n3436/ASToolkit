@@ -21,11 +21,11 @@ public partial class Sprite
 
         var vid = seeker.Vid;
 
-        if (vid.DetectRange.IsExactlyZero() || vid.Targets == 0)
+        if (vid.Weapon.DetectRange.IsExactlyZero() || vid.Weapon.Targets == 0)
             return null;
 
         Sprite? best = null;
-        float bestDistance = vid.DetectRange + 1;
+        float bestDistance = vid.Weapon.DetectRange + 1;
 
         if (seeker.Army == Army.Monsters)
             return flagman is not null && seeker.TryTake(flagman, ref best, ref bestDistance) ? flagman : best;
@@ -51,7 +51,7 @@ public partial class Sprite
         if (best is null)
             return true;
 
-        if (Vid.WeaponFlags.HasFlag(WeaponFlags.PrefersNearest))
+        if (Vid.Weapon.Flags.HasFlag(WeaponFlags.PrefersNearest))
             return distance < bestDistance;
 
         if (Shooter == best)
@@ -69,7 +69,7 @@ public partial class Sprite
         if (bestFlies != candidateFlies)
             return candidateFlies;
 
-        float range = (ArmedLink?.Vid ?? Vid).BattleRange;
+        float range = (ArmedLink?.Vid ?? Vid).Weapon.BattleRange;
 
         if (range < bestDistance && distance <= range)
             return true;
@@ -80,8 +80,8 @@ public partial class Sprite
         if (candidateArmed != bestArmed)
             return candidateArmed;
 
-        int candidateRank = (candidate.ArmedLink?.Vid ?? candidate.Vid).Rank;
-        int bestRank = (best.ArmedLink?.Vid ?? best.Vid).Rank;
+        int candidateRank = (candidate.ArmedLink?.Vid ?? candidate.Vid).Weapon.Rank;
+        int bestRank = (best.ArmedLink?.Vid ?? best.Vid).Weapon.Rank;
 
         return bestRank < candidateRank || bestRank <= candidateRank && distance < bestDistance;
     }
@@ -90,7 +90,7 @@ public partial class Sprite
     {
         var vid = Vid;
 
-        if ((vid.Targets & candidate.Vid.SpriteType) == 0 || candidate.Vid.MaxHp == 0 || !IsEnemy(candidate) ||
+        if ((vid.Weapon.Targets & candidate.Vid.SpriteType) == 0 || candidate.Vid.MaxHp == 0 || !IsEnemy(candidate) ||
             (candidate.Vid.SpriteType.HasFlag(OldSpriteType.Avia) && candidate.Owner is not null))
             return false;
 
@@ -100,7 +100,7 @@ public partial class Sprite
 
         float distance = Position.AsVector2().MeasureOctagonalDistance(candidate.Position.AsVector2());
 
-        if (distance > vid.DetectRange || distance < vid.MinRange)
+        if (distance > vid.Weapon.DetectRange || distance < vid.Weapon.MinRange)
             return false;
 
         bool isAccepted;
@@ -113,13 +113,13 @@ public partial class Sprite
         {
             isAccepted = false;
         }
-        else if (bestDistance <= vid.BattleRange)
+        else if (bestDistance <= vid.Weapon.BattleRange)
         {
-            isAccepted = distance <= vid.BattleRange && IsBetter(distance, bestDistance, candidate, best);
+            isAccepted = distance <= vid.Weapon.BattleRange && IsBetter(distance, bestDistance, candidate, best);
         }
         else
         {
-            isAccepted = distance <= vid.BattleRange || IsBetter(distance, bestDistance, candidate, best);
+            isAccepted = distance <= vid.Weapon.BattleRange || IsBetter(distance, bestDistance, candidate, best);
         }
 
         if (!isAccepted || (Army == Army.Player && candidate.Vid.Class == SpriteClass.Engine && HasCarOfArmy(candidate, Army.Player)))
@@ -128,12 +128,12 @@ public partial class Sprite
         best = candidate;
         bestDistance = distance;
 
-        return vid.WeaponFlags.HasFlag(WeaponFlags.RandomTarget) && Map.Random.Next() % RepeatTargetOdds == 0;
+        return vid.Weapon.Flags.HasFlag(WeaponFlags.RandomTarget) && Map.Random.Next() % RepeatTargetOdds == 0;
     }
 
     private bool IsEnemy(Sprite target)
     {
-        bool ownArmy = Vid.WeaponFlags.HasFlag(WeaponFlags.TargetsOwnArmy);
+        bool ownArmy = Vid.Weapon.Flags.HasFlag(WeaponFlags.TargetsOwnArmy);
 
         return (target.Army != Army || ownArmy) && !target.Vid.Properties.HasFlag(ObjectProperties.InvisibleForEnemy) &&
             (target.Army != Army.Neutral || ownArmy ||

@@ -54,7 +54,7 @@ public sealed class Building : Unit
 
                 PendingVid = vid;
                 PendingOffset = new Point(var2, var3);
-                Timer = vid.BuildTime;
+                Timer = vid.Weapon.BuildTime;
                 SetCommand(Command.Build);
 
                 if (Animation < SpriteAnimation.Death)

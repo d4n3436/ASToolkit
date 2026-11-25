@@ -74,7 +74,6 @@ public sealed class GameSession : IDisposable
         }
     }
 
-
     /// <summary>
     /// Gets a value indicating whether the map draws its frame rate.
     /// </summary>
@@ -150,16 +149,6 @@ public sealed class GameSession : IDisposable
     internal Vector2 MouseTipCursor { get; set; }
 
     internal ReadOnlyMemory<byte> MouseTipText { get; set; }
-
-    private static ReadOnlySpan<byte> NonGdiLog => "zm_nongdi"u8;
-
-    private static ReadOnlySpan<byte> GraphicsTag => "GRAPH"u8;
-
-    private static ReadOnlySpan<byte> LightBufferName => "light buffer"u8;
-
-    private static ReadOnlySpan<byte> HighBufferName => "hiBuffer"u8;
-
-    private static ReadOnlySpan<byte> AlphaBufferName => "alphaBuffer"u8;
 
     internal static ReadOnlySpan<byte> GameSection => "game"u8;
 
@@ -276,7 +265,7 @@ public sealed class GameSession : IDisposable
         Graphics.Flags = Graphics.IsNonGdiDevice ? Graphics.Flags | GraphicsFlags.NonGdi : Graphics.Flags & ~GraphicsFlags.NonGdi;
         if (Graphics.IsNonGdiDevice)
         {
-            Error.Write(NonGdiLog);
+            Error.Write("zm_nongdi"u8);
         }
 
         Graphics.Flags &= ~GraphicsFlags.NonGdi;
@@ -337,16 +326,16 @@ public sealed class GameSession : IDisposable
         textures.IsCreated = true;
         textures.Light = Graphics.CreateTexture(Error, VidPixelFormat.P8, out var format);
         textures.LightFormat = format;
-        if (!HasBuffer(textures.Light, LightBufferName))
+        if (!HasBuffer(textures.Light, "light buffer"u8))
             return false;
 
         textures.High = Graphics.CreateTexture(Error, VidPixelFormat.R5G6B5, out format);
         textures.HighFormat = format;
-        if (!HasBuffer(textures.High, HighBufferName))
+        if (!HasBuffer(textures.High, "hiBuffer"u8))
             return false;
 
         textures.Alpha = Graphics.CreateTexture(Error, VidPixelFormat.A4R4G4B4, out _);
-        return HasBuffer(textures.Alpha, AlphaBufferName);
+        return HasBuffer(textures.Alpha, "alphaBuffer"u8);
     }
 
     private bool HasBuffer(ReadOnlySpan<ushort> buffer, ReadOnlySpan<byte> name)
@@ -354,7 +343,7 @@ public sealed class GameSession : IDisposable
         if (buffer.Length != 0)
             return true;
 
-        Error.Error(GraphicsTag, LogError.Create, 0, name);
+        Error.Error("GRAPH"u8, LogError.Create, 0, name);
         return false;
     }
 

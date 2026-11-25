@@ -230,7 +230,7 @@ public class Creature : Unit
 
     private void TactCreatureAttack()
     {
-        var result = AttackTact(Math.Max(Map.FrameTime, Vid.GetVisualFrameDuration(Animation)));
+        var result = AttackTact((int)Math.Max((uint)Map.FrameTime, (uint)Vid.GetVisualFrameDuration(Animation)));
         AttackResult = result;
 
         if (result == AttackResult.Approach && Speed.IsExactlyZero() && (ArmedLink is { HasGoal: true } || HasGoal))

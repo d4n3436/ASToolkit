@@ -30,9 +30,7 @@ internal sealed class PlaySession
 
     public PlayLog Log { get; }
 
-    public bool IsPlaying => Map.ReadScriptNumber(GameStateVariable) != GameLost;
-
-    private static ReadOnlySpan<byte> GameStateVariable => "GameState"u8;
+    public bool IsPlaying => Map.ReadScriptNumber("GameState"u8) != GameLost;
 
     public void Play() => PlayUntil(int.MaxValue);
 

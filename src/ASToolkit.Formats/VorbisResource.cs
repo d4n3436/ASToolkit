@@ -27,8 +27,6 @@ public readonly struct VorbisResource
 
     private static ReadOnlySpan<byte> CapturePattern => "OggS"u8;
 
-    private static ReadOnlySpan<byte> IdentificationHeader => "\u0001vorbis"u8;
-
     /// <summary>
     /// Gets the number of channels, 0 when the file doesn't start with an identification header.
     /// </summary>
@@ -82,6 +80,6 @@ public readonly struct VorbisResource
 
         var header = span.Slice(body, IdentificationSize);
 
-        return header.StartsWith(IdentificationHeader) ? header : [];
+        return header.StartsWith("\u0001vorbis"u8) ? header : [];
     }
 }

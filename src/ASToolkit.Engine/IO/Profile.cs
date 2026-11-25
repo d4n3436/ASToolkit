@@ -11,10 +11,6 @@ internal static class Profile
 
     private static ReadOnlySpan<byte> SpaceTab => " \t"u8;
 
-    private static ReadOnlySpan<byte> CrLf => "\r\n"u8;
-
-    private static ReadOnlySpan<byte> Quotes => "\"'"u8;
-
     public static ReadOnlyMemory<byte> GetString(IGameFileSystem fileSystem, string path, ReadOnlySpan<byte> section, ReadOnlySpan<byte> key) =>
         TryGetString(fileSystem, path, section, key, out var value) ? value : default;
 
@@ -33,7 +29,7 @@ internal static class Profile
         int start = 0;
         while (start < data.Length)
         {
-            int length = data.Span[start..].IndexOfAny(CrLf);
+            int length = data.Span[start..].IndexOfAny("\r\n"u8);
             if (length < 0)
             {
                 length = data.Length - start;
@@ -59,7 +55,7 @@ internal static class Profile
             value = line[(separator + 1)..];
             value = value[^value.Span.TrimStart(SpaceTab).Length..];
             value = value[..value.Span.TrimEnd(SpaceTab).Length];
-            if (value.Length >= 2 && Quotes.Contains(value.Span[0]) && value.Span[^1] == value.Span[0])
+            if (value.Length >= 2 && "\"'"u8.Contains(value.Span[0]) && value.Span[^1] == value.Span[0])
             {
                 value = value[1..^1];
             }

@@ -21,8 +21,6 @@ public readonly struct CursorImage
     private const int PaletteEntryBytes = 4;
     private const int MaxPaletteBits = 8;
 
-    private static ReadOnlySpan<byte> RiffMagic => "RIFF"u8;
-
     private readonly ReadOnlyMemory<byte> _palette;
     private readonly ReadOnlyMemory<byte> _colors;
     private readonly ReadOnlyMemory<byte> _mask;
@@ -37,7 +35,7 @@ public readonly struct CursorImage
     /// <param name="data">The data of the cursor file.</param>
     public CursorImage(ReadOnlyMemory<byte> data)
     {
-        int icon = data.Span.StartsWith(RiffMagic) ? FindIcon(data.Span) : IsPlainCursor(data.Span) ? 0 : -1;
+        int icon = data.Span.StartsWith("RIFF"u8) ? FindIcon(data.Span) : IsPlainCursor(data.Span) ? 0 : -1;
 
         if (icon < 0 || icon + IconDirectory + Unsafe.SizeOf<CursorEntry>() > data.Length)
             return;

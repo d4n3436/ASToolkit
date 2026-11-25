@@ -1,4 +1,5 @@
 using System.Drawing;
+using System.Globalization;
 using System.Numerics;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -55,6 +56,7 @@ public partial class Map : IDisposable
     private protected readonly Player[] _players = new Player[ASToolkit.Engine.Vid.ArmyCount];
     private readonly Group _groupHead = new(null, null);
     private int _weaponCount;
+    private AlienShooterWeaponRecord[]? _weapons;
     private int _vidCount;
     private readonly Vid?[] _vids = new Vid?[VidTableSize];
 
@@ -121,7 +123,7 @@ public partial class Map : IDisposable
         Collector = new SpriteCollector(this);
         LoadVid(ref objectsFile);
 
-        EmptyVid.SetWeapon(FirstWeapon);
+        EmptyVid.SetWeapons(_weapons!);
         Collector = new SpriteCollector(Size, Vids, this);
         CursorSprite = new Mouse(EmptyVid, new Vector3(Session.ScreenSize.ToVector2() * HalfShare, 0), default, null, this);
         _controls = ControlSettings.Read(fileSystem);
@@ -164,7 +166,6 @@ public partial class Map : IDisposable
     /// </summary>
     public bool IsPlayerControlled => _flags.HasFlag(MapFlags.PlayerControlled);
 
-
     /// <summary>
     /// Gets the sprite of the mouse cursor.
     /// </summary>
@@ -190,7 +191,7 @@ public partial class Map : IDisposable
     /// <summary>
     /// Gets a value indicating whether the level script has locked the doors.
     /// </summary>
-    public bool AreDoorsLocked => ReadScriptNumber(DoorsOpenVariable) == 0;
+    public bool AreDoorsLocked => ReadScriptNumber("DoorsIsOpen"u8) == 0;
 
     /// <summary>
     /// Gets a value indicating whether any electric fence still stands.
@@ -266,37 +267,7 @@ public partial class Map : IDisposable
 
     internal int FramesPerSecond => _clock.FramesPerSecond;
 
-    private static ReadOnlySpan<byte> DoorsOpenVariable => "DoorsIsOpen"u8;
-
-    private static ReadOnlySpan<byte> SpriteExistsText => "Sprite exist after delete"u8;
-
-    private static ReadOnlySpan<byte> MenuSpriteExistsText => "Menu sprite exist after delete"u8;
-
-    private static ReadOnlySpan<byte> IncorrectGroupsText => "Incorrect delete groups in DeleteAll()"u8;
-
-    private static ReadOnlySpan<byte> MapKind => "MAP "u8;
-
-    private static ReadOnlySpan<byte> DefaultObjectsFile => "objects.res"u8;
-
-    private static ReadOnlySpan<byte> ResourceKey => "Resource"u8;
-
-    private static ReadOnlySpan<byte> ObjectsKind => "DATA"u8;
-
-    private static ReadOnlySpan<byte> DemoKind => "DEMO"u8;
-
-    private static ReadOnlySpan<byte> GraphicsTag => "GRPH"u8;
-
-    private static ReadOnlySpan<byte> GridTag => "GRID"u8;
-
     private static ReadOnlySpan<byte> SpriteDataTag => "SPRD"u8;
-
-    private static ReadOnlySpan<byte> PlayersTag => "PLAY"u8;
-
-    private static ReadOnlySpan<byte> GroupsTag => "GROU"u8;
-
-    private static ReadOnlySpan<byte> GridText => "grid"u8;
-
-    private static ReadOnlySpan<byte> ExtensionMark => "."u8;
 
     /// <summary>
     /// Sets a map file, or a demo file, to load at the start of the next step, before that step's frame runs.
@@ -337,7 +308,7 @@ public partial class Map : IDisposable
         if (!Session.IsRecordingNextMap)
         {
             var demo = new Resource();
-            if (demo.Open(FileSystem, Session.Error, name, DemoKind) == 0)
+            if (demo.Open(FileSystem, Session.Error, name, "DEMO"u8) == 0)
             {
                 FileSystem.TryRead(Encoding.ASCII.GetString(name), out var data);
                 name = demo.ReadText();
@@ -347,7 +318,7 @@ public partial class Map : IDisposable
         }
 
         var reader = new Resource();
-        if (reader.Open(FileSystem, Session.Error, name, MapKind) != 0)
+        if (reader.Open(FileSystem, Session.Error, name, "MAP "u8) != 0)
         {
             Session.Error.Alert($"!!!ERROR!!!LOAD: Invalid map file {MyError.Decode(name)}");
             return;
@@ -359,7 +330,7 @@ public partial class Map : IDisposable
         _rng.Seed(seed);
         ShowLoadingStep("Load extra vid"u8);
         LoadVid(ref reader);
-        if (reader.GoBegin(GraphicsTag) != Resource.Found)
+        if (reader.GoBegin("GRPH"u8) != Resource.Found)
         {
             if (!LoadOldTypeMap(ref reader))
                 return;
@@ -369,7 +340,7 @@ public partial class Map : IDisposable
 
         _flags &= ~MapFlags.Loading;
         Relation.Release();
-        // TODO: Port the "Vid    release %i %i" log line (0x40d3f0) that writes the texture bytes the renderer holds and the bytes of the loaded VID data
+        Session.Error.Write(string.Create(CultureInfo.InvariantCulture, $"Vid    release {Texture.MemoryInUse} {ASToolkit.Engine.Vid.MemoryInUse}"));
         LoadScript(name);
         if (IsPlayingDemo)
         {
@@ -605,7 +576,7 @@ public partial class Map : IDisposable
         error.Write("Menu   release"u8);
         if (Menu.Count != 0)
         {
-            error.Error($"SPRITE {(int)Menu[0].Vid.Id}", LogError.Text, 0, MenuSpriteExistsText);
+            error.Error($"SPRITE {(int)Menu[0].Vid.Id}", LogError.Text, 0, "Menu sprite exist after delete"u8);
             Menu.DeleteAll();
         }
 
@@ -751,7 +722,7 @@ public partial class Map : IDisposable
 
         LoadSpriteData(ref reader, version);
         ShowLoadingStep("Load players info"u8);
-        if (!FindSection(ref reader, PlayersTag))
+        if (!FindSection(ref reader, "PLAY"u8))
             return false;
 
         foreach (var player in _players)
@@ -760,7 +731,7 @@ public partial class Map : IDisposable
         }
 
         ShowLoadingStep("Load groups info"u8);
-        if (!FindSection(ref reader, GroupsTag))
+        if (!FindSection(ref reader, "GROU"u8))
             return false;
 
         LoadGroups(ref reader);
@@ -807,13 +778,13 @@ public partial class Map : IDisposable
 
     private void LoadGridZ(ref Resource reader, int expectedSize)
     {
-        if (reader.GoNext(GridTag) == Resource.Found)
+        if (reader.GoNext("GRID"u8) == Resource.Found)
         {
             int count = reader.Load(Session.Error, out byte[] grid);
             _sceneryHeights = MemoryMarshal.Cast<byte, short>(grid).ToArray();
             if (count != expectedSize)
             {
-                Session.Error.Error(MapLogTag, LogError.Invalid, count, GridText);
+                Session.Error.Error(MapLogTag, LogError.Invalid, count, "grid"u8);
                 ResetGroundZ();
             }
         }
@@ -867,7 +838,7 @@ public partial class Map : IDisposable
     private void LoadScript(ReadOnlySpan<byte> name)
     {
         ShowLoadingStep("Load script file"u8);
-        string stem = GameTextEncoding.Cyrillic.GetString(GetBeforeLast(name, ExtensionMark));
+        string stem = GameTextEncoding.Cyrillic.GetString(GetBeforeLast(name, "."u8));
         string scriptPath = stem + ScriptExtension;
         if (!FileSystem.TryRead(scriptPath, out _))
         {
@@ -918,9 +889,9 @@ public partial class Map : IDisposable
 
     internal static int OpenObjects(IGameFileSystem fileSystem, MyError? error, ref Resource resource)
     {
-        var name = Profile.TryGetString(fileSystem, GameSession.ConfigFile, GameSession.GameSection, ResourceKey, out var configured) ? configured.Span : DefaultObjectsFile;
+        var name = Profile.TryGetString(fileSystem, GameSession.ConfigFile, GameSession.GameSection, "Resource"u8, out var configured) ? configured.Span : "objects.res"u8;
 
-        return resource.Open(fileSystem, error, name, ObjectsKind);
+        return resource.Open(fileSystem, error, name, "DATA"u8);
     }
 
     private void LogMissingSection(ReadOnlySpan<byte> tag) => Session.Error.Error(MapLogTag, LogError.Section, 0, tag);
@@ -946,6 +917,7 @@ public partial class Map : IDisposable
         {
             if (_vids[i] is not null && _vids[i]!.FileType.HasFlag(VidType.FrameVector))
             {
+                _vids[i]!.Destruct(Session.Error);
                 _vids[i] = null;
             }
         }
@@ -1180,13 +1152,13 @@ public partial class Map : IDisposable
 
             if (top >= 0)
             {
-                Session.Error.Error($"SPRITE {(int)list[top]!.Vid.Id}", LogError.Text, top, SpriteExistsText);
+                Session.Error.Error($"SPRITE {(int)list[top]!.Vid.Id}", LogError.Text, top, "Sprite exist after delete"u8);
             }
         }
 
         if (_groupHead.Next != _groupHead)
         {
-            Session.Error.Error(MapLogTag, LogError.Text, 0, IncorrectGroupsText);
+            Session.Error.Error(MapLogTag, LogError.Text, 0, "Incorrect delete groups in DeleteAll()"u8);
         }
     }
 
@@ -1232,5 +1204,4 @@ public partial class Map : IDisposable
             }
         }
     }
-
 }

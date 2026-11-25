@@ -1,4 +1,3 @@
-using System.Buffers;
 using System.Drawing;
 using System.Numerics;
 using System.Runtime.CompilerServices;
@@ -223,32 +222,10 @@ public readonly struct VidResource
 
         if (!Type.HasFlag(VidType.RangeCoded))
         {
-            return ReadSurfaces([], []);
+            return ReadSurfaces(null, null);
         }
 
-        var colors = ArrayPool<FrequencyModel>.Shared.Rent(RangeDecoder.ModelCount);
-        var depths = ArrayPool<FrequencyModel>.Shared.Rent(RangeDecoder.ModelCount);
-        try
-        {
-            var colorModels = colors.AsSpan(0, RangeDecoder.ModelCount);
-            var depthModels = depths.AsSpan(0, RangeDecoder.ModelCount);
-            foreach (ref var model in colorModels)
-            {
-                model.Reset();
-            }
-
-            foreach (ref var model in depthModels)
-            {
-                model.Reset();
-            }
-
-            return ReadSurfaces(colorModels, depthModels);
-        }
-        finally
-        {
-            ArrayPool<FrequencyModel>.Shared.Return(colors);
-            ArrayPool<FrequencyModel>.Shared.Return(depths);
-        }
+        return ReadSurfaces(new RangeCoder(Type.HasFlag(VidType.SurfaceVariant) ? 1 : 2), new RangeCoder(2));
     }
 
     /// <summary>
@@ -323,14 +300,13 @@ public readonly struct VidResource
         return default;
     }
 
-    private VidTexture[] ReadSurfaces(Span<FrequencyModel> colorModels, Span<FrequencyModel> depthModels)
+    private VidTexture[] ReadSurfaces(RangeCoder? colorCoder, RangeCoder? depthCoder)
     {
         var data = _surfaces.Span;
         var surfaces = new VidTexture[MemoryMarshal.Read<short>(data)];
         int position = sizeof(short);
         bool hasPalette = Type.HasFlag(VidType.Palette);
         bool hasDepth = Type.HasFlag(VidType.ZBuffer);
-        int planes = Type.HasFlag(VidType.SurfaceVariant) ? 1 : 2;
         for (int index = 0; index < surfaces.Length; index++)
         {
             if (position + Unsafe.SizeOf<VidSurfaceSize>() > data.Length)
@@ -354,7 +330,7 @@ public readonly struct VidResource
                 }
             }
 
-            if (!TryReadSurface(ref position, colorModels, planes, out var color, out int colorSize, out int colorDecoded) || hasPalette && color.Length < area.Width * area.Height)
+            if (!TryReadSurface(ref position, colorCoder, out var color, out int colorSize, out int colorDecoded) || hasPalette && color.Length < area.Width * area.Height)
             {
                 failure = VidSurfaceFailure.Decode;
             }
@@ -365,7 +341,7 @@ public readonly struct VidResource
 
             index++;
             failure = VidSurfaceFailure.None;
-            if (!TryReadSurface(ref position, depthModels, 2, out var depth, out int depthSize, out int depthDecoded))
+            if (!TryReadSurface(ref position, depthCoder, out var depth, out int depthSize, out int depthDecoded))
             {
                 failure = VidSurfaceFailure.DepthDecode;
             }
@@ -380,7 +356,7 @@ public readonly struct VidResource
         return surfaces;
     }
 
-    private bool TryReadSurface(ref int position, Span<FrequencyModel> models, int planes, out ReadOnlyMemory<byte> data, out int size, out int decoded)
+    private bool TryReadSurface(ref int position, RangeCoder? coder, out ReadOnlyMemory<byte> data, out int size, out int decoded)
     {
         data = default;
         size = 0;
@@ -393,7 +369,7 @@ public readonly struct VidResource
         if (size <= 0)
             return false;
 
-        if (models.IsEmpty)
+        if (coder is null)
         {
             decoded = Math.Min(size, _surfaces.Length - position);
             data = _surfaces.Slice(position, decoded);
@@ -402,10 +378,10 @@ public readonly struct VidResource
         }
 
         byte[] pixels = new byte[size];
-        bool isDecoded = RangeDecoder.TryDecode(_surfaces.Span[position..], pixels, models, planes, out int used, out decoded);
+        decoded = coder.Decode(_surfaces.Span[position..], pixels, out int used);
         position += used;
         data = pixels;
-        return isDecoded;
+        return decoded == size;
     }
 
     private int GetTextureFrameSize() => Type.HasFlag(VidType.CurrentVersion) ? Unsafe.SizeOf<VidTextureFrame>() : Unsafe.SizeOf<OldVidTextureFrame>();

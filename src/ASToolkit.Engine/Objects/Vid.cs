@@ -56,6 +56,8 @@ public class Vid
     private const int CoefficientScale = 16;
     private const int HpScale = 256;
 
+    private static readonly Vector3 DefaultSize = new(24, 16, 20);
+
     private readonly int[] _frameCounts = new int[StateCount];
     private readonly int[] _sounds = new int[StateCount];
     private readonly int[] _durations = new int[StateCount];
@@ -73,7 +75,7 @@ public class Vid
     private readonly int[] _recolored = new int[ArmyCount];
     private readonly int[] _armyMaxHp = new int[ArmyCount];
     private readonly Gamma[] _gammas = new Gamma[ArmyCount];
-    private WeaponRecord _weapon;
+    private AlienShooterWeaponRecord[] _weapons;
     private ReadOnlyMemory<int> _heightFrameStarts;
     private VidFlags _flags;
 
@@ -82,13 +84,13 @@ public class Vid
     /// </summary>
     /// <param name="id">The object ID.</param>
     /// <param name="gameObject">The object record.</param>
-    /// <param name="weapon">The weapon record.</param>
+    /// <param name="weapons">The weapon table.</param>
     /// <param name="spriteSpeed">The frame duration of the sprite file.</param>
     /// <param name="totalFrames">The frame count of the sprite file.</param>
     /// <param name="layer">The update list of sprites of the object ID.</param>
     /// <exception cref="InvalidDataException">The record doesn't have any directions.</exception>
-    public Vid(KnownObject id, in GameObject gameObject, in WeaponRecord weapon, int spriteSpeed, int totalFrames = 0, ObjectLayer layer = ObjectLayer.Ground)
-        : this(id, gameObject, weapon, spriteSpeed, totalFrames, layer, null)
+    public Vid(KnownObject id, in GameObject gameObject, AlienShooterWeaponRecord[] weapons, int spriteSpeed, int totalFrames = 0, ObjectLayer layer = ObjectLayer.Ground)
+        : this(id, gameObject, weapons, spriteSpeed, totalFrames, layer, null)
     {
         LoadParameters(gameObject, null, null, false);
     }
@@ -98,11 +100,11 @@ public class Vid
     /// </summary>
     /// <param name="id">The object ID.</param>
     /// <param name="gameObject">The object record.</param>
-    /// <param name="weapon">The weapon record.</param>
+    /// <param name="weapons">The weapon table.</param>
     /// <param name="file">The sprite file.</param>
     /// <param name="totalFrames">The frame count of the sprite file.</param>
-    protected Vid(KnownObject id, in GameObject gameObject, in WeaponRecord weapon, in VidResource file, int totalFrames)
-        : this(id, gameObject, weapon, file.Speed, totalFrames, ObjectLayer.Ground, file)
+    protected Vid(KnownObject id, in GameObject gameObject, AlienShooterWeaponRecord[] weapons, in VidResource file, int totalFrames)
+        : this(id, gameObject, weapons, file.Speed, totalFrames, ObjectLayer.Ground, file)
     {
     }
 
@@ -111,23 +113,23 @@ public class Vid
     /// </summary>
     /// <param name="id">The object ID.</param>
     /// <param name="gameObject">The object record.</param>
-    /// <param name="weapon">The weapon record.</param>
+    /// <param name="weapons">The weapon table.</param>
     /// <param name="spriteSpeed">The frame duration of the sprite file.</param>
     /// <param name="totalFrames">The frame count of the sprite file.</param>
     /// <param name="layer">The update list of sprites of the object ID.</param>
     /// <param name="file">The sprite file, or <see langword="null"/> without one.</param>
-    protected Vid(KnownObject id, in GameObject gameObject, in WeaponRecord weapon, int spriteSpeed, int totalFrames, ObjectLayer layer, VidResource? file)
+    protected Vid(KnownObject id, in GameObject gameObject, AlienShooterWeaponRecord[] weapons, int spriteSpeed, int totalFrames, ObjectLayer layer, VidResource? file)
     {
         Id = id;
         RecordId = id;
         Identity = this;
-        _weapon = weapon;
+        NextMirror = this;
+        _weapons = weapons;
         TotalFrames = totalFrames;
         CopyRecord(gameObject);
 
         SpriteSpeed = spriteSpeed;
         Layer = layer;
-        ApplyWeapon(weapon);
         if (file is not null)
         {
             FileType = file.Value.Type;
@@ -137,6 +139,20 @@ public class Vid
 
         ResetLevelState();
     }
+
+    private protected Vid(Vid source)
+        : this(KnownObject.None, new GameObject(SpriteClass.Primitive, DefaultSize), source._weapons, Map.DefaultSpriteSpeed, source.TotalFrames, ObjectLayer.Menu, null)
+    {
+        NextMirror = source.NextMirror;
+        source.NextMirror = this;
+        Layer = source.Layer;
+        FileType = source.FileType;
+        FileFrameCount = source.FileFrameCount;
+        SpriteSpeed = source.SpriteSpeed;
+        FrameSize = source.FrameSize;
+    }
+
+    internal static int MemoryInUse { get; set; }
 
     /// <summary>
     /// Gets or sets the object ID that sprites of this object ID report.
@@ -396,7 +412,12 @@ public class Vid
     /// <summary>
     /// Gets the weapon record of this object ID.
     /// </summary>
-    public ref readonly WeaponRecord Weapon => ref _weapon;
+    public ref AlienShooterWeaponRecord Weapon => ref _weapons[WeaponIndex < _weapons.Length ? WeaponIndex : 0];
+
+    /// <summary>
+    /// Gets or sets the next object ID in the ring of object IDs that share this one's frames.
+    /// </summary>
+    public Vid NextMirror { get; set; }
 
     /// <summary>
     /// Gets or sets the shared data that sprites of this object ID are created with.
@@ -496,7 +517,7 @@ public class Vid
     /// <summary>
     /// Gets the ID of the record this data was loaded from.
     /// </summary>
-    public KnownObject RecordId { get; }
+    public KnownObject RecordId { get; internal set; }
 
     /// <summary>
     /// Gets the speed in pixels per second.
@@ -504,49 +525,24 @@ public class Vid
     public int ScriptSpeed => Speed.IsExactly(Unlimited) ? Unlimited : (int)(Speed * 1000);
 
     /// <summary>
-    /// Gets the weapon flags of sprites of this object ID.
-    /// </summary>
-    public WeaponFlags WeaponFlags { get; private set; }
-
-    /// <summary>
-    /// Gets the behavior bits of sprites of this object ID.
-    /// </summary>
-    public WeaponBehavior Behavior { get; private set; }
-
-    /// <summary>
-    /// Gets the army of sprites of this object ID.
-    /// </summary>
-    public Army Army { get; private set; }
-
-    /// <summary>
-    /// Gets the rank of sprites of this object ID.
-    /// </summary>
-    public int Rank { get; private set; }
-
-    /// <summary>
-    /// Gets the sprite types sprites of this object ID attack.
-    /// </summary>
-    public OldSpriteType Targets { get; private set; }
-
-    /// <summary>
     /// Gets a value indicating whether other sprites push sprites of this object ID aside.
     /// </summary>
-    public bool CanBePushed => WeaponFlags.HasFlag(WeaponFlags.Pushable);
+    public bool CanBePushed => Weapon.Flags.HasFlag(WeaponFlags.Pushable);
 
     /// <summary>
     /// Gets a value indicating whether sprites of this object ID attack before they face their target.
     /// </summary>
-    public bool CanAttackWhileTurning => WeaponFlags.HasFlag(WeaponFlags.AttacksWhileTurning);
+    public bool CanAttackWhileTurning => Weapon.Flags.HasFlag(WeaponFlags.AttacksWhileTurning);
 
     /// <summary>
     /// Gets a value indicating whether sprites of this object ID attack only targets ahead of them.
     /// </summary>
-    public bool HasForwardTargets => WeaponFlags.HasFlag(WeaponFlags.ForwardTargets);
+    public bool HasForwardTargets => Weapon.Flags.HasFlag(WeaponFlags.ForwardTargets);
 
     /// <summary>
     /// Gets a value indicating whether sprites of this object ID alternate the two children of a mirrored pair.
     /// </summary>
-    public bool HasDoubleAttack => WeaponFlags.HasFlag(WeaponFlags.DoubleAttack);
+    public bool HasDoubleAttack => Weapon.Flags.HasFlag(WeaponFlags.DoubleAttack);
 
     /// <summary>
     /// Gets the state a sprite of this object ID starts in.
@@ -567,44 +563,9 @@ public class Vid
     public bool ShouldSkipOwnArmy => Properties.HasFlag(ObjectProperties.NoFriendlyDamage);
 
     /// <summary>
-    /// Gets or sets the range at which sprites of this object ID see enemies.
-    /// </summary>
-    public float DetectRange { get; set; }
-
-    /// <summary>
-    /// Gets the range at which sprites of this object ID attack.
-    /// </summary>
-    public float BattleRange { get; private set; }
-
-    /// <summary>
-    /// Gets the range under which sprites of this object ID don't attack.
-    /// </summary>
-    public float MinRange { get; private set; }
-
-    /// <summary>
-    /// Gets or sets the aim scatter of sprites of this object ID.
-    /// </summary>
-    public float Aim { get; set; }
-
-    /// <summary>
-    /// Gets or sets the ammunition sprites of this object ID hold when full.
-    /// </summary>
-    public int AmmoCapacity { get; set; }
-
-    /// <summary>
-    /// Gets or sets the time a building takes to build a sprite of this object ID.
-    /// </summary>
-    public int BuildTime { get; set; }
-
-    /// <summary>
-    /// Gets the time between attacks of sprites of this object ID.
-    /// </summary>
-    public int ReloadTime { get; private set; }
-
-    /// <summary>
     /// Gets the time an attack of sprites of this object ID takes.
     /// </summary>
-    public int AttackTime { get; private set; }
+    public int AttackTime => Math.Max(Weapon.ReloadTime, GetAnimationTime(SpriteAnimation.Fight));
 
     /// <summary>
     /// Gets the object sprites of this object ID launch when they attack.
@@ -624,7 +585,7 @@ public class Vid
     /// <summary>
     /// Gets a value indicating whether sprites of this object ID attack.
     /// </summary>
-    public bool IsArmed => BattleRange > 0;
+    public bool IsArmed => Weapon.BattleRange > 0;
 
     internal int Directions { get; private set; }
 
@@ -929,10 +890,49 @@ public class Vid
         }
     }
 
+    [EngineRoutine(0x00413860)]
+    internal virtual Vid CreateMirror()
+    {
+        var mirror = CreateDefault();
+        mirror._weapons = _weapons;
+
+        return mirror;
+    }
+
+    internal static Vid CreateDefault() => CreateEmpty(KnownObject.None, new GameObject(SpriteClass.Primitive, DefaultSize), Map.DefaultSpriteSpeed, ObjectLayer.Menu);
+
+    [EngineRoutine(0x004138b0)]
+    internal virtual void Destruct(MyError? error)
+    {
+        int count = _counts[3] + _counts[2] + _counts[1] + _counts[0];
+        if (count != 0)
+        {
+            Report(error, LogError.Text, count, "Not all sprites with this VID deleted"u8);
+        }
+
+        var next = NextMirror;
+        if (next == this)
+            return;
+
+        var previous = next;
+        for (var mirror = next.NextMirror; mirror != this; mirror = mirror.NextMirror)
+        {
+            previous = mirror;
+        }
+
+        previous.NextMirror = next;
+    }
+
+    private protected void CopyHeights(Vid source)
+    {
+        HeightPoints.AddRange(source.HeightPoints);
+        _heightFrameStarts = source._heightFrameStarts;
+    }
+
     [EngineRoutine(0x00413710)]
     internal static Vid CreateEmpty(KnownObject id, in GameObject gameObject, int spriteSpeed, ObjectLayer layer)
     {
-        var vid = new Vid(id, gameObject, default, spriteSpeed, 0, layer, null);
+        var vid = new Vid(id, gameObject, [default], spriteSpeed, 0, layer, null);
         vid.Half = new Vector2(gameObject.Size.X * 0.5f, gameObject.Size.Y * 0.5f);
         vid.Scale = Vector3.One;
         Array.Fill(vid._durations, spriteSpeed);
@@ -940,13 +940,7 @@ public class Vid
         return vid;
     }
 
-    internal void SetWeapon(in WeaponRecord weapon) => _weapon = weapon;
-
-    internal void ReplaceWeapon(in WeaponRecord weapon)
-    {
-        _weapon = weapon;
-        ApplyWeapon(weapon);
-    }
+    internal void SetWeapons(AlienShooterWeaponRecord[] weapons) => _weapons = weapons;
 
     internal int GetDirectionIndex(Angle direction) => direction.GetDirectionIndex(Directions, DirectionOffset);
 
@@ -1060,18 +1054,6 @@ public class Vid
 
     private static float ScaleRate(float rate, float scale) => rate.IsExactly(Unlimited) ? rate : rate * scale;
 
-    private void ApplyWeapon(in WeaponRecord weapon)
-    {
-        WeaponFlags = weapon.Flags;
-        Behavior = weapon.Behavior;
-        Army = weapon.Army;
-        Rank = weapon.Rank;
-        Targets = weapon.Targets.ToOldSpriteType();
-        BattleRange = weapon.BattleRange;
-        MinRange = weapon.MinRange;
-        ReloadTime = weapon.ReloadTime;
-    }
-
     private void CopyRecord(in GameObject record)
     {
         SpriteType = record.SpriteType.ToOldSpriteType();
@@ -1123,11 +1105,6 @@ public class Vid
         ZSpeed = ScaleRate(ZSpeed, PerMillisecond);
         Acceleration = ScaleRate(Acceleration, PerMillisecondSquared);
         Deceleration = ScaleRate(Deceleration, PerMillisecondSquared);
-        DetectRange = _weapon.DetectRange;
-        Aim = _weapon.Aim;
-        AmmoCapacity = _weapon.Ammo;
-        BuildTime = _weapon.BuildTime;
-        AttackTime = Math.Max(_weapon.ReloadTime, GetAnimationTime(SpriteAnimation.Fight));
         NotCreatedAsChild = 0;
         CanMove = !Speed.IsExactlyZero() || !ZSpeed.IsExactlyZero() || Properties.HasFlag(ObjectProperties.Gravity) || Properties.HasFlag(ObjectProperties.Gravity2) || Properties.HasFlag(ObjectProperties.Wind);
     }

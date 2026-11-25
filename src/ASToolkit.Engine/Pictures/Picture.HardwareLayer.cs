@@ -121,8 +121,8 @@ public partial class Picture
                 if (!HasOpaque(area))
                     continue;
 
-                uint depth = GetRegionDepth(area);
-                Append(buffer, ref length, new VidLayerVertex((short)x, (short)y, (short)depth, (short)(x - bounds.Left), (short)(y - bounds.Top)));
+                short depth = GetRegionDepth(area);
+                Append(buffer, ref length, new VidLayerVertex((short)x, (short)y, depth, (short)(x - bounds.Left), (short)(y - bounds.Top)));
                 grid[(y - bounds.Top) * stride - bounds.Left + x] = (short)tileCount;
                 tileCount++;
             }

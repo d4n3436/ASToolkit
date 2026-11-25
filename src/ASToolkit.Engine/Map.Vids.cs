@@ -25,6 +25,8 @@ public partial class Map
     public const int DefaultMaxTextureSize = 32768;
     internal const int DefaultSpriteSpeed = 71;
     private const int WeaponRecordSize = 612;
+    private const int UnlimitedBits = 0x497423f0;
+    private const float KeyScale = 0.001f;
     private const int VidSize = 1156;
     private const int OneBits = 0x3f800000;
     private const int MaxId = 0x7ff;
@@ -35,7 +37,6 @@ public partial class Map
     private const string HardwareGroundName = "Self Created Hardware Prerendered Ground ";
 
     private static readonly ConcurrentDictionary<(string Path, bool IsText), Lazy<ReadOnlyMemory<byte>>> ConvertedPictures = new();
-    private static readonly Vector3 DefaultVidSize = new(24, 16, 20);
     
     private readonly ConcurrentDictionary<(KnownObject Id, int Frame), FrameMask?> _masks = new();
 
@@ -50,27 +51,13 @@ public partial class Map
     public SpritePartReader Parts { get; }
 
     /// <summary>
-    /// Gets the first weapon record of the object table.
-    /// </summary>
-    public WeaponRecord FirstWeapon
-    {
-        get
-        {
-            _objects.TryGetWeapon(default, out var weapon);
-            return weapon;
-        }
-    }
-
-    /// <summary>
     /// Gets the shared data, without frames, of the cursor and goal sprites.
     /// </summary>
-    public Vid EmptyVid { get; } = CreateDefault();
+    public Vid EmptyVid { get; } = ASToolkit.Engine.Vid.CreateDefault();
 
     internal ReadOnlySpan<Vid?> Vids => _vids.AsSpan(0, _vidCount);
 
     private static ReadOnlySpan<byte> ObjectChunkTag => "OBJ "u8;
-
-    private static ReadOnlySpan<byte> ObjectSectionText => "load 'VID'"u8;
 
     /// <summary>
     /// Returns the name of an object ID's record.
@@ -84,9 +71,9 @@ public partial class Map
     {
         var error = Session.Error;
         int start = Environment.TickCount;
-        if (_weaponCount == 0)
+        if (_weapons is null)
         {
-            _weaponCount = _objects.WeaponCount;
+            LoadWeaponRecords(ref resource);
             if (_weaponCount != 0)
             {
                 error.Write($"LoadWeapon::No={_weaponCount,-5}             sizeof(WEAPON)={WeaponRecordSize,-4}");
@@ -95,7 +82,7 @@ public partial class Map
 
         if (resource.GoBegin(ObjectChunkTag) != Resource.Found)
         {
-            error.Error(MapLogTag, LogError.Section, 0, ObjectSectionText);
+            error.Error(MapLogTag, LogError.Section, 0, "load 'VID'"u8);
             return;
         }
 
@@ -115,6 +102,7 @@ public partial class Map
 
             if (_vids[id] is not null)
             {
+                _vids[id]!.Destruct(error);
                 _vids[id] = null;
                 error.Error(MapLogTag, LogError.Load, id, "this VID already loaded"u8);
             }
@@ -261,6 +249,29 @@ public partial class Map
         return _masks.GetOrAdd((vid.Id, frame), mask);
     }
 
+    [EngineRoutine(0x00411880)]
+    private void LoadWeaponRecords(ref Resource resource)
+    {
+        _weapons = resource.Load<AlienShooterWeaponRecord>("WEAP"u8, Session.Error);
+        _weaponCount = _weapons.Length;
+        for (int i = 0; i < _weaponCount; i++)
+        {
+            ref var weapon = ref _weapons[i];
+            for (int key = 0; key < WeaponRecord.KeyframeCount; key++)
+            {
+                if (BitConverter.SingleToInt32Bits(weapon.SpeedKeys[key]) != UnlimitedBits)
+                {
+                    weapon.SpeedKeys[key] *= KeyScale;
+                }
+
+                if (!weapon.UnknownKeys[key].IsExactly(ASToolkit.Engine.Vid.Unlimited))
+                {
+                    weapon.UnknownKeys[key] *= KeyScale;
+                }
+            }
+        }
+    }
+
     [EngineRoutine(0x00411920)]
     internal void ReloadVid(MyError? error, Sound? sound)
     {
@@ -289,6 +300,12 @@ public partial class Map
             return;
         }
 
+        var objectsFile = new Resource();
+        if (OpenObjects(FileSystem, error, ref objectsFile) == 0)
+        {
+            LoadWeaponRecords(ref objectsFile);
+        }
+
         _objects = ObjectTable.Load(_objects.Path);
 
         foreach (var id in _objects.Ids)
@@ -306,8 +323,7 @@ public partial class Map
 
             var target = slot.Identity;
             _objects.TryFind(id, out var gameObject);
-            _objects.TryGetWeapon(gameObject, out var weapon);
-            target.ReplaceWeapon(weapon);
+            target.SetWeapons(_weapons!);
             target.Name = GetVidName(target);
             target.LoadParameters(gameObject, error, sound, ShouldResetBuiltTerrain);
         }
@@ -394,21 +410,19 @@ public partial class Map
 
     private static void LogUnopened(MyError? error, string path) => error?.Write($"LOAD::Can't open file {path}");
 
-    private static Vid CreateDefault() => ASToolkit.Engine.Vid.CreateEmpty(KnownObject.None, new GameObject(SpriteClass.Primitive, DefaultVidSize), DefaultSpriteSpeed, ObjectLayer.Menu);
-
     private static ReadOnlyMemory<byte> ConvertPicture(string gameFolder, string path, bool isText, MyError? error)
     {
         using var picture = isText ? new FontPicture(gameFolder, error) : new Picture(gameFolder, error);
         return picture.Load(path, string.Empty, string.Empty) ? picture.Convert() : default;
     }
 
-    private static bool IsScaleKey(in WeaponRecord weapon, int key) =>
+    private static bool IsScaleKey(in AlienShooterWeaponRecord weapon, int key) =>
         BitConverter.SingleToInt32Bits(weapon.ScaleXKeys[key]) != OneBits || BitConverter.SingleToInt32Bits(weapon.ScaleYKeys[key]) != OneBits || BitConverter.SingleToInt32Bits(weapon.ScaleHeightKeys[key]) != OneBits;
 
-    private static bool IsOffsetKey(in WeaponRecord weapon, int key) =>
+    private static bool IsOffsetKey(in AlienShooterWeaponRecord weapon, int key) =>
         !weapon.OffsetXKeys[key].IsExactlyZero() || !weapon.OffsetYKeys[key].IsExactlyZero() || !weapon.OffsetZKeys[key].IsExactlyZero();
 
-    private static bool GetHasScaleKeyframes(in WeaponRecord weapon)
+    private static bool GetHasScaleKeyframes(in AlienShooterWeaponRecord weapon)
     {
         for (int key = 0; key < WeaponRecord.KeyframeCount; key++)
         {
@@ -419,7 +433,7 @@ public partial class Map
         return false;
     }
 
-    private static bool GetHasOffsetKeyframes(in WeaponRecord weapon)
+    private static bool GetHasOffsetKeyframes(in AlienShooterWeaponRecord weapon)
     {
         for (int key = 0; key < WeaponRecord.KeyframeCount; key++)
         {
@@ -430,7 +444,7 @@ public partial class Map
         return false;
     }
 
-    private static bool GetHasColorKeyframes(in WeaponRecord weapon)
+    private static bool GetHasColorKeyframes(in AlienShooterWeaponRecord weapon)
     {
         for (int key = 0; key < WeaponRecord.KeyframeCount; key++)
         {
@@ -441,7 +455,7 @@ public partial class Map
         return false;
     }
 
-    private static bool GetHasRotationKeyframes(in WeaponRecord weapon)
+    private static bool GetHasRotationKeyframes(in AlienShooterWeaponRecord weapon)
     {
         for (int key = 0; key < WeaponRecord.KeyframeCount; key++)
         {
@@ -467,14 +481,20 @@ public partial class Map
         var gameObject = _objects.ReadObject(resource.Read<byte>(_objects.ObjectSize));
         string path = Encoding.ASCII.GetString(resource.ReadText());
         string gameFolder = _gameFolder;
-        _objects.TryGetWeapon(gameObject, out var weapon);
         var temporary = ASToolkit.Engine.Vid.CreateEmpty(KnownObject.None, gameObject, DefaultSpriteSpeed, ObjectLayer.Menu);
         temporary.LoadParameters(gameObject, error, sound, ShouldResetBuiltTerrain);
-        bool isCopy = FindCopySource(path, temporary) is not null;
-        var parametersError = error;
-        if (isCopy)
+        var source = FindCopySource(path, temporary);
+        if (source is not null)
         {
-            error = null;
+            var mirror = source.CreateMirror();
+            mirror.Id = id;
+            mirror.RecordId = id;
+            mirror.Name = name;
+            mirror.Path = path;
+            mirror.LoadParameters(gameObject, error, sound, ShouldResetBuiltTerrain);
+            mirror.SetLayer();
+
+            return mirror;
         }
 
         var file = Parts.GetFile(path);
@@ -483,8 +503,8 @@ public partial class Map
         {
             if (path.Contains(FontExtension, StringComparison.Ordinal) || path.Contains(TrueTypeExtension, StringComparison.Ordinal))
             {
-                var font = new VidFont(id, gameObject, weapon, DefaultMaxTextureSize);
-                PrepareVid(font, gameObject, name, path, parametersError, sound);
+                var font = new VidFont(id, gameObject, _weapons!, DefaultMaxTextureSize);
+                PrepareVid(font, gameObject, name, path, error, sound);
                 font.Load(default, default, error);
                 font.SetLayer();
                 return font;
@@ -529,36 +549,37 @@ public partial class Map
         ReadOnlyMemory<byte> bytes = default;
         if (type.HasFlag(VidType.HardwareLayer))
         {
-            vid = new VidHardwareLayer(id, gameObject, weapon, sprite, totalFrames);
+            vid = new VidHardwareLayer(id, gameObject, _weapons!, sprite, totalFrames);
         }
         else if (type.HasFlag(VidType.Light))
         {
-            vid = new VidLight(id, gameObject, weapon, sprite, totalFrames);
+            bytes = data.IsEmpty ? GetVidBytes(path) : data;
+            vid = new VidLight(id, gameObject, _weapons!, sprite, totalFrames);
         }
         else if (type.HasFlag(VidType.Hardware) && !(type.HasFlag(VidType.Blended) && type.HasFlag(VidType.ZBuffer)))
         {
-            vid = new VidHardware(id, gameObject, weapon, sprite, totalFrames, format);
+            vid = new VidHardware(id, gameObject, _weapons!, sprite, totalFrames, format);
         }
         else
         {
             bytes = data.IsEmpty ? GetVidBytes(path) : data;
             if (type.HasFlag(VidType.Hardware))
             {
-                vid = new VidDepthFaded(id, gameObject, weapon, sprite, totalFrames, format);
+                vid = new VidDepthFaded(id, gameObject, _weapons!, sprite, totalFrames, format);
             }
             else if (gameObject.SpriteClass == SpriteClass.BuiltTerrain || !isTrueColor)
             {
-                vid = new VidHighColor(id, gameObject, weapon, sprite, totalFrames, format);
+                vid = new VidHighColor(id, gameObject, _weapons!, sprite, totalFrames, format);
             }
             else
             {
-                vid = new VidSoftware(id, gameObject, weapon, sprite, totalFrames, format);
+                vid = new VidSoftware(id, gameObject, _weapons!, sprite, totalFrames, format);
             }
         }
 
-        PrepareVid(vid, gameObject, name, path, parametersError, sound);
+        PrepareVid(vid, gameObject, name, path, error, sound);
         vid.Load(sprite, bytes, error);
-        if (!isCopy && vid is VidHardware hardware)
+        if (vid is VidHardware hardware)
         {
             for (int surface = 0; surface < hardware.SurfaceCount; surface++)
             {

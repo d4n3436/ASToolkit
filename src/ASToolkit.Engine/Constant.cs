@@ -12,7 +12,7 @@ public sealed class Constant
     [EngineRoutine(0x0042df40)]
     internal Constant(ref Resource resource, MyError? error)
     {
-        if (resource.GoBegin(ConstantTag) != Resource.Found)
+        if (resource.GoBegin("CNST"u8) != Resource.Found)
         {
             error?.Write("!!!ERROR!!! CNST Load Constant section not found"u8);
             return;
@@ -67,6 +67,4 @@ public sealed class Constant
     /// Gets a value indicating whether the debug mode is on.
     /// </summary>
     public bool IsDebugMode { get; internal set; }
-
-    private static ReadOnlySpan<byte> ConstantTag => "CNST"u8;
 }

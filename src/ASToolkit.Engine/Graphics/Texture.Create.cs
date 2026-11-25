@@ -9,16 +9,17 @@ public readonly ref partial struct Texture
     private const uint OpaqueKey = 0xff000000;
 
     [EngineRoutine(0x004032e0)]
-    internal static ushort[] Create(ReadOnlySpan<byte> source, Size size, VidPixelFormat format, TextureFlags flags, MyError? error, out Size textureSize, out VidPixelFormat result)
+    internal static TextureData Create(ReadOnlySpan<byte> source, Size size, VidPixelFormat format, ReadOnlySpan<uint> palette, TextureFlags flags, MyError? error)
     {
-        textureSize = size;
-        ushort[] texels = Allocate(ref textureSize, format, flags, error, out var stored, out result);
+        var textureSize = size;
+        ushort[] texels = Allocate(ref textureSize, format, flags, error, out var stored, out var result);
+        uint[] texturePalette = result == VidPixelFormat.P8 ? palette.ToArray() : [];
         int pitch = GetSourcePitch(format, size.Width);
         uint colorKey = stored.HasFlag(TextureFlags.AlphaPalette) ? 0 : OpaqueKey;
-        var texture = new Texture(texels, textureSize, result);
+        var texture = new Texture(texels, textureSize, result, texturePalette);
         var area = new Rectangle(Point.Empty, size);
-        texture.LoadTexels(area, source, format, pitch, size, area, 1, colorKey);
-        return texels;
+        texture.LoadTexels(area, source, format, pitch, size, area, 1, colorKey, palette);
+        return new TextureData(texels, textureSize, result, texturePalette);
     }
 
     private static int GetSourcePitch(VidPixelFormat format, int width) => format switch

@@ -9,7 +9,7 @@ public partial class Picture
     private const uint OpaqueMask = 0xffffff;
     private const uint MaxChannel = 0xff;
     private const uint FourBitMax = 0xf;
-    private const uint NoDepth = 0x400;
+    private const short NoDepth = 0x400;
     private const ushort EmptyDepth = 0x8000;
     private const int PaletteSize = 256;
     private const int PaletteMapSize = 0x100000;
@@ -42,7 +42,7 @@ public partial class Picture
     }
 
     [EngineRoutine(0x00429160)]
-    private uint GetDepth(Point point)
+    private short GetDepth(Point point)
     {
         if (!Colors.Image.Contains(point))
             return NoDepth;
@@ -52,10 +52,10 @@ public partial class Picture
         {
             depth = Depth.Image.GetPixel(point);
             if ((ushort)depth == EmptyDepth)
-                return depth & 0xffff0000;
+                return 0;
         }
 
-        return depth + NoDepth;
+        return (short)(depth + NoDepth);
     }
 
     [EngineRoutine(0x0042c790)]
@@ -114,7 +114,7 @@ public partial class Picture
             }
 
             if (Flags.HasFlag(PictureFlags.Alpha))
-                return FindPaletteIndex(GetColor(point));
+                return (uint)FindPaletteIndex(GetColor(point));
         }
         else if (!Flags.HasFlag(PictureFlags.Palette))
         {
@@ -141,13 +141,13 @@ public partial class Picture
     }
 
     [EngineRoutine(0x00429270)]
-    private uint FindPaletteIndex(uint color)
+    private int FindPaletteIndex(uint color)
     {
         if (_paletteMap.Length == 0)
         {
-            uint index = 0;
+            int index = 0;
             int nearest = 9999999;
-            for (uint entry = 0; entry < PaletteSize; entry++)
+            for (int entry = 0; entry < PaletteSize; entry++)
             {
                 uint other = _palette[entry];
                 int red = (int)(color >> 19 & 0x1f) - (int)(other >> 19 & 0x1f);
@@ -295,13 +295,12 @@ public partial class Picture
     }
 
     [EngineRoutine(0x004291d0)]
-    private uint GetRegionDepth(Rectangle area)
+    private short GetRegionDepth(Rectangle area)
     {
         var corner = new Point(area.Right - 1, area.Bottom - 1);
         if (IsOpaque(corner))
             return GetDepth(corner);
 
-        uint result = 0;
         for (int y = area.Top; y < area.Bottom; y++)
         {
             for (int x = area.Left; x < area.Right; x++)
@@ -309,10 +308,8 @@ public partial class Picture
                 if (IsOpaque(new Point(x, y)))
                     return GetDepth(new Point(x, y));
             }
-
-            result = (uint)area.Bottom;
         }
 
-        return result & 0xffff0000;
+        return 0;
     }
 }

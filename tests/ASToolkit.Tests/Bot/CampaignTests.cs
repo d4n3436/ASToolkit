@@ -104,12 +104,12 @@ public class CampaignTests
         var weapons = Enumerable.Range(Sprite.WeaponIdBase, Sprite.WeaponSlots).Select(id => (KnownObject)id).ToArray();
         var plain = play.Start(level, new PlayerLoadout(0, new Dictionary<KnownObject, int>(), new PlayerImplants(0, 0, 0, 0)), 1);
         plain.PlayUntil(100);
-        int[] aims = weapons.Select(id => (int)plain.Map.FindVid(id)!.Aim).ToArray();
+        int[] aims = weapons.Select(id => (int)plain.Map.FindVid(id)!.Weapon.Aim).ToArray();
         var implanted = play.Start(level, new PlayerLoadout(0, new Dictionary<KnownObject, int>(), new PlayerImplants(0, 0, 0, accuracyImplants)), 1);
         implanted.PlayUntil(100);
 
         Assert.Contains(aims, aim => aim > 0);
-        Assert.Equal(aims.Select(aim => Enumerable.Range(0, accuracyImplants).Aggregate(aim, (scaled, _) => scaled * 6 / 10)), weapons.Select(id => (int)implanted.Map.FindVid(id)!.Aim));
+        Assert.Equal(aims.Select(aim => Enumerable.Range(0, accuracyImplants).Aggregate(aim, (scaled, _) => scaled * 6 / 10)), weapons.Select(id => (int)implanted.Map.FindVid(id)!.Weapon.Aim));
     }
 
     private static RouteAnalysis EmptyLevel(params KnownObject[] pickups)

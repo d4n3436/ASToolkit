@@ -11,10 +11,11 @@ public readonly ref partial struct Texture
     private const uint DitherFilter = 0x80000;
     private const uint RgbMask = 0x00ffffff;
     private const ushort HighColorAlpha = 0x8000;
+    private const int PaletteEntries = 256;
 
     private static uint KeyOpaqueBlack(uint texel, uint colorKey) => texel == colorKey ? 0 : texel;
 
-    private int LoadTexels(Rectangle destination, ReadOnlySpan<byte> data, VidPixelFormat format, int pitch, Size sourceSize, Rectangle source, uint filter, uint colorKey)
+    private int LoadTexels(Rectangle destination, ReadOnlySpan<byte> data, VidPixelFormat format, int pitch, Size sourceSize, Rectangle source, uint filter, uint colorKey, ReadOnlySpan<uint> sourcePalette = default)
     {
         if (source.Left < 0 || sourceSize.Width < source.Right || source.Right < source.Left || source.Top < 0 || sourceSize.Height < source.Bottom || source.Bottom < source.Top)
             return InvalidCall;
@@ -34,6 +35,9 @@ public readonly ref partial struct Texture
             return 0;
         }
 
+        if (format == VidPixelFormat.P8 && sourcePalette.Length < PaletteEntries)
+            throw new NotSupportedException($"Could not convert P8 texels to {Format} without a palette.");
+
         bool dither = filter == DefaultFilter || (filter & DitherFilter) != 0;
         if (dither)
             throw new NotSupportedException($"Converting {format} texels to {Format} with dithering is not supported.");
@@ -48,6 +52,9 @@ public readonly ref partial struct Texture
                 int texel;
                 switch (format, Format)
                 {
+                    case (VidPixelFormat.P8, VidPixelFormat.A8R8G8B8):
+                        _texels32[start + x] = KeyOpaqueBlack(sourcePalette[row[column]], colorKey);
+                        break;
                     case (VidPixelFormat.R8G8B8, VidPixelFormat.A8R8G8B8):
                         _texels32[start + x] = KeyOpaqueBlack(OpaqueKey | (uint)(row[column * 3 + 2] << 16 | row[column * 3 + 1] << 8 | row[column * 3]), colorKey);
                         break;

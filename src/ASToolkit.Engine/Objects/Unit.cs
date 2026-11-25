@@ -30,7 +30,7 @@ public class Unit : Terrain
         : base(vid, position, direction, parent, map)
     {
         TurnTicks = 0;
-        Behavior = (ArmedLink ?? this).Vid.Behavior;
+        Behavior = (ArmedLink ?? this).Vid.Weapon.Behavior;
         FillAmmo();
     }
 
@@ -73,7 +73,7 @@ public class Unit : Terrain
     {
         var link = Vid.LinkVid;
 
-        return link is not null && link.CanFight() ? link.AmmoCapacity : Vid.AmmoCapacity;
+        return link is not null && link.CanFight() ? link.Weapon.Ammo : Vid.Weapon.Ammo;
     }
 
     /// <summary>
@@ -330,7 +330,7 @@ public class Unit : Terrain
     private AttackResult TactUnitAttack(Sprite? link)
     {
         var vid = Vid;
-        var result = AttackTact(Math.Max(Map.FrameTime, vid.GetVisualFrameDuration(Animation)));
+        var result = AttackTact((int)Math.Max((uint)Map.FrameTime, (uint)vid.GetVisualFrameDuration(Animation)));
 
         switch (result)
         {

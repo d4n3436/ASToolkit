@@ -1328,10 +1328,10 @@ public partial class Map : IScriptFunctionHost
                 PushInt(vid.MaxHp);
                 break;
             case VidDataType.BattleRange:
-                PushInt((int)vid.BattleRange);
+                PushInt((int)vid.Weapon.BattleRange);
                 break;
             case VidDataType.Ammo:
-                PushInt(GetAmmoOwner(vid).AmmoCapacity);
+                PushInt(GetAmmoOwner(vid).Weapon.Ammo);
                 break;
             case VidDataType.Count:
                 PushInt(vid.GetTotalCount());
@@ -1358,16 +1358,16 @@ public partial class Map : IScriptFunctionHost
                 PushInt(vid.Lifetime);
                 break;
             case VidDataType.DetectRange:
-                PushInt((int)vid.DetectRange);
+                PushInt((int)vid.Weapon.DetectRange);
                 break;
             case VidDataType.WeaponAim:
-                PushInt((int)vid.Aim);
+                PushInt((int)vid.Weapon.Aim);
                 break;
             case VidDataType.MoveMask:
                 PushInt((int)vid.MoveMask);
                 break;
             case VidDataType.BuildTime:
-                PushInt(vid.BuildTime);
+                PushInt(vid.Weapon.BuildTime);
                 break;
             case VidDataType.NotCreateAsChild:
                 PushInt(vid.NotCreatedAsChild);
@@ -1428,7 +1428,7 @@ public partial class Map : IScriptFunctionHost
                 SetVidGamma(vid, type - (int)VidDataType.Gamma, value);
                 break;
             case VidDataType.Ammo:
-                GetAmmoOwner(vid).AmmoCapacity = value;
+                GetAmmoOwner(vid).Weapon.Ammo = value;
                 break;
             case VidDataType.KilledUnit:
                 vid.Killed.Fill(value);
@@ -1454,10 +1454,10 @@ public partial class Map : IScriptFunctionHost
 
                 break;
             case VidDataType.DetectRange:
-                vid.DetectRange = value;
+                vid.Weapon.DetectRange = value;
                 break;
             case VidDataType.WeaponAim:
-                vid.Aim = value;
+                vid.Weapon.Aim = value;
                 break;
             case VidDataType.ExchangeVid:
                 ExchangeVid(vid, value);
@@ -1466,7 +1466,7 @@ public partial class Map : IScriptFunctionHost
                 vid.MoveMask = (CollisionLayers)value;
                 break;
             case VidDataType.BuildTime:
-                vid.BuildTime = value;
+                vid.Weapon.BuildTime = value;
                 break;
             case VidDataType.NotCreateAsChild:
                 vid.NotCreatedAsChild = value;
@@ -1817,7 +1817,7 @@ public partial class Map : IScriptFunctionHost
             vid.MaxUnits = value;
         }
         // TODO: Port AS1's out-of-range write for armies outside 0..3; AS1 writes def+0x398+army*4 into the fields around ArmyMaxUnits
-        else if ((uint)army < (uint)vid.ArmyMaxUnits.Length)
+        else if (army >= 0 && army < vid.ArmyMaxUnits.Length)
         {
             vid.ArmyMaxUnits[army] = value;
         }

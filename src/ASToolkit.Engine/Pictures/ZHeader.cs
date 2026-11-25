@@ -7,7 +7,7 @@ namespace ASToolkit.Engine;
 internal readonly struct ZHeader
 {
     [FieldOffset(0)]
-    public readonly uint Magic;
+    public readonly int Magic;
 
     [FieldOffset(4)]
     public readonly Size Size;

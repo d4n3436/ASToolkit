@@ -17,7 +17,9 @@ public class KeyframeTests
         var map = EngineTestMap.CreateMap();
         var source = map.FindVid(KnownObject.RedMonster1)!;
         TestGameFolder.Objects.TryFind(source.Id, out var record);
-        var vid = new Vid(source.Id, record, CreateWeapon(source.Weapon), source.SpriteSpeed) { HasTimers = true };
+        var weapons = new AlienShooterWeaponRecord[record.WeaponIndex + 1];
+        weapons[record.WeaponIndex] = CreateWeapon(source.Weapon);
+        var vid = new Vid(source.Id, record, weapons, source.SpriteSpeed) { HasTimers = true };
         map.SetChildAndLink(vid, null);
         var sprite = map.CreateSprite(vid, map.Player.Position + new Vector3(600, 0, 0), default)!;
         int start = map.Time;
@@ -41,16 +43,29 @@ public class KeyframeTests
     [Fact]
     public void GetGamma_BetweenKeys_InterpolatesTheGamma()
     {
-        var gamma = CreateWeapon(default).GetGamma(3.5f).Pack();
+        var gamma = CreateRecord().GetGamma(3.5f).Pack();
 
         Assert.Equal(RedStep * 3 + RedStep / 2, gamma.GetPositive(16));
         Assert.Equal(0, gamma.GetNegative(16));
     }
 
-    private static WeaponRecord CreateWeapon(in WeaponRecord source)
+    private static AlienShooterWeaponRecord CreateWeapon(in AlienShooterWeaponRecord source)
+    {
+        byte[] bytes = new byte[Marshal.SizeOf<AlienShooterWeaponRecord>()];
+        MemoryMarshal.Write(bytes, source);
+        MemoryMarshal.Write(bytes.AsSpan(64), Period);
+        for (int key = 0; key < WeaponRecord.KeyframeCount; key++)
+        {
+            MemoryMarshal.Write(bytes.AsSpan(68 + key * 4), key / (float)(WeaponRecord.KeyframeCount - 1));
+            MemoryMarshal.Write(bytes.AsSpan(100 + key * 4), key * RedStep);
+        }
+
+        return MemoryMarshal.Read<AlienShooterWeaponRecord>(bytes);
+    }
+
+    private static WeaponRecord CreateRecord()
     {
         byte[] bytes = new byte[Marshal.SizeOf<WeaponRecord>()];
-        MemoryMarshal.Write(bytes, source);
         MemoryMarshal.Write(bytes.AsSpan(92), Period);
         for (int key = 0; key < WeaponRecord.KeyframeCount; key++)
         {

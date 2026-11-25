@@ -21,8 +21,6 @@ public partial class Map
         new(AcceleratorFlags.VirtualKey | AcceleratorFlags.NoInvert | AcceleratorFlags.Shift | AcceleratorFlags.Last, VirtualKey.F9, MenuCommand.Screenshot)
     ];
 
-    private static ReadOnlySpan<byte> PaintText => "WM_PAINT"u8;
-
     private bool TranslateAccelerator(in WindowMessage message)
     {
         if (message.Id is not (WindowMessageId.KeyDown or WindowMessageId.SysKeyDown))
@@ -134,7 +132,7 @@ public partial class Map
                 Input.PostQuitMessage();
                 break;
             case WindowMessageId.Paint:
-                Session.Error.Write(PaintText);
+                Session.Error.Write("WM_PAINT"u8);
                 break;
             case WindowMessageId.SysCommand when (SystemCommand)message.WParam is SystemCommand.Size or SystemCommand.Move or SystemCommand.Maximize or SystemCommand.MonitorPower:
                 return Session.Graphics.Flags.HasFlag(GraphicsFlags.FullScreen);

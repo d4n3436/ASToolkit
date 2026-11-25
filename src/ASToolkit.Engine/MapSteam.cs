@@ -27,8 +27,6 @@ public sealed class MapSteam : Map
     private StepFlags _debug;
     private uint _presentationShownAt;
 
-    private static ReadOnlySpan<byte> PresentationText => "Presentation version. Not for sale!"u8;
-
     /// <summary>
     /// Initializes a new instance of the <see cref="MapSteam"/> class with no level loaded.
     /// </summary>
@@ -161,7 +159,7 @@ public sealed class MapSteam : Map
                 var banner = CreateSprite(vid, new Vector3(Session.ScreenSize.Width * HalfShare, PresentationTop, 0), default)!;
                 _presentationShownAt = _clock.WallTime;
                 Action(banner, ActionCode.SetBehave, 1);
-                banner.SetTextItems(PresentationText.ToArray());
+                banner.SetTextItems("Presentation version. Not for sale!"u8.ToArray());
                 Action(banner, ActionCode.Pause, PresentationDuration);
                 banner.ActionStack.InsertFirst(new Act((int)SpriteAnimation.Death, 0, 0, 0));
             }

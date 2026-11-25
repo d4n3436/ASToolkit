@@ -390,7 +390,7 @@ public partial class Sprite
     {
         var armedLink = ArmedLink;
 
-        return (int)(Vid.BattleRange.IsExactlyZero() && armedLink is not null ? armedLink.Vid.BattleRange : Vid.BattleRange);
+        return (int)(Vid.Weapon.BattleRange.IsExactlyZero() && armedLink is not null ? armedLink.Vid.Weapon.BattleRange : Vid.Weapon.BattleRange);
     }
 
     private void NextCommandCase()
@@ -419,7 +419,7 @@ public partial class Sprite
         int y = point.Y;
         float z;
 
-        if (armed.Targets == OldSpriteType.Unit)
+        if (armed.Weapon.Targets == OldSpriteType.Unit)
         {
             z = Map.GetGroundZ(new Vector2(point.X, point.Y + UnitAimLift)) + UnitAimLift;
             y += (int)z;
@@ -650,7 +650,6 @@ public partial class Sprite
     }
 
     private OldSpriteType GetItemType(int item) => Map.FindVid((KnownObject)item)?.SpriteType ?? OldSpriteType.None;
-
 
     [EngineRoutine(0x00445be0)]
     private void ClearOrders()

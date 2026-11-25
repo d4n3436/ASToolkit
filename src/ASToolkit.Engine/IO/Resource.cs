@@ -34,11 +34,9 @@ internal ref struct Resource
 
     public readonly bool IsOpen => _isOpen;
 
+    public readonly int Remaining => Math.Max(_data.Length - _position, 0);
+
     public readonly ReadOnlySpan<byte> Record => _data.Slice(_recordOffset + sizeof(int), _recordLength);
-
-    private static ReadOnlySpan<byte> ResSignature => "RES "u8;
-
-    private static ReadOnlySpan<byte> RiffSignature => "RIFF"u8;
 
     public static Resource FromRecord(ReadOnlySpan<byte> data) => new() { _data = data, _isOpen = true };
 
@@ -172,6 +170,42 @@ internal ref struct Resource
         return count;
     }
 
+    /// <summary>
+    /// Reads every record of the chunks with a tag.
+    /// </summary>
+    /// <typeparam name="T">The type of the record.</typeparam>
+    /// <param name="tag">The chunk tag.</param>
+    /// <param name="error">The log the errors are written to, or <see langword="null"/>.</param>
+    /// <returns>The records.</returns>
+    /// <exception cref="InvalidDataException">The resource isn't open or doesn't have a chunk with the tag.</exception>
+    [EngineRoutine(0x00408150)]
+    public T[] Load<T>(ReadOnlySpan<byte> tag, MyError? error)
+        where T : unmanaged
+    {
+        if (!_isOpen)
+        {
+            Log(error, LogError.Load, 0, "file not opened"u8);
+            throw new InvalidDataException("The resource file isn't open.");
+        }
+
+        int count = CountRecords(tag);
+        if (count == 0)
+        {
+            Log(error, LogError.Section, BinaryPrimitives.ReadInt32LittleEndian(tag), "Load"u8);
+            throw new InvalidDataException($"There is no '{Encoding.ASCII.GetString(tag)}' chunk in the resource file.");
+        }
+
+        GoBegin(tag);
+        var records = new T[count];
+        for (int i = 0; i < count; i++)
+        {
+            ReadInto(ref records[i]);
+            GoNextSub(tag);
+        }
+
+        return records;
+    }
+
     [EngineRoutine(0x00408080)]
     public int Load(MyError? error, out byte[] block)
     {
@@ -208,6 +242,21 @@ internal ref struct Resource
         _position += count;
 
         return destination.Length - count;
+    }
+
+    [EngineRoutine(0x00407c50)]
+    public int ReadPacked(Span<byte> destination, RangeCoder? coder)
+    {
+        if (!_isOpen || destination.IsEmpty)
+            return destination.Length;
+
+        if (coder is null)
+            return Read(destination);
+
+        int decoded = coder.Decode(_data[Math.Min(_position, _data.Length)..], destination, out int used);
+        _position += used;
+
+        return destination.Length - decoded;
     }
 
     public T Read<T>()
@@ -250,7 +299,7 @@ internal ref struct Resource
     public ReadOnlySpan<byte> ReadText() => ReadText(_data, ref _position);
 
     [EngineRoutine(0x00407870)]
-    private int Open(MyError? error, ReadOnlySpan<byte> data, ReadOnlySpan<byte> kind)
+    public int Open(MyError? error, ReadOnlySpan<byte> data, ReadOnlySpan<byte> kind)
     {
         _data = data;
         _isOpen = true;
@@ -264,8 +313,8 @@ internal ref struct Resource
             return 4;
         }
 
-        _isRes = signature.SequenceEqual(ResSignature);
-        if (!_isRes && !signature.SequenceEqual(RiffSignature))
+        _isRes = signature.SequenceEqual("RES "u8);
+        if (!_isRes && !signature.SequenceEqual("RIFF"u8))
         {
             Log(error, LogError.Invalid, 0, "resource signature"u8);
             _isOpen = false;

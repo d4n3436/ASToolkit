@@ -83,7 +83,6 @@ public partial class Sprite
             CreateExtra();
         }
 
-
         if (vid.Properties.HasFlag(ObjectProperties.Noise))
         {
             position.X += SpawnScatter - Map.Random.Next() % (SpawnScatter * 2 + 1);
@@ -105,7 +104,7 @@ public partial class Sprite
         else
         {
             var link = vid.LinkVid;
-            Army = vid.WeaponIndex == 0 && link is not null ? link.Army : vid.Army;
+            Army = vid.WeaponIndex == 0 && link is not null ? link.Weapon.Army : vid.Weapon.Army;
         }
 
         CreatedAt = Map.Time;
@@ -536,12 +535,12 @@ public partial class Sprite
         if (target is null)
             return false;
 
-        if (Vid.FightChild != 0 && Vid.WeaponIndex != 0 && (Vid.Targets & target.Vid.SpriteType) != 0)
+        if (Vid.FightChild != 0 && Vid.WeaponIndex != 0 && (Vid.Weapon.Targets & target.Vid.SpriteType) != 0)
             return true;
 
         var link = ArmedLink;
 
-        return link is not null && (link.Vid.Targets & target.Vid.SpriteType) != 0;
+        return link is not null && (link.Vid.Weapon.Targets & target.Vid.SpriteType) != 0;
     }
 
     /// <summary>
@@ -978,7 +977,7 @@ public partial class Sprite
         }
 
         float distance = Position.AsVector2().MeasureOctagonalDistance(GoalPosition.AsVector2());
-        bool inRange = Owner is null || Command == Command.DistAttack || distance < Vid.BattleRange && distance > Vid.MinRange;
+        bool inRange = Owner is null || Command == Command.DistAttack || distance < Vid.Weapon.BattleRange && distance > Vid.Weapon.MinRange;
         bool aimed = inRange && (RotateTact(MeasureDirectionToGoal(), elapsed) == default || Vid.CanAttackWhileTurning);
 
         if (!inRange)
@@ -986,7 +985,7 @@ public partial class Sprite
             FaceOwner(elapsed, true);
         }
 
-        if (distance <= Vid.BattleRange)
+        if (distance <= Vid.Weapon.BattleRange)
         {
             if (!aimed)
                 return AttackResult.Busy;
@@ -999,7 +998,7 @@ public partial class Sprite
             Map.Action(this, ActionCode.AddAmmo, -count);
 
             ChangeAnimation(SpriteAnimation.Fight);
-            Timer = Vid.ReloadTime + ReloadTimerOffset;
+            Timer = Vid.Weapon.ReloadTime + ReloadTimerOffset;
 
             return AttackResult.Attacked;
         }
@@ -1007,7 +1006,7 @@ public partial class Sprite
         if (Command == Command.Attack)
             return AttackResult.Approach;
 
-        return distance < Vid.DetectRange * 2 ? AttackResult.Pursue : AttackResult.GiveUp;
+        return distance < Vid.Weapon.DetectRange * 2 ? AttackResult.Pursue : AttackResult.GiveUp;
     }
 
     [EngineRoutine(0x0043fa00)]
@@ -1532,7 +1531,7 @@ public partial class Sprite
 
     private void LaunchChild(Sprite goal, Vid vid, Vector2 lateral)
     {
-        if (vid.WeaponFlags.HasFlag(WeaponFlags.NoSpread) && goal.Vid != Map.EmptyVid)
+        if (vid.Weapon.Flags.HasFlag(WeaponFlags.NoSpread) && goal.Vid != Map.EmptyVid)
         {
             Attack(goal);
             StartMove();
@@ -1544,8 +1543,8 @@ public partial class Sprite
 
         for (int attempt = 0; attempt < AimAttempts; attempt++)
         {
-            float pointX = vid.Aim + goal.Position.X + lateral.X - Map.Random.Next() * vid.Aim * AimRandomScale;
-            float pointY = vid.Aim + goal.Position.Y + lateral.Y - Map.Random.Next() * vid.Aim * AimRandomScale;
+            float pointX = vid.Weapon.Aim + goal.Position.X + lateral.X - Map.Random.Next() * vid.Weapon.Aim * AimRandomScale;
+            float pointY = vid.Weapon.Aim + goal.Position.Y + lateral.Y - Map.Random.Next() * vid.Weapon.Aim * AimRandomScale;
             point = new Vector3(pointX, pointY, goal.Position.Z);
 
             if (Map.GetGroundZ(new Vector2(pointX, pointY)) < goal.Position.Z && Map.GetGroundZ((goal.Position.AsVector2() + point.AsVector2()) * 0.5f) < goal.Position.Z)

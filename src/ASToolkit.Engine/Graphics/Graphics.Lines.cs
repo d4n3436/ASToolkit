@@ -9,14 +9,6 @@ public sealed partial class Graphics
     private const float MaxLineCoordinate = 10000;
     private const uint DebugTextColor = 0xff00ff00;
 
-    private static ReadOnlySpan<byte> LineXName => "x in Line"u8;
-
-    private static ReadOnlySpan<byte> LineX1Name => "x1 in Line"u8;
-
-    private static ReadOnlySpan<byte> LineYName => "y in Line"u8;
-
-    private static ReadOnlySpan<byte> LineY1Name => "y1 in Line"u8;
-
     [EngineRoutine(0x00434420)]
     internal void DrawFormattedText(Vector2 position, string text) => DrawDeviceText(position, DebugTextColor, GameTextEncoding.Cyrillic.GetBytes(text));
 
@@ -32,10 +24,10 @@ public sealed partial class Graphics
     [EngineRoutine(0x00433e10)]
     internal void DrawLine(Map map, Vector2 start, Vector2 end, uint color)
     {
-        start.X = ClampLineCoordinate(map, start.X, LineXName);
-        end.X = ClampLineCoordinate(map, end.X, LineX1Name);
-        start.Y = ClampLineCoordinate(map, start.Y, LineYName);
-        end.Y = ClampLineCoordinate(map, end.Y, LineY1Name);
+        start.X = ClampLineCoordinate(map, start.X, "x in Line"u8);
+        end.X = ClampLineCoordinate(map, end.X, "x1 in Line"u8);
+        start.Y = ClampLineCoordinate(map, start.Y, "y in Line"u8);
+        end.Y = ClampLineCoordinate(map, end.Y, "y1 in Line"u8);
         int main = (int)start.X;
         int minor = (int)start.Y;
         int mainStep = 1;

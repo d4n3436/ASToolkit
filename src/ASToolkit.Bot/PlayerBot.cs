@@ -555,7 +555,7 @@ internal sealed class PlayerBot
         int gunners = 0;
         foreach (var monster in _map.Collector.GetNear(_map.Player.Position.AsVector2() - reach, _map.Player.Position.AsVector2() + reach))
         {
-            if (monster is { Army: Army.Monsters, IsAlive: true } && monster.Goal == _map.Player && monster.Vid.BattleRange > BackOffReach)
+            if (monster is { Army: Army.Monsters, IsAlive: true } && monster.Goal == _map.Player && monster.Vid.Weapon.BattleRange > BackOffReach)
             {
                 gunners++;
             }
@@ -578,7 +578,7 @@ internal sealed class PlayerBot
 
             // Keep an off-screen attacker only when it is within battle range and threatens the player
             if (monster == _map.Player || (monster.Army != Army.Monsters && !isGenerator) || (monster.IsBody && !isGenerator) ||
-                !onScreen && (distance > monster.Vid.BattleRange + StandOffMargin || !isThreat) || (!isCloser && !isThreat) || !_gunnery.HasClearAim(monster))
+                !onScreen && (distance > monster.Vid.Weapon.BattleRange + StandOffMargin || !isThreat) || (!isCloser && !isThreat) || !_gunnery.HasClearAim(monster))
                 continue;
 
             if (isCloser)
@@ -608,7 +608,7 @@ internal sealed class PlayerBot
         var profile = _gunnery.Attacks.Get(monster.Vid);
         float danger = profile.Damage * 1000f / Math.Max(_map.FrameTime, monster.Vid.AttackTime);
 
-        if (distance > monster.Vid.BattleRange + StandOffMargin)
+        if (distance > monster.Vid.Weapon.BattleRange + StandOffMargin)
         {
             danger *= DistantDangerShare;
         }
@@ -1118,7 +1118,7 @@ internal sealed class PlayerBot
     }
 
     private bool CanReach(Sprite monster) =>
-        monster.Vid.BattleRange > BackOffReach ? !_field.CrossesClosedGate(monster.Position.AsVector2(), _map.Player.Position.AsVector2()) :
+        monster.Vid.Weapon.BattleRange > BackOffReach ? !_field.CrossesClosedGate(monster.Position.AsVector2(), _map.Player.Position.AsVector2()) :
             _field.CanMove(monster.Position, _map.Player.Position.AsVector2());
 
     private float GetKeptDistance(Vid vid)
@@ -1126,13 +1126,13 @@ internal sealed class PlayerBot
         if (IsProtected)
             return 0;
 
-        if (vid.BattleRange <= BackOffReach)
+        if (vid.Weapon.BattleRange <= BackOffReach)
             return MathF.Max(BackOffReach, vid.Half.Length() * 2);
 
         if (_isChargingGunners && vid.Id is not (KnownObject.TankWeaponMonster or KnownObject.YellowTankWeaponMonster or KnownObject.RedTankWeaponMonster))
             return BackOffReach;
 
-        return MathF.Max(BackOffReach, (vid.BattleRange + StandOffMargin) * GunnerKeep);
+        return MathF.Max(BackOffReach, (vid.Weapon.BattleRange + StandOffMargin) * GunnerKeep);
     }
 
     private void PlanEscape()
@@ -1186,11 +1186,11 @@ internal sealed class PlayerBot
             float distance = center.MeasureOctagonalDistance(threat.Position.AsVector2());
             score = MathF.Min(score, distance - GetKeptDistance(threat.Vid));
 
-            if (threat.Vid.BattleRange <= BackOffReach)
+            if (threat.Vid.Weapon.BattleRange <= BackOffReach)
                 continue;
 
             offLine = MathF.Min(offLine, MeasureOffLine(threat.Position.AsVector2(), center));
-            covered = covered && (distance > threat.Vid.BattleRange || !_gunnery.HasClearAim(threat, center));
+            covered = covered && (distance > threat.Vid.Weapon.BattleRange || !_gunnery.HasClearAim(threat, center));
         }
 
         if (offLine < float.MaxValue)

@@ -7,10 +7,11 @@ internal ref struct RangeDecoder
     private const int MinCodedSize = 10;
     private const uint NormalizeLimit = 0x800000;
     private const uint InitialRange = 0x80;
+    private const int EndOfStream = -1;
 
     private readonly ReadOnlySpan<byte> _input;
     private int _position;
-    private uint _buffer;
+    private byte _buffer;
     private uint _low;
     private uint _range;
     private uint _step;
@@ -18,22 +19,30 @@ internal ref struct RangeDecoder
     private RangeDecoder(ReadOnlySpan<byte> input)
     {
         _input = input;
-        ReadByte();
-        _buffer = ReadByte();
-        _low = _buffer >> 1;
-        _range = InitialRange;
     }
 
-    public static bool TryDecode(ReadOnlySpan<byte> input, Span<byte> output, Span<FrequencyModel> models, int planes, out int used, out int decoded)
+    public static int Decode(ReadOnlySpan<byte> input, Span<byte> output, Span<FrequencyModel> models, int planes, out int used)
     {
+        if (output.IsEmpty)
+        {
+            used = 0;
+            return 0;
+        }
+
         if (output.Length < MinCodedSize)
         {
-            used = output.Length;
-            decoded = input.Length >= used && input[..used].TryCopyTo(output) ? used : 0;
-            return decoded == used;
+            used = Math.Min(input.Length, output.Length);
+            input[..used].CopyTo(output);
+            return used;
         }
 
         var decoder = new RangeDecoder(input);
+        if (!decoder.TryStart())
+        {
+            used = decoder._position;
+            return 0;
+        }
+
         int half = (output.Length + 1) >> 1;
         int count = 0;
         int context = 0;
@@ -43,15 +52,16 @@ internal ref struct RangeDecoder
             int symbol = model.FindSymbol(decoder.GetTarget(FrequencyModel.TotalBits));
             int frequency = model.GetFrequency(symbol);
             int start = model.GetStart(symbol);
-            if (symbol == EndSymbol)
+            if (symbol == EndSymbol || count >= output.Length)
             {
-                decoder.Consume(frequency, start, 1 << FrequencyModel.TotalBits);
-                decoder.Normalize();
-                break;
-            }
+                if (symbol != EndSymbol)
+                {
+                    using var error = Console.OpenStandardError();
+                    error.Write("!!!ERROR!!! decode"u8);
+                }
 
-            if (count >= output.Length)
-            {
+                decoder.Consume(model.GetFrequency(EndSymbol), model.GetStart(EndSymbol), 1 << FrequencyModel.TotalBits);
+                decoder.Normalize();
                 break;
             }
 
@@ -63,24 +73,36 @@ internal ref struct RangeDecoder
         }
 
         used = decoder._position;
-        decoded = count;
-        return count == output.Length;
+        return count;
     }
 
-    private uint ReadByte()
+    private bool TryStart()
     {
-        uint value = _position < _input.Length ? _input[_position] : 0u;
-        _position++;
-        return value;
+        int first = ReadByte();
+        if (first == EndOfStream)
+            return false;
+
+        _buffer = (byte)ReadByte();
+        _low = (uint)_buffer >> 1;
+        _range = InitialRange;
+        return first == 0;
+    }
+
+    private int ReadByte()
+    {
+        if (_position >= _input.Length)
+            return EndOfStream;
+
+        return _input[_position++];
     }
 
     private void Normalize()
     {
         while (_range <= NormalizeLimit)
         {
-            _low = ((_low << 1) | (_buffer & 1)) << 7;
-            _buffer = ReadByte();
-            _low |= _buffer >> 1;
+            _low = ((_low << 1) | (uint)(_buffer & 1)) << 7;
+            _buffer = (byte)ReadByte();
+            _low |= (uint)_buffer >> 1;
             _range <<= 8;
         }
     }

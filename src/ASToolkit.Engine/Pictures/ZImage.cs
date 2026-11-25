@@ -13,7 +13,7 @@ public sealed class ZImage : PictureImage
     /// Represents the extension of Z files.
     /// </summary>
     public const string Extension = ".z";
-    private const uint Magic = 0x6675425a;
+    private const int Magic = 0x6675425a;
     private const int BytesPerDepth = 2;
     private const ushort EmptyDepth = 0x8000;
     private const int RunFlag = 0x8000;

@@ -118,8 +118,6 @@ public sealed partial class Graphics
 
     internal TextureStage DeviceStage { get; private set; } = DefaultStage;
 
-    private static ReadOnlySpan<byte> UnsupportedResolution => "Unsupported resolution"u8;
-
     internal static ReadOnlySpan<int> ColorTableOffsets =>
     [
         -8, -8, -8,
@@ -183,7 +181,7 @@ public sealed partial class Graphics
             if (index < 0)
             {
                 Error?.Write($"Selected display mode {screenSize.Width:F0}x{screenSize.Height:F0}");
-                Error?.Error(GraphicsLogTag, LogError.Text, 0, UnsupportedResolution);
+                Error?.Error(GraphicsLogTag, LogError.Text, 0, "Unsupported resolution"u8);
                 return DeviceFailure;
             }
 

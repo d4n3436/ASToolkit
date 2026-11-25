@@ -75,10 +75,7 @@ public sealed class Playthrough
         }
         """u8;
 
-
     private static ReadOnlySpan<byte> ItemsVariable => "PlayerItem"u8;
-
-    private static ReadOnlySpan<byte> MoneyVariable => "PlayerMoney"u8;
 
     /// <summary>
     /// Loads a map file with the level script beside it, or the campaign's default script if there isn't one, and runs its first frame.
@@ -268,7 +265,7 @@ public sealed class Playthrough
         var map = session.Map;
 
         return new PlaythroughResult(loadout, map is { HasPlayer: true, Player.IsAlive: true } && session.HasWon, map.Time, session.Bot.FarthestProgress, session.Log.Kills, session.Log.Respawns, session.Log.MinHealth,
-            map.ReadScriptNumber(MoneyVariable), ReadImplants(map), session.Log.TakenPickups, ReadItems(map), map.HasPlayer ? new PlayerState(map).GetRemainingAmmo() : [],
+            map.ReadScriptNumber("PlayerMoney"u8), ReadImplants(map), session.Log.TakenPickups, ReadItems(map), map.HasPlayer ? new PlayerState(map).GetRemainingAmmo() : [],
             session.Log.Timeline, record ? new DemoResource(map.FinishDemoRecording()) : null);
     }
 

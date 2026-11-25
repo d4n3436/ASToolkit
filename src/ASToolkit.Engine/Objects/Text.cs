@@ -65,8 +65,6 @@ public sealed class Text : Frame
 
     private static ReadOnlySpan<byte> FontTag => "<Font="u8;
 
-    private static ReadOnlySpan<byte> MenuSection => "menu"u8;
-
     /// <summary>
     /// Draws the shown text with the frames of the font's object ID.
     /// </summary>
@@ -298,9 +296,9 @@ public sealed class Text : Frame
         }
     }
 
-    private static byte GetCharacter(ReadOnlySpan<byte> text, int index) => (uint)index < (uint)text.Length ? text[index] : (byte)0;
+    private static byte GetCharacter(ReadOnlySpan<byte> text, int index) => index < text.Length ? text[index] : (byte)0;
 
-    private ReadOnlyMemory<byte> ReadMenuString(ReadOnlySpan<byte> key) => Profile.GetString(Map.FileSystem, Map.StringsFile, MenuSection, key);
+    private ReadOnlyMemory<byte> ReadMenuString(ReadOnlySpan<byte> key) => Profile.GetString(Map.FileSystem, Map.StringsFile, "menu"u8, key);
 
     private ReadOnlyMemory<byte> ReadTextAddress(int address) => address == 0 ? default : Map.Script.GetSlot(address - 1).Text;
 }

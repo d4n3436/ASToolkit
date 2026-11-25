@@ -34,7 +34,7 @@ public partial class Map
     /// <summary>
     /// Gets a value indicating whether the level script declared the mission complete.
     /// </summary>
-    public bool HasWon => ReadScriptNumber(GameStateVariable) == GameWon;
+    public bool HasWon => ReadScriptNumber("GameState"u8) == GameWon;
 
     /// <summary>
     /// Gets the dynamite sites still standing.
@@ -61,7 +61,8 @@ public partial class Map
             _vidCount = (int)HardwareGroundId + 1;
         }
 
-        var vid = new VidHardware(HardwareGroundId, System.Drawing.Size.Truncate(Size), FirstWeapon, Session.Error);
+        _vids[(int)HardwareGroundId]?.Destruct(Session.Error);
+        var vid = new VidHardware(HardwareGroundId, System.Drawing.Size.Truncate(Size), _weapons!, Session.Error);
         _vids[(int)HardwareGroundId] = vid;
         CreateSprite(vid, new Vector3(Size.ToVector2() * HalfShare, 0), default);
         Session.Error.Write("Create Empty Hardware Ground"u8);

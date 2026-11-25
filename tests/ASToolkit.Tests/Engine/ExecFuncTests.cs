@@ -349,6 +349,55 @@ public class ExecFuncTests
         Assert.Contains("MAIN MENU", texts);
     }
 
+    [Fact]
+    public void ExecFunc_VidData_WeaponValuesReachEveryObjectIdSharingTheWeapon()
+    {
+        var (first, second) = FindWeaponPair(EngineTestMap.CreateMap());
+        var (map, script) = Run($$"""
+            int detect, aim, build, ammo, damage;
+            main()
+            {
+              SetVidData({{first}}, VID_DETECTRANGE, 123);
+              SetVidData({{first}}, VID_WEAPONAIM, 7);
+              SetVidData({{first}}, VID_BUILDTIME, 4321);
+              SetVidData({{first}}, VID_AMMO, 55);
+              SetVidData({{first}}, VID_DAMAGE, 999);
+              detect = GetVidData({{second}}, VID_DETECTRANGE);
+              aim = GetVidData({{second}}, VID_WEAPONAIM);
+              build = GetVidData({{second}}, VID_BUILDTIME);
+              ammo = GetVidData({{second}}, VID_AMMO);
+              damage = GetVidData({{second}}, VID_DAMAGE);
+            }
+            """);
+
+        Assert.Equal(123, Read(script, "detect"));
+        Assert.Equal(7, Read(script, "aim"));
+        Assert.Equal(4321, Read(script, "build"));
+        Assert.Equal(55, Read(script, "ammo"));
+        Assert.Equal(map.FindVid((KnownObject)second)!.Damage, Read(script, "damage"));
+        Assert.NotEqual(999, Read(script, "damage"));
+    }
+
+    private static (int First, int Second) FindWeaponPair(Map map)
+    {
+        var vids = map.Vids;
+        for (int i = 0; i < vids.Length; i++)
+        {
+            var first = vids[i];
+            if (first is null || first.WeaponIndex == 0 || first.LinkVid is not null)
+                continue;
+
+            for (int j = i + 1; j < vids.Length; j++)
+            {
+                var second = vids[j];
+                if (second is not null && second.WeaponIndex == first.WeaponIndex && second.LinkVid is null)
+                    return (i, j);
+            }
+        }
+
+        throw new InvalidOperationException("There is no pair of object IDs sharing a weapon.");
+    }
+
     private static (Map Map, Script Script) Run(string text)
     {
         var map = EngineTestMap.CreateMap();

@@ -24,31 +24,13 @@ public readonly ref partial struct Texture
     private static bool _isDxt1Supported;
     private static bool _isDxt3Supported;
     private static bool _isDxt5Supported;
-    private static int _allocatedBytes;
+    private static int _memoryInUse;
 
     internal static string CapabilitiesText { get; } = ReadCapabilities();
 
+    internal static int MemoryInUse => _memoryInUse;
+
     private static ReadOnlySpan<byte> TextureLogTag => "TEXTURE"u8;
-
-    private static ReadOnlySpan<byte> SquareText => "SQUARE "u8;
-
-    private static ReadOnlySpan<byte> PowerOfTwoText => "POWER2 "u8;
-
-    private static ReadOnlySpan<byte> NotPowerOfTwoText => "NOTPOWER2 "u8;
-
-    private static ReadOnlySpan<byte> ConditionalNonPowerOfTwoText => "COND_NON_POW2 "u8;
-
-    private static ReadOnlySpan<byte> DynamicText => "DYNAMIC "u8;
-
-    private static ReadOnlySpan<byte> PaletteText => "PALETTE "u8;
-
-    private static ReadOnlySpan<byte> AlphaPaletteText => "ALPHA_PALETTE "u8;
-
-    private static ReadOnlySpan<byte> Dxt1Text => "DXT1 "u8;
-
-    private static ReadOnlySpan<byte> Dxt3Text => "DXT3 "u8;
-
-    private static ReadOnlySpan<byte> Dxt5Text => "DXT5 "u8;
 
     [EngineRoutine(0x004036b0)]
     internal static ushort[] Allocate(ref Size size, VidPixelFormat format, TextureFlags flags, MyError? error, out TextureFlags stored, out VidPixelFormat result)
@@ -94,7 +76,7 @@ public readonly ref partial struct Texture
         }
 
         result = format;
-        _allocatedBytes += GetTexelBytes(format) * width * height;
+        _memoryInUse += GetTexelBytes(format) * width * height;
 
         return IsDxt(format)
             ? new ushort[GetCompressedPitch(format, width) * ((height + BlockSize - 1) / BlockSize) / sizeof(ushort)]
@@ -102,7 +84,7 @@ public readonly ref partial struct Texture
     }
 
     [EngineRoutine(0x00403620)]
-    internal static void Release(Size size, VidPixelFormat format) => _allocatedBytes -= GetTexelBytes(format) * size.Width * size.Height;
+    internal static void Release(Size size, VidPixelFormat format) => _memoryInUse -= GetTexelBytes(format) * size.Width * size.Height;
 
     [EngineRoutine(0x00402fa0)]
     private static string ReadCapabilities()
@@ -143,43 +125,43 @@ public readonly ref partial struct Texture
         var text = new List<byte>();
         if (_isSquareRequired)
         {
-            text.AddRange(SquareText);
+            text.AddRange("SQUARE "u8);
         }
 
-        text.AddRange(_isPowerOfTwoRequired ? PowerOfTwoText : NotPowerOfTwoText);
+        text.AddRange(_isPowerOfTwoRequired ? "POWER2 "u8 : "NOTPOWER2 "u8);
         if (_isConditionalNonPowerOfTwo)
         {
-            text.AddRange(ConditionalNonPowerOfTwoText);
+            text.AddRange("COND_NON_POW2 "u8);
         }
 
         if (_isDynamicSupported)
         {
-            text.AddRange(DynamicText);
+            text.AddRange("DYNAMIC "u8);
         }
 
         if (_isPaletteSupported)
         {
-            text.AddRange(PaletteText);
+            text.AddRange("PALETTE "u8);
         }
 
         if (_isAlphaPaletteSupported)
         {
-            text.AddRange(AlphaPaletteText);
+            text.AddRange("ALPHA_PALETTE "u8);
         }
 
         if (_isDxt1Supported)
         {
-            text.AddRange(Dxt1Text);
+            text.AddRange("DXT1 "u8);
         }
 
         if (_isDxt3Supported)
         {
-            text.AddRange(Dxt3Text);
+            text.AddRange("DXT3 "u8);
         }
 
         if (_isDxt5Supported)
         {
-            text.AddRange(Dxt5Text);
+            text.AddRange("DXT5 "u8);
         }
 
         text.AddRange(Encoding.ASCII.GetBytes($"MAXSIZE={_maxSize.Width},{_maxSize.Height}"));

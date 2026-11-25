@@ -16,14 +16,6 @@ public partial class Map
     private const int LongIdDigits = 4;
     private const int GameWon = 1;
 
-    private static ReadOnlySpan<byte> GameStateVariable => "GameState"u8;
-
-    private static ReadOnlySpan<byte> DamageSuffix => "DAMAGE"u8;
-
-    private static ReadOnlySpan<byte> DestroySuffix => "DESTROY"u8;
-
-    private static ReadOnlySpan<byte> CollisionSuffix => "COLLISION"u8;
-
     /// <summary>
     /// Calls a script function with a sprite as its first argument.
     /// </summary>
@@ -119,7 +111,7 @@ public partial class Map
             var rest = name[(IdDigits + 2)..];
             var vid = FindVid((KnownObject)CRuntime.ParseInteger(name.Slice(1, IdDigits)));
 
-            if (rest.StartsWith(DamageSuffix))
+            if (rest.StartsWith("DAMAGE"u8))
             {
                 if (parameters == DamageParameters && vid is not null)
                 {
@@ -129,7 +121,7 @@ public partial class Map
                 return;
             }
 
-            if (rest.StartsWith(DestroySuffix))
+            if (rest.StartsWith("DESTROY"u8))
             {
                 if (parameters == DestroyParameters && vid is not null)
                 {
@@ -139,7 +131,7 @@ public partial class Map
                 return;
             }
 
-            if (rest.StartsWith(CollisionSuffix))
+            if (rest.StartsWith("COLLISION"u8))
             {
                 if (parameters == CollisionParameters && vid is not null)
                 {
@@ -159,5 +151,4 @@ public partial class Map
             BindStateHandler(FindVid((KnownObject)CRuntime.ParseInteger(name.Slice(1, LongIdDigits))), name[(LongIdDigits + 2)..], function, parameters);
         }
     }
-
 }

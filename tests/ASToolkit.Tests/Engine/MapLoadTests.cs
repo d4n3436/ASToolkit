@@ -18,6 +18,42 @@ public class MapLoadTests
     private const int EndHandle = -1;
 
     [Fact]
+    public void LoadVid_ObjectIdsSharingASpriteFile_JoinOneMirrorRing()
+    {
+        var map = EngineTestMap.CreateMap();
+        var vids = map.Vids;
+        int pairs = 0;
+        for (int i = 0; i < vids.Length; i++)
+        {
+            var first = vids[i];
+            if (first is null || string.IsNullOrEmpty(first.Path))
+                continue;
+
+            for (int j = i + 1; j < vids.Length; j++)
+            {
+                var second = vids[j];
+                if (second is null || second.Path != first.Path || second.IsBuiltTerrainClass != first.IsBuiltTerrainClass)
+                    continue;
+
+                bool isHardware = first.FileType.HasFlag(VidType.Hardware);
+                if (!isHardware && (second.ObjectGamma != first.ObjectGamma || second.Properties.HasFlag(ObjectProperties.Gamma) != first.Properties.HasFlag(ObjectProperties.Gamma)))
+                    continue;
+
+                var mirror = first.NextMirror;
+                while (mirror != first && mirror != second)
+                {
+                    mirror = mirror.NextMirror;
+                }
+
+                Assert.Same(second, mirror);
+                pairs++;
+            }
+        }
+
+        Assert.True(pairs > 0);
+    }
+
+    [Fact]
     public void Load_MissingFile_LogsTheInvalidMapAndStaysLoading()
     {
         var logs = new MemoryWriteOverlay();

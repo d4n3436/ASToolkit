@@ -18,29 +18,46 @@ public sealed class VidHardwareLayer : Vid
     private const float DepthScale = 1.4143066f;
     private const float HeightScale = 0.125f;
     private const int DepthBias = 0x400;
+    private const int PaletteSize = 0x400;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="VidHardwareLayer"/> class from a sprite file.
     /// </summary>
     /// <param name="id">The object ID.</param>
     /// <param name="gameObject">The object record.</param>
-    /// <param name="weapon">The weapon record.</param>
+    /// <param name="weapons">The weapon table.</param>
     /// <param name="file">The sprite file.</param>
     /// <param name="totalFrames">The frame count of the sprite file.</param>
-    public VidHardwareLayer(KnownObject id, in GameObject gameObject, in WeaponRecord weapon, in VidResource file, int totalFrames)
-        : base(id, gameObject, weapon, file, totalFrames)
+    public VidHardwareLayer(KnownObject id, in GameObject gameObject, AlienShooterWeaponRecord[] weapons, in VidResource file, int totalFrames)
+        : base(id, gameObject, weapons, file, totalFrames)
     {
     }
 
-    /// <summary>
-    /// Gets the frames, each a texture and a mesh, in the order of the records of the sprite file.
-    /// </summary>
-    public HardwareLayerFrame[] Frames { get; private set; } = [];
+    [EngineRoutine(0x0041b8f0)]
+    private VidHardwareLayer(VidHardwareLayer source)
+        : base(source)
+    {
+        Meshes = source.Meshes;
+        Textures = source.Textures;
+    }
+
+    [EngineRoutine(0x004128a0)]
+    internal override Vid CreateMirror() => new VidHardwareLayer(this);
 
     /// <summary>
-    /// Gets the palette of the frames' textures when the texels are palette indexes, as 256 entries of blue, green, red and alpha bytes.
+    /// Gets the mesh of each frame, in the order of the records of the sprite file.
     /// </summary>
-    public ReadOnlyMemory<byte> Palette { get; private set; }
+    public HardwareLayerMesh[] Meshes { get; private set; } = [];
+
+    /// <summary>
+    /// Gets the texture of each frame, in the order of the records of the sprite file.
+    /// </summary>
+    public TextureData[] Textures { get; private set; } = [];
+
+    /// <summary>
+    /// Gets the pixel format of the frames' texels in the sprite file.
+    /// </summary>
+    public VidPixelFormat Format { get; private set; }
 
     /// <summary>
     /// Draws a sprite with the frames of this object ID as meshes placed by the position, scale and offset of the sprite.
@@ -118,7 +135,7 @@ public sealed class VidHardwareLayer : Vid
         }
 
         var transform = world * Graphics.CreateView(camera, viewport) * map.Session.Graphics.Projection;
-        Frames[sprite.Frame].Draw(screen, transform, graphics.Blend, ~gamma.Negative);
+        Meshes[sprite.Frame].Draw(screen, Textures[sprite.Frame].View, transform, graphics.Blend, ~gamma.Negative);
     }
 
     /// <inheritdoc/>
@@ -128,6 +145,8 @@ public sealed class VidHardwareLayer : Vid
     [EngineRoutine(0x0041baf0)]
     internal override void Load(in VidResource file, ReadOnlyMemory<byte> data, MyError? error)
     {
+        Format = file.Format;
+        ReadOnlySpan<uint> palette = default;
         if (FileType.HasFlag(VidType.Palette))
         {
             if (file.Palette.IsEmpty)
@@ -135,7 +154,7 @@ public sealed class VidHardwareLayer : Vid
                 Report(error, LogError.Load, 0, "PAL "u8);
             }
 
-            Palette = file.Palette;
+            palette = MemoryMarshal.Cast<byte, uint>(file.Palette.Span[..Math.Min(file.Palette.Length, PaletteSize)]);
         }
 
         var records = file.FrameRecords;
@@ -144,13 +163,15 @@ public sealed class VidHardwareLayer : Vid
             Report(error, LogError.Load, 0, "DATA"u8);
         }
 
-        Frames = new HardwareLayerFrame[Math.Min(FileFrameCount, records.Length)];
-        for (int frame = 0; frame < Frames.Length; frame++)
+        int frameCount = Math.Min(FileFrameCount, records.Length);
+        Textures = new TextureData[frameCount];
+        Meshes = new HardwareLayerMesh[frameCount];
+        for (int frame = 0; frame < frameCount; frame++)
         {
             var record = records[frame].Span;
             ref readonly var header = ref MemoryMarshal.AsRef<VidLayerFrameHeader>(record);
             var size = new Size(header.Width & ushort.MaxValue, header.Height & ushort.MaxValue);
-            int length = GetTexelSize(file.Format) * size.Width * size.Height / ByteBits;
+            int length = GetTexelSize(Format) * size.Width * size.Height / ByteBits;
             int position = Unsafe.SizeOf<VidLayerFrameHeader>();
             var texels = records[frame].Slice(position, Math.Min(length, record.Length - position));
             position += texels.Length;
@@ -161,7 +182,8 @@ public sealed class VidHardwareLayer : Vid
                 flags |= TextureFlags.AlphaPalette;
             }
 
-            ushort[] textures = Texture.Create(texels.Span, size, file.Format, flags, error, out size, out var textureFormat);
+            Textures[frame] = Texture.Create(texels.Span, size, Format, palette, flags, error);
+            size = Textures[frame].Size;
             ref readonly var mesh = ref MemoryMarshal.AsRef<VidLayerMeshHeader>(record[position..]);
             position += Unsafe.SizeOf<VidLayerMeshHeader>();
             var vertices = new HardwareLayerVertex[Math.Max(mesh.VertexCount, 0)];
@@ -176,7 +198,7 @@ public sealed class VidHardwareLayer : Vid
 
             ushort[] indexes = new ushort[Math.Max(mesh.IndexCount, 0)];
             MemoryMarshal.Cast<byte, ushort>(record[position..])[..indexes.Length].CopyTo(indexes);
-            Frames[frame] = new HardwareLayerFrame(size, textureFormat, textures, vertices, indexes);
+            Meshes[frame] = new HardwareLayerMesh(vertices, indexes);
         }
     }
 

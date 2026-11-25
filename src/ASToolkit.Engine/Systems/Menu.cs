@@ -25,10 +25,6 @@ internal sealed class Menu : SpriteList
 
     public Sprite? RightClick => Clicks.HasFlag(MenuClicks.Right) ? Current : null;
 
-    private static ReadOnlySpan<byte> MenuKind => "MENU"u8;
-
-    private static ReadOnlySpan<byte> PackedSpriteTag => "SPRI"u8;
-
     private static ReadOnlySpan<byte> MenuLogTag => "MENU"u8;
 
     [EngineRoutine(0x0043e140)]
@@ -111,7 +107,7 @@ internal sealed class Menu : SpriteList
             return;
         }
 
-        if (reader.GoBegin(PackedSpriteTag) == Resource.Found)
+        if (reader.GoBegin("SPRI"u8) == Resource.Found)
         {
             while (_map.TryLoadSprite(ref reader, header.Version, out var sprite))
             {
@@ -169,7 +165,7 @@ internal sealed class Menu : SpriteList
     {
         reader = new Resource();
         header = default;
-        if (reader.Open(_map.FileSystem, _map.Session.Error, name, MenuKind) != 0)
+        if (reader.Open(_map.FileSystem, _map.Session.Error, name, "MENU"u8) != 0)
         {
             _map.Session.Error.Error(MenuLogTag, LogError.Open, 0, name);
             return false;
