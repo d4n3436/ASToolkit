@@ -9,6 +9,8 @@ namespace ASToolkit.Tests.Engine;
 
 public class DemoReplayTests
 {
+    private const int ClockReadsBeforeTheLoadBar = 3;
+
     [Theory]
     [InlineData("addon2-level1-walk")]
     [InlineData("level02-walk")]
@@ -99,10 +101,10 @@ public class DemoReplayTests
         var files = new MemoryWriteOverlay(new GameFolder(game));
         files.Set(demoPath, ReadDemo(fixture).Data);
 
-        var clock = new LoadingRedrawClock();
+        var clock = new SteppedClock();
         var registry = new Registry("");
         var map = new MapSteam(game, TestGameFolder.Objects, files, new GameSession(registry, time: clock));
-        clock.Schedule(loadingScreenRecords ?? []);
+        clock.Schedule((loadingScreenRecords ?? []).Select(record => record + ClockReadsBeforeTheLoadBar));
         map.Input.PostMessage(WindowMessageId.ActivateApp, 1, 0);
         if (isRequested)
         {
@@ -110,7 +112,7 @@ public class DemoReplayTests
         }
         else
         {
-            map.Load(Encoding.ASCII.GetBytes(demoPath), Map.StartWallTime);
+            map.LoadAt(Encoding.ASCII.GetBytes(demoPath), EngineTestMap.StartRealTime);
         }
 
         return map;
@@ -119,11 +121,10 @@ public class DemoReplayTests
     private static List<ReplayPoint> Replay(Map map, Map loaded)
     {
         var points = new List<ReplayPoint> { GetPoint(loaded) };
-        uint now = 0;
         while (true)
         {
-            uint wallTime = map.TryGetNextDemoTime(out int next) ? map.WallTime + (uint)(next - map.Time) : map.GetPacer().TakeNextWallTime(map);
-            if (map.Tact(wallTime, now, out now) || !map.IsPlayingDemo)
+            uint realTime = map.TryGetNextDemoTime(out int next) ? map.RealTime + (uint)(next - map.Time) : map.GetPacer().TakeNextRealTime(map);
+            if (map.TactAt(realTime) || !map.IsPlayingDemo)
                 break;
 
             points.Add(GetPoint(map));

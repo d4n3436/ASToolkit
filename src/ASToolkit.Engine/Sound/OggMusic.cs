@@ -47,57 +47,57 @@ internal sealed class OggMusic
     public int Volume { get; private set; }
 
     [EngineRoutine(0x0041c4c0)]
-    public void Play(uint wallTime)
+    public void Play(uint realTime)
     {
         if (!HasBuffer)
             return;
 
-        _buffer.Stop(wallTime);
+        _buffer.Stop(realTime);
         _decoded = 0;
         _writeOffset = RingLead;
         _endState = Streaming;
         _buffer.Rewind();
-        Update(wallTime);
-        _buffer.Play(true, wallTime);
+        Update(realTime);
+        _buffer.Play(true, realTime);
         _isPlaying = true;
     }
 
     [EngineRoutine(0x0041c560)]
-    public void Pause(uint wallTime)
+    public void Pause(uint realTime)
     {
         if (_isPlaying && HasBuffer)
         {
-            _buffer.Stop(wallTime);
+            _buffer.Stop(realTime);
         }
     }
 
     [EngineRoutine(0x0041c580)]
-    public void Resume(uint wallTime)
+    public void Resume(uint realTime)
     {
         if (_isPlaying && HasBuffer)
         {
-            _buffer.Play(true, wallTime);
+            _buffer.Play(true, realTime);
         }
     }
 
     [EngineRoutine(0x0041c540)]
-    public void Stop(uint wallTime)
+    public void Stop(uint realTime)
     {
         _isPlaying = false;
 
         if (HasBuffer)
         {
-            _buffer.Stop(wallTime);
+            _buffer.Stop(realTime);
         }
     }
 
     [EngineRoutine(0x0041c5a0)]
-    public bool IsPlaying(uint wallTime)
+    public bool IsPlaying(uint realTime)
     {
         if (!HasBuffer || !_isPlaying)
             return false;
 
-        bool isTimedPlaying = _buffer.GetStatus(wallTime);
+        bool isTimedPlaying = _buffer.GetStatus(realTime);
 
         if (!(_device?.IsMusicPlaying() ?? isTimedPlaying))
         {
@@ -105,7 +105,7 @@ internal sealed class OggMusic
 
             if (isTimedPlaying)
             {
-                _buffer.Stop(wallTime);
+                _buffer.Stop(realTime);
             }
         }
 
@@ -113,12 +113,12 @@ internal sealed class OggMusic
     }
 
     [EngineRoutine(0x0041c600)]
-    public void Update(uint wallTime)
+    public void Update(uint realTime)
     {
         if (!HasBuffer)
             return;
 
-        int playCursor = _device?.GetMusicPlayCursor() ?? (int)(_buffer.GetPosition(wallTime) * _format.BytesPerSecond / MillisecondsPerSecond % RingSize);
+        int playCursor = _device?.GetMusicPlayCursor() ?? (int)(_buffer.GetPosition(realTime) * _format.BytesPerSecond / MillisecondsPerSecond % RingSize);
 
         while (_endState == Streaming)
         {
@@ -151,7 +151,7 @@ internal sealed class OggMusic
 
         if (_endState == Ending && playCursor >= _writeOffset)
         {
-            Stop(wallTime);
+            Stop(realTime);
         }
     }
 

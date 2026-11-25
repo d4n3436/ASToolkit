@@ -240,7 +240,8 @@ public sealed partial class Graphics
     [EngineRoutine(0x00430dd0)]
     internal void DrawLoadBar(Map map, Vid? vid)
     {
-        uint now = map.Session.GetWallTime();
+        uint now = map.Session.TimeGetTime();
+        map.Session.RealCurrentTime = now;
         if (vid is null || (uint)vid.SpriteSpeed >= now - _loadingDrawnAt)
             return;
 

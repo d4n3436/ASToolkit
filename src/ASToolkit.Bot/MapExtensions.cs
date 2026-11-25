@@ -44,50 +44,80 @@ public static class MapExtensions
         public SpriteView ScriptedSprites => new(map, SpriteViewKind.Scripted);
 
         /// <summary>
-        /// Steps the map one frame at the next wall time of a pacer and draws only a small area of its screen around a cursor.
+        /// Steps the map one frame at the next real time of a pacer and draws only a small area of its screen around a cursor.
         /// </summary>
         /// <remarks>The frame plays as if the whole screen were drawn. If the map doesn't have a screen, one is created.</remarks>
-        /// <param name="pacer">The pacer that gives the wall time of the frame.</param>
+        /// <param name="pacer">The pacer that gives the real time of the frame.</param>
         /// <param name="cursor">The cursor the frame's mouse messages move to, in map coordinates.</param>
         /// <returns><see langword="true"/> when the game is quitting; otherwise, <see langword="false"/>.</returns>
-        public bool StepAimed(FramePacer pacer, Vector2 cursor)
-        {
-            uint wallTime = pacer.TakeNextWallTime(map);
-
-            return map.StepAimed(wallTime, wallTime, cursor, out _);
-        }
+        public bool StepAimed(FramePacer pacer, Vector2 cursor) => map.StepAimed(pacer.TakeNextRealTime(map), cursor);
 
         /// <summary>
-        /// Steps the map one frame of its played demo at a wall time and draws only a small area of its screen around the cursor of the demo's next frame.
+        /// Steps the map one frame of its played demo at a real time and draws only a small area of its screen around the cursor of the demo's next frame.
         /// </summary>
         /// <remarks>The frame plays as if the whole screen were drawn. If the map doesn't have a screen, one is created. When the demo has no next frame, the area surrounds the current cursor.</remarks>
-        /// <param name="wallTime">The wall time of the frame in milliseconds.</param>
-        /// <param name="now">The real time in milliseconds that paces a played demo.</param>
-        /// <param name="waitUntil">The real time to wait for before the frame, or <paramref name="now"/> when the frame is due.</param>
+        /// <param name="realTime">The real time of the frame in milliseconds.</param>
         /// <returns><see langword="true"/> when the game is quitting; otherwise, <see langword="false"/>.</returns>
-        public bool StepAimed(uint wallTime, uint now, out uint waitUntil) =>
-            map.StepAimed(wallTime, now, map.PostNextDemoMouse(out var cursor) ? cursor : map.Input.Cursor, out waitUntil);
+        public bool StepAimed(uint realTime) =>
+            map.StepAimed(realTime, map.PostNextDemoMouse(out var cursor) ? cursor : map.Input.Cursor);
 
         /// <summary>
-        /// Steps the map one frame at a wall time and draws only a small area of its screen around a cursor.
+        /// Steps the map one frame at a real time and draws only a small area of its screen around a cursor.
         /// </summary>
         /// <remarks>The frame plays as if the whole screen were drawn. If the map doesn't have a screen, one is created.</remarks>
-        /// <param name="wallTime">The wall time of the frame in milliseconds.</param>
-        /// <param name="now">The real time in milliseconds that paces a played demo.</param>
+        /// <param name="realTime">The real time of the frame in milliseconds.</param>
         /// <param name="cursor">The cursor the area surrounds, in map coordinates.</param>
-        /// <param name="waitUntil">The real time to wait for before the frame, or <paramref name="now"/> when the frame is due.</param>
         /// <returns><see langword="true"/> when the game is quitting; otherwise, <see langword="false"/>.</returns>
-        public bool StepAimed(uint wallTime, uint now, Vector2 cursor, out uint waitUntil)
+        public bool StepAimed(uint realTime, Vector2 cursor)
+        {
+            map.SetRealTime(realTime);
+
+            return map.TactAimed(cursor);
+        }
+
+        private bool TactAimed(Vector2 cursor)
         {
             var screen = map.Session.Graphics.Screen ??= new Screen(Size.Round(map.Session.Graphics.ScreenSize), true);
             var fullViewport = new Rectangle(Point.Empty, screen.Size);
             var pixel = cursor - map.Camera;
             var corner = new Point(Math.Clamp((int)pixel.X - AimWindow / 2, 0, screen.Size.Width - AimWindow), Math.Clamp((int)pixel.Y - AimWindow / 2, 0, screen.Size.Height - AimWindow));
             screen.Viewport = new Rectangle(corner, new Size(AimWindow, AimWindow));
-            bool isQuitting = map.Tact(wallTime, now, out waitUntil);
+            bool isQuitting = map.Tact();
             screen.Viewport = fullViewport;
 
             return isQuitting;
+        }
+
+        /// <summary>
+        /// Sets the map's session clock to a real time.
+        /// </summary>
+        /// <param name="realTime">The real time in milliseconds.</param>
+        /// <exception cref="InvalidOperationException">The map's session doesn't run on a <see cref="SteppedClock"/>.</exception>
+        public void SetRealTime(uint realTime) => map.GetSteppedClock().Set(realTime);
+
+        private SteppedClock GetSteppedClock() => map.Session.Time as SteppedClock ?? throw new InvalidOperationException("The map's session does not run on a stepped clock.");
+
+        /// <summary>
+        /// Sets the map's session clock to a real time and runs one frame.
+        /// </summary>
+        /// <param name="realTime">The real time of the frame in milliseconds.</param>
+        /// <returns><see langword="true"/> when the game is quitting; otherwise, <see langword="false"/>.</returns>
+        public bool TactAt(uint realTime)
+        {
+            map.SetRealTime(realTime);
+
+            return map.Tact();
+        }
+
+        /// <summary>
+        /// Sets the map's session clock to a real time and loads a map or demo file.
+        /// </summary>
+        /// <param name="name">The path of the map or demo file, relative to the game folder.</param>
+        /// <param name="realTime">The real time in milliseconds, which seeds the random number generator unless a demo supplies the seed.</param>
+        public void LoadAt(ReadOnlySpan<byte> name, uint realTime)
+        {
+            map.SetRealTime(realTime);
+            map.Load(name);
         }
 
         /// <summary>

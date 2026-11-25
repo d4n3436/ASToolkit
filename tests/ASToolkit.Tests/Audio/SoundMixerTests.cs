@@ -19,10 +19,10 @@ public class SoundMixerTests
         return output;
     }
 
-    private static void Sync(SoundMixer mixer, SoundBufferState state, uint wallTime, bool isQuiet = false)
+    private static void Sync(SoundMixer mixer, SoundBufferState state, uint realTime, bool isQuiet = false)
     {
         mixer.BeginSync();
-        mixer.Apply(0, state, wallTime, isQuiet);
+        mixer.Apply(0, state, realTime, isQuiet);
         mixer.EndSync();
     }
 

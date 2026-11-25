@@ -8,9 +8,6 @@ internal sealed class GammaTable
     private const int RedShift = 16;
     private const int GreenShift = 8;
 
-    [ThreadStatic]
-    private static GammaTable? _last;
-
     private readonly byte[] _reds = new byte[ChannelCount];
     private readonly byte[] _greens = new byte[ChannelCount];
     private readonly byte[] _blues = new byte[ChannelCount];
@@ -23,15 +20,14 @@ internal sealed class GammaTable
 
     public ReadOnlySpan<byte> Blues => _blues;
 
-    public static GammaTable Get(Gamma gamma)
+    public GammaTable For(Gamma gamma)
     {
-        var table = _last ??= new GammaTable();
-        if (!table._isBuilt || table._gamma != gamma)
+        if (!_isBuilt || _gamma != gamma)
         {
-            table.Build(gamma);
+            Build(gamma);
         }
 
-        return table;
+        return this;
     }
 
     private void Build(Gamma gamma)

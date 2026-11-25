@@ -58,7 +58,7 @@ public sealed partial class Graphics
             };
         }
 
-        EffectStartTimes[effect] = map.WallTime;
+        EffectStartTimes[effect] = map.RealTime;
         EffectDurations[effect] = duration;
         EffectFirst[effect] = first;
         EffectSecond[effect] = second;
@@ -95,7 +95,7 @@ public sealed partial class Graphics
         if (effect is <= (int)ScreenEffect.None or >= EffectCount || EffectStartTimes[effect] == 0)
             return -1;
 
-        return (int)(unchecked(map.WallTime * 100 - EffectStartTimes[effect] * 100) / (uint)EffectDurations[effect]);
+        return (int)(unchecked(map.RealTime * 100 - EffectStartTimes[effect] * 100) / (uint)EffectDurations[effect]);
     }
 
     [EngineRoutine(0x00431b60)]
@@ -105,7 +105,7 @@ public sealed partial class Graphics
     [EngineRoutine(0x004311a0)]
     private void UpdateEffects(Map map, bool draw)
     {
-        uint now = map.WallTime;
+        uint now = map.RealTime;
         bool isShown = draw && Screen is not null;
 
         if (TryAdvanceEffect(ScreenEffect.AlphaAppear, now, isShown, out uint appeared, out uint appearLength) && Capture is not null)

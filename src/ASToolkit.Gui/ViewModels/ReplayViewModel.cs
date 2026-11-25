@@ -258,7 +258,7 @@ public sealed partial class ReplayViewModel : ViewModelBase, IDisposable
 
                     if (isFull && audible != Inaudible)
                     {
-                        sound?.Sync(playback.Sound, playback.WallTime, false, audible);
+                        sound?.Sync(playback.Sound, playback.RealTime, false, audible);
                     }
                 }
 
@@ -266,7 +266,7 @@ public sealed partial class ReplayViewModel : ViewModelBase, IDisposable
 
                 if (isResyncing)
                 {
-                    sound?.Sync(playback.Sound, playback.WallTime, true, generation);
+                    sound?.Sync(playback.Sound, playback.RealTime, true, generation);
                 }
 
                 return written;

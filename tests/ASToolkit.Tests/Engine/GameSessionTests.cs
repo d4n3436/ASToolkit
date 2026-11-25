@@ -46,12 +46,12 @@ public sealed class GameSessionTests
     private static string[] LoadMaps()
     {
         var fileSystem = new MemoryWriteOverlay();
-        using (var session = new GameSession(EngineTestMap.CreateRegistry(), fileSystem, new LoadingRedrawClock(new FakeTimeProvider(new DateTimeOffset(2026, 1, 1, 12, 0, 0, TimeSpan.Zero)))))
+        using (var session = new GameSession(EngineTestMap.CreateRegistry(), fileSystem, new SteppedClock(new FakeTimeProvider(new DateTimeOffset(2026, 1, 1, 12, 0, 0, TimeSpan.Zero)))))
         {
             var map = EngineTestMap.CreateMap(session: session);
             foreach (string name in Maps)
             {
-                map.Load(Encoding.ASCII.GetBytes($"maps\\{name}.map"), Map.StartWallTime);
+                map.LoadAt(Encoding.ASCII.GetBytes($"maps\\{name}.map"), EngineTestMap.StartRealTime);
             }
         }
 

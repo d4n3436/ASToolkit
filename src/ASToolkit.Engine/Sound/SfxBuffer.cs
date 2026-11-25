@@ -37,7 +37,7 @@ internal struct SfxBuffer
     }
 
     [EngineRoutine(0x0041e560)]
-    public void Play(Sound sound, int index, int pan, int volume, int time, uint wallTime)
+    public void Play(Sound sound, int index, int pan, int volume, int time, uint realTime)
     {
         if (Id < 0 || Buffer == Sound.NoBuffer)
             return;
@@ -61,7 +61,7 @@ internal struct SfxBuffer
             }
             else
             {
-                buffer.Play(isLooping, wallTime);
+                buffer.Play(isLooping, realTime);
             }
         }
 
@@ -70,7 +70,7 @@ internal struct SfxBuffer
     }
 
     [EngineRoutine(0x0041e650)]
-    public void Resume(Sound sound, int index, uint wallTime)
+    public void Resume(Sound sound, int index, uint realTime)
     {
         if (Id < 0 || Buffer == Sound.NoBuffer || !IsPlaying)
             return;
@@ -84,19 +84,19 @@ internal struct SfxBuffer
         }
         else
         {
-            sound.GetBuffer(Buffer).Play(isLooping, wallTime);
+            sound.GetBuffer(Buffer).Play(isLooping, realTime);
         }
     }
 
     [EngineRoutine(0x0041e6e0)]
-    public bool CheckPlay(Sound sound, int index, int time, uint wallTime)
+    public bool CheckPlay(Sound sound, int index, int time, uint realTime)
     {
         if (Id < 0 || Buffer == Sound.NoBuffer || !IsPlaying)
             return false;
 
         ref var buffer = ref sound.GetBuffer(Buffer);
 
-        bool isTimedPlaying = buffer.GetStatus(wallTime);
+        bool isTimedPlaying = buffer.GetStatus(realTime);
 
         if (!(sound.Device?.IsVoicePlaying(index) ?? isTimedPlaying))
         {
@@ -104,14 +104,14 @@ internal struct SfxBuffer
 
             if (isTimedPlaying)
             {
-                buffer.Stop(wallTime);
+                buffer.Stop(realTime);
             }
         }
 
         if (sound.IsLooped(Id) && (uint)(time - Start) > Sound.LoopHold)
         {
             IsPlaying = false;
-            buffer.Stop(wallTime);
+            buffer.Stop(realTime);
         }
 
         return IsPlaying;

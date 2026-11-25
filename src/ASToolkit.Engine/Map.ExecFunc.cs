@@ -365,8 +365,7 @@ public partial class Map : IScriptFunctionHost
             case ScriptFunction.SaveDemo:
                 if (!IsPlayingDemo)
                 {
-                    script.Stack.Pop();
-                    IsRecordingNextMap = true;
+                    SaveDemo(script.PopText().Span);
                 }
 
                 break;

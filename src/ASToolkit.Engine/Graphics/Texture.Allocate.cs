@@ -14,19 +14,6 @@ public readonly ref partial struct Texture
     private const int InvalidCall = -0x7789f794;
     private const int BlockSize = 4;
 
-    private static Size _maxSize;
-    private static bool _isSquareRequired;
-    private static bool _isConditionalNonPowerOfTwo;
-    private static bool _isDynamicSupported;
-    private static bool _isPowerOfTwoRequired;
-    private static bool _isAlphaPaletteSupported;
-    private static bool _isPaletteSupported;
-    private static bool _isDxt1Supported;
-    private static bool _isDxt3Supported;
-    private static bool _isDxt5Supported;
-
-    internal static string CapabilitiesText { get; } = ReadCapabilities();
-
     private static ReadOnlySpan<byte> TextureLogTag => "TEXTURE"u8;
 
     [EngineRoutine(0x004036b0)]
@@ -34,12 +21,12 @@ public readonly ref partial struct Texture
     {
         result = VidPixelFormat.None;
         stored = default;
-        if (!_isDynamicSupported)
+        if (!session.IsTextureDynamicSupported)
         {
             flags &= ~TextureFlags.Dynamic;
         }
 
-        if (!TryFitSize(size, session.Error, out var fitted))
+        if (!TryFitSize(size, session, out var fitted))
             return [];
 
         size = fitted;
@@ -51,7 +38,7 @@ public readonly ref partial struct Texture
             stored |= TextureFlags.AlphaPalette;
         }
 
-        format = ChooseFormat(format, flags, stored);
+        format = ChooseFormat(format, flags, stored, session);
         if (flags.HasFlag(TextureFlags.SystemMemory) && format == VidPixelFormat.D16)
         {
             result = format;
@@ -90,86 +77,86 @@ public readonly ref partial struct Texture
     }
 
     [EngineRoutine(0x00402fa0)]
-    private static string ReadCapabilities()
+    internal static string ReadCapabilities(GameSession session)
     {
-        _maxSize = Graphics.DeviceMaxTextureSize;
-        _isSquareRequired = Graphics.AreSquareTexturesRequired;
-        _isConditionalNonPowerOfTwo = Graphics.IsConditionalNonPowerOfTwoSupported;
-        _isDynamicSupported = false;
-        _isPowerOfTwoRequired = Graphics.IsPowerOfTwoRequired;
-        _isAlphaPaletteSupported = Graphics.IsAlphaPaletteSupported;
+        session.TextureMaxSize = Graphics.DeviceMaxTextureSize;
+        session.IsTextureSquareRequired = Graphics.AreSquareTexturesRequired;
+        session.IsTextureConditionalNonPowerOfTwo = Graphics.IsConditionalNonPowerOfTwoSupported;
+        session.IsTextureDynamicSupported = false;
+        session.IsTexturePowerOfTwoRequired = Graphics.IsPowerOfTwoRequired;
+        session.IsTextureAlphaPaletteSupported = Graphics.IsAlphaPaletteSupported;
         var formats = Graphics.DeviceTextureFormats;
         if (formats.Contains(VidPixelFormat.P8))
         {
-            _isPaletteSupported = true;
+            session.IsTexturePaletteSupported = true;
         }
         else
         {
-            _isAlphaPaletteSupported = false;
+            session.IsTextureAlphaPaletteSupported = false;
         }
 
         if (formats.Contains(VidPixelFormat.Dxt1))
         {
-            _isDxt1Supported = true;
+            session.IsTextureDxt1Supported = true;
         }
 
         if (formats.Contains(VidPixelFormat.Dxt3))
         {
-            _isDxt3Supported = true;
+            session.IsTextureDxt3Supported = true;
         }
 
         if (formats.Contains(VidPixelFormat.Dxt5))
         {
-            _isDxt5Supported = true;
+            session.IsTextureDxt5Supported = true;
         }
 
-        _isPaletteSupported = false;
-        _isAlphaPaletteSupported = false;
+        session.IsTexturePaletteSupported = false;
+        session.IsTextureAlphaPaletteSupported = false;
         var text = new List<byte>();
-        if (_isSquareRequired)
+        if (session.IsTextureSquareRequired)
         {
             text.AddRange("SQUARE "u8);
         }
 
-        text.AddRange(_isPowerOfTwoRequired ? "POWER2 "u8 : "NOTPOWER2 "u8);
-        if (_isConditionalNonPowerOfTwo)
+        text.AddRange(session.IsTexturePowerOfTwoRequired ? "POWER2 "u8 : "NOTPOWER2 "u8);
+        if (session.IsTextureConditionalNonPowerOfTwo)
         {
             text.AddRange("COND_NON_POW2 "u8);
         }
 
-        if (_isDynamicSupported)
+        if (session.IsTextureDynamicSupported)
         {
             text.AddRange("DYNAMIC "u8);
         }
 
-        if (_isPaletteSupported)
+        if (session.IsTexturePaletteSupported)
         {
             text.AddRange("PALETTE "u8);
         }
 
-        if (_isAlphaPaletteSupported)
+        if (session.IsTextureAlphaPaletteSupported)
         {
             text.AddRange("ALPHA_PALETTE "u8);
         }
 
-        if (_isDxt1Supported)
+        if (session.IsTextureDxt1Supported)
         {
             text.AddRange("DXT1 "u8);
         }
 
-        if (_isDxt3Supported)
+        if (session.IsTextureDxt3Supported)
         {
             text.AddRange("DXT3 "u8);
         }
 
-        if (_isDxt5Supported)
+        if (session.IsTextureDxt5Supported)
         {
             text.AddRange("DXT5 "u8);
         }
 
-        text.AddRange(Encoding.ASCII.GetBytes($"MAXSIZE={_maxSize.Width},{_maxSize.Height}"));
+        text.AddRange(Encoding.ASCII.GetBytes($"MAXSIZE={session.TextureMaxSize.Width},{session.TextureMaxSize.Height}"));
         string line = $"TextureCaps={MyError.Decode(CollectionsMarshal.AsSpan(text))}";
-        _isPowerOfTwoRequired = true;
+        session.IsTexturePowerOfTwoRequired = true;
         return line;
     }
 
@@ -181,37 +168,37 @@ public readonly ref partial struct Texture
 
     private static bool Is32Bit(VidPixelFormat format) => format is VidPixelFormat.A8R8G8B8 or VidPixelFormat.X8R8G8B8 or VidPixelFormat.R8G8B8 or VidPixelFormat.X8L8V8U8 or VidPixelFormat.Q8W8V8U8 or VidPixelFormat.V16U16 or VidPixelFormat.W11V11U10;
 
-    private static VidPixelFormat ReplacePalette(VidPixelFormat format) => format == VidPixelFormat.P8 && !_isPaletteSupported ? VidPixelFormat.R5G6B5 : format;
+    private static VidPixelFormat ReplacePalette(VidPixelFormat format, GameSession session) => format == VidPixelFormat.P8 && !session.IsTexturePaletteSupported ? VidPixelFormat.R5G6B5 : format;
 
     private static bool IsSupported(VidPixelFormat format) => Graphics.DeviceTextureFormats.Contains(format);
 
-    private static bool TryFitSize(Size size, MyError? error, out Size fitted)
+    private static bool TryFitSize(Size size, GameSession session, out Size fitted)
     {
         int width = size.Width;
         int height = size.Height;
-        if (_isSquareRequired)
+        if (session.IsTextureSquareRequired)
         {
             width = Math.Max(width, height);
             height = width;
         }
 
-        if (_isPowerOfTwoRequired)
+        if (session.IsTexturePowerOfTwoRequired)
         {
             width = (int)BitOperations.RoundUpToPowerOf2((uint)Math.Max(width, 1));
             height = (int)BitOperations.RoundUpToPowerOf2((uint)Math.Max(height, 1));
         }
 
         fitted = new Size(width, height);
-        if (width > _maxSize.Width || width < 1)
+        if (width > session.TextureMaxSize.Width || width < 1)
         {
-            error?.Error(TextureLogTag, LogError.Invalid, width, "initial sizeX"u8);
+            session.Error.Error(TextureLogTag, LogError.Invalid, width, "initial sizeX"u8);
 
             return false;
         }
 
-        if (height > _maxSize.Height || height < 1)
+        if (height > session.TextureMaxSize.Height || height < 1)
         {
-            error?.Error(TextureLogTag, LogError.Invalid, height, "initial sizeY"u8);
+            session.Error.Error(TextureLogTag, LogError.Invalid, height, "initial sizeY"u8);
 
             return false;
         }
@@ -219,18 +206,18 @@ public readonly ref partial struct Texture
         return true;
     }
 
-    private static VidPixelFormat ChooseFormat(VidPixelFormat format, TextureFlags flags, TextureFlags stored)
+    private static VidPixelFormat ChooseFormat(VidPixelFormat format, TextureFlags flags, TextureFlags stored, GameSession session)
     {
-        if (format == VidPixelFormat.P8 && stored.HasFlag(TextureFlags.AlphaPalette) && !_isAlphaPaletteSupported)
+        if (format == VidPixelFormat.P8 && stored.HasFlag(TextureFlags.AlphaPalette) && !session.IsTextureAlphaPaletteSupported)
         {
             format = VidPixelFormat.A8R8G8B8;
         }
 
         if (!flags.HasFlag(TextureFlags.HasAlpha))
-            return ReplacePalette(format);
+            return ReplacePalette(format, session);
 
         if (format == VidPixelFormat.P8)
-            return stored.HasFlag(TextureFlags.AlphaPalette) ? ReplacePalette(format) : VidPixelFormat.A1R5G5B5;
+            return stored.HasFlag(TextureFlags.AlphaPalette) ? ReplacePalette(format, session) : VidPixelFormat.A1R5G5B5;
 
         if (format == VidPixelFormat.R5G6B5)
             return VidPixelFormat.A1R5G5B5;
@@ -238,7 +225,7 @@ public readonly ref partial struct Texture
         if (format == VidPixelFormat.R8G8B8)
             return VidPixelFormat.A8R8G8B8;
 
-        return ReplacePalette(format);
+        return ReplacePalette(format, session);
     }
 
     private static bool TryGetFallbackFormat(VidPixelFormat format, TextureFlags stored, out VidPixelFormat fallback)

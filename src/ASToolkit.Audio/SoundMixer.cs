@@ -28,7 +28,7 @@ internal sealed class SoundMixer
 
     public void BeginSync() => Array.Clear(_seen);
 
-    public void Apply(int buffer, in SoundBufferState state, uint wallTime, bool isQuiet)
+    public void Apply(int buffer, in SoundBufferState state, uint realTime, bool isQuiet)
     {
         if (buffer >= _voices.Length)
         {
@@ -57,7 +57,7 @@ internal sealed class SoundMixer
             return;
         }
 
-        long offset = (long)((wallTime - state.StartedAt) * (double)_rate / MillisecondsPerSecond);
+        long offset = (long)((realTime - state.StartedAt) * (double)_rate / MillisecondsPerSecond);
 
         if (!state.IsLooping && (isQuiet || offset >= sample.FrameCount))
         {

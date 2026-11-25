@@ -3,7 +3,7 @@ using ASToolkit.Engine;
 namespace ASToolkit.Bot;
 
 /// <summary>
-/// Provides the wall times to step a map at, cycling through a list of frame lengths.
+/// Provides the real times to step a map at, cycling through a list of frame lengths.
 /// </summary>
 public sealed class FramePacer
 {
@@ -44,50 +44,52 @@ public sealed class FramePacer
         int[] times = new int[refreshRate];
         for (int frame = 0; frame < refreshRate; frame++)
         {
-            times[frame] = (frame + 1) * FramePacer.MillisecondsPerSecond / refreshRate - frame * FramePacer.MillisecondsPerSecond / refreshRate;
+            times[frame] = (frame + 1) * MillisecondsPerSecond / refreshRate - frame * MillisecondsPerSecond / refreshRate;
         }
 
         return times;
     }
 
     /// <summary>
-    /// Returns the wall time of the next frame after a map's current one.
+    /// Returns the real time of the next frame after a map's current one.
     /// </summary>
     /// <param name="map">The map.</param>
-    /// <returns>The wall time in milliseconds.</returns>
-    public uint GetNextWallTime(Map map) => map.WallTime + (uint)_frameTimes[(_frame + 1) % _frameTimes.Count];
+    /// <returns>The real time in milliseconds.</returns>
+    public uint GetNextRealTime(Map map) => map.RealTime + (uint)_frameTimes[(_frame + 1) % _frameTimes.Count];
 
     /// <summary>
-    /// Returns the wall time of the next frame after a map's current one and moves on to the next frame length.
+    /// Returns the real time of the next frame after a map's current one and moves on to the next frame length.
     /// </summary>
     /// <param name="map">The map.</param>
-    /// <returns>The wall time in milliseconds.</returns>
-    public uint TakeNextWallTime(Map map)
+    /// <returns>The real time in milliseconds.</returns>
+    public uint TakeNextRealTime(Map map)
     {
-        uint wallTime = GetNextWallTime(map);
+        uint realTime = GetNextRealTime(map);
         _frame++;
 
-        return wallTime;
+        return realTime;
     }
 
     /// <summary>
-    /// Steps a map one frame at the next wall time.
+    /// Steps a map one frame at the next real time.
     /// </summary>
     /// <param name="map">The map.</param>
     /// <returns><see langword="true"/> when the game is quitting; otherwise, <see langword="false"/>.</returns>
     public bool Step(Map map)
     {
-        uint wallTime = TakeNextWallTime(map);
-
-        return map.Tact(wallTime, wallTime, out _);
+        return map.TactAt(TakeNextRealTime(map));
     }
 
     /// <summary>
-    /// Advances a map's clock to the next wall time and runs its message pump.
+    /// Advances a map's clock to the next real time and runs its message pump.
     /// </summary>
     /// <param name="map">The map.</param>
     /// <returns><see langword="true"/> when the game is quitting; otherwise, <see langword="false"/>.</returns>
-    public bool AdvanceClock(Map map) => map.AdvanceClock(TakeNextWallTime(map));
+    public bool AdvanceClock(Map map)
+    {
+        map.SetRealTime(TakeNextRealTime(map));
+        return map.AdvanceClock();
+    }
 
     /// <summary>
     /// Restarts the cycle of frame lengths from the first one.

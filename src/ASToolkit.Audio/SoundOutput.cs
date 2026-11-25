@@ -77,10 +77,10 @@ public sealed unsafe class SoundOutput : IDisposable
     /// Updates the output to match a session's sound state.
     /// </summary>
     /// <param name="sound">The session's sound state.</param>
-    /// <param name="wallTime">The session's wall time in milliseconds.</param>
+    /// <param name="realTime">The session's real time in milliseconds.</param>
     /// <param name="isQuiet"><see langword="true"/> to resume only looping sounds and music, such as after a seek; <see langword="false"/> to also start sounds that play once.</param>
     /// <param name="generation">The playback number that <see cref="Silence"/> returned. Calls with an older number are ignored.</param>
-    public void Sync(Sound sound, uint wallTime, bool isQuiet, int generation)
+    public void Sync(Sound sound, uint realTime, bool isQuiet, int generation)
     {
         lock (_syncGate)
         {
@@ -97,7 +97,7 @@ public sealed unsafe class SoundOutput : IDisposable
 
             bool hasMusic = sound.TryGetPlayingMusic(out var music);
             bool isCurrentMusic = hasMusic && _music is not null && _music.Path == music.Path && _music.StartedAt == music.StartedAt;
-            var opened = hasMusic && !isCurrentMusic ? OpenMusic(music, wallTime) : null;
+            var opened = hasMusic && !isCurrentMusic ? OpenMusic(music, realTime) : null;
             MusicTrack? replaced = null;
             lock (_mixGate)
             {
@@ -106,7 +106,7 @@ public sealed unsafe class SoundOutput : IDisposable
                 {
                     if (sound.TryGetPlayingBuffer(buffer, out var state))
                     {
-                        _mixer.Apply(buffer, state, wallTime, isQuiet);
+                        _mixer.Apply(buffer, state, realTime, isQuiet);
                     }
                 }
 
@@ -225,7 +225,7 @@ public sealed unsafe class SoundOutput : IDisposable
         }
     }
 
-    private MusicTrack? OpenMusic(MusicState state, uint wallTime)
+    private MusicTrack? OpenMusic(MusicState state, uint realTime)
     {
         if (_endedTrack == state.Path && _endedTrackStart == state.StartedAt)
             return null;
@@ -234,7 +234,7 @@ public sealed unsafe class SoundOutput : IDisposable
         MusicTrack? opened;
         try
         {
-            opened = file is null ? null : MusicTrack.Open(file, state.Path, state.StartedAt, wallTime, SampleRate);
+            opened = file is null ? null : MusicTrack.Open(file, state.Path, state.StartedAt, realTime, SampleRate);
         }
         catch (Exception)
         {

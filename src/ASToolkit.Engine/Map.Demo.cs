@@ -1,4 +1,6 @@
 using System.Runtime.InteropServices;
+using System.Text;
+using ASToolkit.Engine.IO;
 using ASToolkit.Formats;
 
 namespace ASToolkit.Engine;
@@ -25,16 +27,13 @@ public partial class Map
     public int PlayedDemoOffset => _playedOffset;
 
     /// <summary>
-    /// Plays or records the input of the next demo frame.
+    /// Plays or records the input of the next demo frame, waiting on the session clock until a played frame is due.
     /// </summary>
-    /// <param name="now">The real time in milliseconds.</param>
-    /// <param name="waitUntil">The real time to wait for before the frame, or <paramref name="now"/> when the frame is due.</param>
     /// <returns><see langword="true"/> to draw the frame; <see langword="false"/> when playback ended or the frame runs late.</returns>
     [EngineRoutine(0x0040e660)]
-    public bool StepDemo(uint now, out uint waitUntil)
+    public bool StepDemo()
     {
         bool shouldDraw = true;
-        waitUntil = now;
 
         if (_playedDemo is not null)
         {
@@ -49,16 +48,23 @@ public partial class Map
             Input.Load(frame.Input);
             int time = frame.Time;
 
-            if ((uint)(time - _demoPacedTime) > DemoMaxLag)
+            if ((uint)(time - Session.DemoPacedTime) > DemoMaxLag)
             {
-                _demoPacedTime = time - DemoMaxLag;
+                Session.DemoPacedTime = time - DemoMaxLag;
             }
 
-            uint due = (uint)(time - _demoPacedTime);
-
-            if (now - _demoPacedAt < due)
+            uint due = (uint)(time - Session.DemoPacedTime);
+            if (Session.TimeGetTime() - Session.DemoPacedAt < due)
             {
-                waitUntil = _demoPacedAt + due + 1;
+                if (Session.TimeGetTime() - Session.DemoPacedAt <= due)
+                {
+                    uint now;
+                    do
+                    {
+                        now = Session.TimeGetTime();
+                    }
+                    while (now - Session.DemoPacedAt <= due);
+                }
             }
             else
             {
@@ -66,8 +72,8 @@ public partial class Map
             }
 
             SetTime(time);
-            _demoPacedTime = time;
-            _demoPacedAt = waitUntil;
+            Session.DemoPacedTime = time;
+            Session.DemoPacedAt = Session.TimeGetTime();
         }
 
         if (_recordedDemo is not null)
@@ -79,19 +85,39 @@ public partial class Map
     }
 
     /// <summary>
-    /// Ends the recording if it is still running.
+    /// Opens a demo file that the next map load records the input of every frame into.
+    /// </summary>
+    /// <param name="name">The path of the demo file.</param>
+    /// <remarks>A file that is already open is closed first. When the file can't be created, nothing is recorded.</remarks>
+    public void SaveDemo(ReadOnlySpan<byte> name)
+    {
+        CloseDemoFile();
+        _demoFile = name.IsEmpty ? null : FileSystem.OpenWrite(Encoding.ASCII.GetString(name), false);
+        if (_demoFile is null)
+        {
+            Session.Error.Error($"RES '{MyError.Decode(_demoName.Span)}' ''", LogError.Create, 0, name);
+            return;
+        }
+
+        _demoName = name.ToArray();
+    }
+
+    /// <summary>
+    /// Ends the recording that is running and returns the demo file it wrote.
     /// </summary>
     /// <returns>The bytes of the demo file.</returns>
-    /// <exception cref="InvalidOperationException">No demo has been recorded.</exception>
+    /// <exception cref="InvalidOperationException">No demo is being recorded.</exception>
     public byte[] FinishDemoRecording()
     {
+        if (_recordedDemo is null)
+            throw new InvalidOperationException("No demo is being recorded.");
+
+        string path = Encoding.ASCII.GetString(_demoName.Span);
         EndDemoRecording();
+        if (!FileSystem.TryRead(path, out var data))
+            throw new InvalidOperationException($"Could not read the demo file '{path}'.");
 
-        var body = _endedDemo ?? throw new InvalidOperationException("No demo has been recorded.");
-        var container = new ResContainerBuilder { Magic = "RES "u8.ToArray(), Kind = "DEMO"u8.ToArray() };
-        container.Chunks.Add(new ResChunkBuilder { Tag = "DEMO", Flags = ResChunkFlags.ExtendedHeader, Records = [body.ToArray()] });
-
-        return container.Build();
+        return data.ToArray();
     }
 
     private static void WriteDemo<T>(MemoryStream stream, T value)
@@ -100,12 +126,21 @@ public partial class Map
 
     private void StartDemoRecording(ReadOnlySpan<byte> mapName, int seed)
     {
-        _endedDemo = null;
         _recordedDemo = new MemoryStream();
         _flags |= MapFlags.RecordingDemo;
         _recordedDemo.Write(mapName);
         _recordedDemo.WriteByte(0);
         WriteDemo(_recordedDemo, new DemoHeader(seed, Time));
+    }
+
+    private void CloseDemoFile()
+    {
+        if (_demoFile is null)
+            return;
+
+        _demoFile.Dispose();
+        _demoFile = null;
+        _demoName = "Not opened"u8.ToArray();
     }
 
     private void EndDemoPlayback()
@@ -131,7 +166,10 @@ public partial class Map
             return;
 
         WriteDemo(_recordedDemo, DemoEndMarker);
-        _endedDemo = _recordedDemo;
+        var container = new ResContainerBuilder { Magic = "RES "u8.ToArray(), Kind = "DEMO"u8.ToArray() };
+        container.Chunks.Add(new ResChunkBuilder { Tag = "DEMO", Flags = ResChunkFlags.ExtendedHeader, Records = [_recordedDemo.ToArray()] });
+        _demoFile!.Write(container.Build());
         _recordedDemo = null;
+        CloseDemoFile();
     }
 }

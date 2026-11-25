@@ -49,10 +49,9 @@ public class CampaignTests
         Assert.True(recorded.Survived);
 
         var replay = play.LoadReplay(levels, endMoney, 1, null, true, 1, 1, recorded);
-        uint now = 0;
         while (replay.TryGetNextDemoTime(out int next))
         {
-            if (replay.StepAimed(replay.WallTime + (uint)(next - replay.Time), now, out now) || !replay.IsPlayingDemo)
+            if (replay.StepAimed(replay.RealTime + (uint)(next - replay.Time)) || !replay.IsPlayingDemo)
                 break;
         }
 
@@ -75,11 +74,10 @@ public class CampaignTests
         var recorded = session.Map;
 
         var replay = playthrough.LoadReplay(level, loadout, new DemoResource(recorded.FinishDemoRecording()));
-        uint now = 0;
         int frames = 0;
         while (replay.TryGetNextDemoTime(out int next))
         {
-            if (replay.StepAimed(replay.WallTime + (uint)(next - replay.Time), now, out now) || !replay.IsPlayingDemo)
+            if (replay.StepAimed(replay.RealTime + (uint)(next - replay.Time)) || !replay.IsPlayingDemo)
                 break;
 
             frames++;

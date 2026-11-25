@@ -100,10 +100,10 @@ public sealed class Playthrough
         files.Set(mapPath, File.ReadAllBytes(mapFile));
         files.Set(scriptPath, File.Exists(scriptFile) ? File.ReadAllBytes(scriptFile) : DefaultLevelScript.ToArray());
         var profile = CreateProfile(gameFolder);
-        var map = new MapSteam(gameFolder, objects, files, new GameSession(profile, time: new LoadingRedrawClock()));
+        var map = new MapSteam(gameFolder, objects, files, new GameSession(profile, time: new SteppedClock()));
         map.Input.PostMessage(WindowMessageId.ActivateApp, 1, 0);
         map.RequestLoad(Encoding.ASCII.GetBytes(mapPath));
-        map.Tact(ViewSeed, ViewSeed, out _);
+        map.TactAt(ViewSeed);
 
         return map;
     }
@@ -265,7 +265,7 @@ public sealed class Playthrough
         if (map is null)
         {
             var registry = CreateRegistry(_gameFolder, analysis.Name, loadout);
-            map = new MapSteam(_gameFolder, _objects, _files, new GameSession(registry, time: new LoadingRedrawClock()));
+            map = new MapSteam(_gameFolder, _objects, _files, new GameSession(registry, time: new SteppedClock()));
             map.Input.PostMessage(WindowMessageId.ActivateApp, 1, 0);
         }
         else
@@ -275,11 +275,11 @@ public sealed class Playthrough
 
         if (record)
         {
-            map.IsRecordingNextMap = true;
+            map.SaveDemo(Encoding.ASCII.GetBytes(Path.ChangeExtension(GetMapPath(analysis.Name), DemoExtension)));
         }
 
         map.RequestLoad(setup.MapName);
-        map.Tact((uint)seed, (uint)seed, out _);
+        map.TactAt((uint)seed);
         var field = new WalkField(analysis.Grid, setup.DoorsLocked, map, map.Collector, map.FindVid(KnownObject.PlayerStart)!);
         var bot = new PlayerBot(map, new FramePacer(FrameTimes), analysis, field);
 
@@ -373,7 +373,7 @@ public sealed class Playthrough
         if (map is null)
         {
             var registry = CreateRegistry(_gameFolder, analysis.Name, loadout);
-            map = new MapSteam(_gameFolder, _objects, _files, new GameSession(registry, time: new LoadingRedrawClock()));
+            map = new MapSteam(_gameFolder, _objects, _files, new GameSession(registry, time: new SteppedClock()));
             map.Input.PostMessage(WindowMessageId.ActivateApp, 1, 0);
         }
         else
@@ -382,7 +382,7 @@ public sealed class Playthrough
         }
 
         map.RequestLoad(Encoding.ASCII.GetBytes(demoPath));
-        map.Tact(Map.StartWallTime, 0, out _);
+        map.TactAt((uint)demo.Seed);
 
         return map;
     }

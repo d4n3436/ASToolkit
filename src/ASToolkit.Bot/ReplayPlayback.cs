@@ -24,7 +24,6 @@ public sealed class ReplayPlayback
     private readonly int[] _frameTimes;
     private readonly FramePacer _pacer;
     private Map _map;
-    private uint _now;
     private bool _isStepped;
     private int _shownTime;
     private Bgra32[]? _rendered;
@@ -69,9 +68,9 @@ public sealed class ReplayPlayback
     public Sound Sound => _map.Sound;
 
     /// <summary>
-    /// Gets the wall time of the map, in milliseconds.
+    /// Gets the real time of the map, in milliseconds.
     /// </summary>
-    public uint WallTime => _map.WallTime;
+    public uint RealTime => _map.RealTime;
 
     /// <summary>
     /// Plays a map of a game folder with the bot as the opening level of a campaign and records the run.
@@ -162,7 +161,6 @@ public sealed class ReplayPlayback
 
     private Map Load()
     {
-        _now = 0;
         _isStepped = false;
         _shownTime = 0;
         _rendered = null;
@@ -175,18 +173,17 @@ public sealed class ReplayPlayback
 
     private bool StepFrame(bool isAimOnly)
     {
-        uint wallTime = _map.TryGetNextDemoTime(out int next) ? _map.WallTime + (uint)(next - _map.Time) : _pacer.TakeNextWallTime(_map);
-
+        uint realTime = _map.TryGetNextDemoTime(out int next) ? _map.RealTime + (uint)(next - _map.Time) : _pacer.TakeNextRealTime(_map);
         bool isQuitting;
 
         if (isAimOnly)
         {
-            isQuitting = _map.StepAimed(wallTime, _now, out _now);
+            isQuitting = _map.StepAimed(realTime);
         }
         else
         {
             _map.PostNextDemoMouse(out _);
-            isQuitting = _map.Tact(wallTime, _now, out _now);
+            isQuitting = _map.TactAt(realTime);
         }
 
         if (isQuitting || !_map.IsPlayingDemo)

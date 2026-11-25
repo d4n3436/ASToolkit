@@ -15,14 +15,14 @@ public class DemoTests
         map.Input.PostMessage(WindowMessageId.HitTest, 0, 40 << 16 | 120);
         map.Input.PostMessage(WindowMessageId.LeftButtonDown, 0, 0);
         map.Input.PostKey(VirtualKey.X, 'x');
-        map.AdvanceClock();
+        map.AdvancePacedClock();
         int firstTime = map.Time;
         var cursor = new Vector2(120, 40) + map.Camera;
-        map.StepDemo(0, out _);
+        map.StepDemo();
         map.Input.PostMessage(WindowMessageId.KeyUp, (int)VirtualKey.Right, 0);
         map.Input.PostMessage(WindowMessageId.LeftButtonUp, 0, 0);
-        map.AdvanceClock();
-        map.StepDemo(0, out _);
+        map.AdvancePacedClock();
+        map.StepDemo();
 
         var demo = new DemoResource(map.FinishDemoRecording());
 
@@ -46,18 +46,18 @@ public class DemoTests
     public void StepDemo_PastTheLastFrame_QueuesTheDemosMap()
     {
         var recorder = EngineTestMap.CreateMap(recordDemo: true);
-        recorder.StepDemo(0, out _);
+        recorder.StepDemo();
         var demo = new DemoResource(recorder.FinishDemoRecording());
         var player = EngineTestMap.CreateMap(demo: demo);
 
-        player.StepDemo(0, out _);
-        player.AdvanceClock();
-        bool drawn = player.StepDemo(0, out _);
+        player.StepDemo();
+        player.AdvancePacedClock();
+        bool drawn = player.StepDemo();
 
         Assert.False(drawn);
         Assert.False(player.IsPlayingDemo);
         Assert.Empty(player.PreviousMapName.ToArray());
-        Assert.False(player.AdvanceClock());
+        Assert.False(player.AdvancePacedClock());
         Assert.Equal("maps\\engine_test.map"u8.ToArray(), player.PreviousMapName.ToArray());
     }
 }

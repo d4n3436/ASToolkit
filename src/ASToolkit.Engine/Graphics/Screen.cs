@@ -94,6 +94,7 @@ public sealed class Screen
     /// </summary>
     public Span<ushort> Depth => _depth ??= new ushort[DepthWidth * (Size.Height + DepthSlackRows)];
 
+    internal GammaTable GammaTable { get; } = new();
 
     /// <summary>
     /// Writes the back buffer as opaque pixels, row by row from the top.

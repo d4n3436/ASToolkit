@@ -33,16 +33,16 @@ internal struct SoundBuffer
 
     public bool IsLooping { get; private set; }
 
-    public void Play(bool isLooping, uint wallTime)
+    public void Play(bool isLooping, uint realTime)
     {
-        if (!GetStatus(wallTime))
+        if (!GetStatus(realTime))
         {
-            PlayedAt = wallTime - (uint)Position;
+            PlayedAt = realTime - (uint)Position;
             IsPlaying = true;
         }
         else if (IsLooping && !isLooping && Length > 0)
         {
-            PlayedAt = wallTime - (uint)((wallTime - PlayedAt) % Length);
+            PlayedAt = realTime - (uint)((realTime - PlayedAt) % Length);
         }
 
         IsLooping = isLooping;
@@ -50,21 +50,21 @@ internal struct SoundBuffer
 
     public void Rewind() => Position = 0;
 
-    public uint GetPosition(uint wallTime) => IsPlaying ? wallTime - PlayedAt : (uint)Position;
+    public uint GetPosition(uint realTime) => IsPlaying ? realTime - PlayedAt : (uint)Position;
 
-    public void Stop(uint wallTime)
+    public void Stop(uint realTime)
     {
-        if (!GetStatus(wallTime))
+        if (!GetStatus(realTime))
             return;
 
-        uint played = wallTime - PlayedAt;
+        uint played = realTime - PlayedAt;
         Position = IsLooping && Length > 0 ? (int)(played % Length) : (int)played;
         IsPlaying = false;
     }
 
-    public bool GetStatus(uint wallTime)
+    public bool GetStatus(uint realTime)
     {
-        if (IsPlaying && !IsLooping && wallTime - PlayedAt >= Length)
+        if (IsPlaying && !IsLooping && realTime - PlayedAt >= Length)
         {
             IsPlaying = false;
             Position = 0;

@@ -50,17 +50,12 @@ public sealed class MapSteam : Map
     /// <summary>
     /// Runs one frame of the level, advancing the clock and playing or recording the demo frame first.
     /// </summary>
-    /// <param name="wallTime">The wall time of the frame in milliseconds.</param>
-    /// <param name="now">The real time in milliseconds that paces a played demo.</param>
-    /// <param name="waitUntil">The real time to wait for before the frame, or <paramref name="now"/> when the frame is due.</param>
     /// <returns><see langword="true"/> when the game is quitting; otherwise, <see langword="false"/>.</returns>
     /// <remarks>The frame doesn't run while the window is inactive or a menu is open, unless the debug keys allow it.</remarks>
     [EngineRoutine(0x00405190)]
-    public override bool Tact(uint wallTime, uint now, out uint waitUntil)
+    public override bool Tact()
     {
-        waitUntil = now;
-
-        if (AdvanceClock(wallTime))
+        if (AdvanceClock())
             return true;
 
         if (Constant.IsDebugMode)
@@ -104,7 +99,7 @@ public sealed class MapSteam : Map
             return false;
 
         _stepCount++;
-        int demoResult = StepDemo(now, out waitUntil) ? 1 : 0;
+        int demoResult = StepDemo() ? 1 : 0;
 
         if (demoResult == DemoStopResult)
         {

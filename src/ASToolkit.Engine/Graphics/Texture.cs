@@ -169,7 +169,7 @@ public readonly ref partial struct Texture
             return;
 
         bool hasGamma = gamma.Negative != 0 || gamma.Positive != 0;
-        var table = hasGamma ? GammaTable.Get(gamma) : null;
+        var table = hasGamma ? screen.GammaTable.For(gamma) : null;
         var reds = table is null ? default : table.Reds;
         var greens = table is null ? default : table.Greens;
         var blues = table is null ? default : table.Blues;

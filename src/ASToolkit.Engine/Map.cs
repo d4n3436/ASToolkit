@@ -32,11 +32,6 @@ public partial class Map : IDisposable
     /// Represents the game time of the frame before the one a level starts at.
     /// </summary>
     public const int LevelStartPreviousTime = 1;
-
-    /// <summary>
-    /// Represents the wall time a new map starts at.
-    /// </summary>
-    public const uint StartWallTime = 1;
     
     internal const int UpdatedLayerCount = 16;
     internal const string ConfigFile = "AlienShooter.cfg";
@@ -45,10 +40,10 @@ public partial class Map : IDisposable
     private const int DefaultFontHeight = 8;
     private const int CompactionPeriodMask = 3;
     private const int ResumeFrameTime = 10;
-    private const uint MaxWallStep = 71;
+    private const uint MaxRealStep = 71;
     private const uint FrameRateWindow = 1000;
     private const float NormalSpeed = 1;
-    private const uint StartPreviousWallTimeOffset = 10;
+    private const uint StartPreviousRealTimeOffset = 10;
     private const int SpriteRecordSize = 112;
     private const float OldGridRounding = 7;
     private const int StartRandomState = 1;
@@ -75,6 +70,8 @@ public partial class Map : IDisposable
     private DemoResource? _playedDemo;
     private int _playedOffset;
     private MemoryStream? _recordedDemo;
+    private Stream? _demoFile;
+    private ReadOnlyMemory<byte> _demoName;
     private short[] _sceneryHeights = [];
     private short[] _objectHeights = [];
     private int _gridColumns;
@@ -95,9 +92,6 @@ public partial class Map : IDisposable
     private readonly LivingSet _livingCharges = new();
     private readonly int[] _scriptHooks = new int[ScriptHookCount];
     private int _pausedAt;
-    private int _demoPacedTime;
-    private uint _demoPacedAt;
-    private MemoryStream? _endedDemo;
     private ObjectTable _objects;
     private int _lastHandle;
     private int _unitIndex;
@@ -117,8 +111,8 @@ public partial class Map : IDisposable
     {
         Menu = new Menu(this);
         Session = session ?? new GameSession();
-        Session.RealCurrentTime = StartWallTime;
-        Session.PrevRealCurrentTime = unchecked(StartWallTime - StartPreviousWallTimeOffset);
+        Session.RealCurrentTime = Session.TimeGetTime();
+        Session.PrevRealCurrentTime = Session.RealCurrentTime - StartPreviousRealTimeOffset;
         SetFlag(MapFlags.AppMenu, Session.HasAppMenu);
         _flags |= MapFlags.PlayerControlled | MapFlags.DrawFlagman | MapFlags.DrawSoundCount | MapFlags.MouseTips;
         int fontHeight = Profile.GetInteger(fileSystem, ConfigFile, GraphSection, "FontSizeY"u8, DefaultFontHeight);
@@ -145,7 +139,7 @@ public partial class Map : IDisposable
             Session.Error.Error(MapLogTag, LogError.Open, 0, "resource file"u8);
         }
 
-        Session.Sound ??= new Sound(ref objectsFile, fileSystem, Session.Error, isHighQuality: Session.Registry.GetInt("SoundHighQuality", 0) != 0);
+        Session.Sound ??= new Sound(ref objectsFile, fileSystem, Session.Error, isHighQuality: Session.Registry.GetInt("SoundHighQuality", 0) != 0, time: Session.Time);
         Session.Constant ??= new Constant(ref objectsFile, Session.Error);
         Constant.IsDebugMode = Profile.GetInteger(fileSystem, ConfigFile, GameSection, "DebugMode"u8, 0) != 0;
         SetFlag(MapFlags.DrawFps, Profile.GetInteger(fileSystem, ConfigFile, GameSection, "DrawFPS"u8, 0) != 0);
@@ -229,9 +223,9 @@ public partial class Map : IDisposable
     public bool AreFencesUp => GetLiving(KnownObject.Fence, _livingFences).Count != 0;
 
     /// <summary>
-    /// Gets the wall time of the current frame in milliseconds.
+    /// Gets the real time of the current frame in milliseconds.
     /// </summary>
-    public uint WallTime => Session.RealCurrentTime;
+    public uint RealTime => Session.RealCurrentTime;
 
     /// <summary>
     /// Gets a value indicating whether the map is loading a level.
@@ -290,11 +284,6 @@ public partial class Map : IDisposable
     public Script Script { get; } = new();
 
     /// <summary>
-    /// Gets or sets a value indicating whether the next map load records the input of every frame into a demo kept in memory.
-    /// </summary>
-    public bool IsRecordingNextMap { get; set; }
-
-    /// <summary>
     /// Gets the input of the current frame.
     /// </summary>
     public Input Input { get; }
@@ -322,7 +311,7 @@ public partial class Map : IDisposable
     /// Sets a map file, or a demo file, to load at the start of the next step, before that step's frame runs.
     /// </summary>
     /// <param name="name">The path of the map or demo file, relative to the game folder.</param>
-    /// <remarks>The random number generator is seeded with the step's wall time unless a demo supplies the seed.</remarks>
+    /// <remarks>The random number generator is seeded with the session clock's time when the load runs, unless a demo supplies the seed.</remarks>
     public void RequestLoad(ReadOnlySpan<byte> name)
     {
         _flags |= MapFlags.LoadPending;
@@ -333,10 +322,9 @@ public partial class Map : IDisposable
     /// Loads a map file, or the map a demo file plays, and releases the level the map held before.
     /// </summary>
     /// <param name="name">The path of the map or demo file, relative to the game folder; an empty path loads nothing.</param>
-    /// <param name="wallTime">The wall time in milliseconds, used as the random seed unless a demo supplies one.</param>
-    /// <remarks>If the file is missing or invalid, or a chunk is missing, the problem is logged and the load ends early with the map still loading.</remarks>
+    /// <remarks>The random number generator is seeded with the session clock's time unless a demo supplies the seed. If the file is missing or invalid, or a chunk is missing, the problem is logged and the load ends early with the map still loading.</remarks>
     [EngineRoutine(0x0040c960)]
-    public void Load(ReadOnlySpan<byte> name, uint wallTime)
+    public void Load(ReadOnlySpan<byte> name)
     {
         _flags |= MapFlags.Loading;
 
@@ -354,7 +342,7 @@ public partial class Map : IDisposable
         _livingFences.Clear();
         _livingSites.Clear();
         _livingCharges.Clear();
-        if (!IsRecordingNextMap)
+        if (_demoFile is null)
         {
             var demo = new Resource();
             if (demo.Open(FileSystem, Session.Error, name, "DEMO"u8) == 0)
@@ -376,7 +364,7 @@ public partial class Map : IDisposable
         CursorSprite.Disable();
         _previousMapName = _mapName;
         _mapName = name.ToArray();
-        int seed = IsPlayingDemo ? _playedDemo!.Value.Seed : (int)wallTime;
+        int seed = IsPlayingDemo ? _playedDemo!.Value.Seed : (int)Session.TimeGetTime();
         _rng.Seed(seed);
         ShowLoadingStep("Load extra vid"u8);
         LoadVid(ref reader);
@@ -401,7 +389,7 @@ public partial class Map : IDisposable
             Script.WriteState(_recordedDemo!);
         }
 
-        Session.RealCurrentTime = wallTime;
+        Session.RealCurrentTime = Session.TimeGetTime();
         ShowLoadingStep("Run scripts for create sprites"u8);
         if (!_flags.HasFlag(MapFlags.AppMenu))
         {
@@ -469,16 +457,22 @@ public partial class Map : IDisposable
     public void SetFlagman(int army, Sprite? sprite) => _players[army & ASToolkit.Engine.Vid.ArmyMask].SetFlagman(sprite);
 
     /// <summary>
-    /// Advances the game clock to a wall time, compacts the update lists, loads a map if one was requested and processes the window messages.
+    /// Waits for the real time to move on, advances the game clock, compacts the update lists, loads a map if one was requested and processes the window messages.
     /// </summary>
-    /// <param name="wallTime">The wall time in milliseconds.</param>
     /// <returns><see langword="true"/> when the game is quitting; otherwise, <see langword="false"/>.</returns>
     [EngineRoutine(0x0040f210)]
-    public bool AdvanceClock(uint wallTime)
+    public bool AdvanceClock()
     {
-        uint step = Math.Min(wallTime - Session.RealCurrentTime, MaxWallStep);
+        uint elapsed;
+        do
+        {
+            elapsed = Session.TimeGetTime() - Session.RealCurrentTime;
+        }
+        while (elapsed == 0);
+
         Session.PrevRealCurrentTime = Session.RealCurrentTime;
-        Session.RealCurrentTime = wallTime;
+        Session.RealCurrentTime = Session.TimeGetTime();
+        uint step = Math.Min(elapsed, MaxRealStep);
         Session.PrevCurrentTime = Session.CurrentTime;
         Session.CurrentTime += (int)(step * _speed);
         _framesThisSecond++;
@@ -517,7 +511,7 @@ public partial class Map : IDisposable
         if (_flags.HasFlag(MapFlags.LoadPending))
         {
             _flags &= ~MapFlags.LoadPending;
-            Load(_pendingMapName.Span, wallTime);
+            Load(_pendingMapName.Span);
         }
 
         while (Input.TryPeekMessage(out var message))
@@ -537,16 +531,9 @@ public partial class Map : IDisposable
     /// <summary>
     /// Runs one frame of the map.
     /// </summary>
-    /// <param name="wallTime">The wall time of the frame in milliseconds.</param>
-    /// <param name="now">The real time in milliseconds that paces a played demo.</param>
-    /// <param name="waitUntil">The real time to wait for before the frame, or <paramref name="now"/> when the frame is due.</param>
     /// <returns><see langword="true"/> when the game is quitting; otherwise, <see langword="false"/>.</returns>
     [EngineRoutine(0x0041f0e0)]
-    public virtual bool Tact(uint wallTime, uint now, out uint waitUntil)
-    {
-        waitUntil = now;
-        return false;
-    }
+    public virtual bool Tact() => false;
 
     /// <summary>
     /// Releases the loaded level.
@@ -566,6 +553,7 @@ public partial class Map : IDisposable
 
         _vidCount = 0;
         Session.Error.Write($"Vid    release {Session.TextureMemoryInUse} {Session.VidMemoryInUse}");
+        CloseDemoFile();
     }
 
     /// <summary>
@@ -632,8 +620,8 @@ public partial class Map : IDisposable
 
         _playedDemo = null;
         _playedOffset = 0;
-        _demoPacedTime = 0;
-        _demoPacedAt = 0;
+        Session.DemoPacedAt = 0;
+        Session.DemoPacedTime = 0;
         EndDemoRecording();
         _flags &= ~(MapFlags.RecordingDemo | MapFlags.PlayingDemo);
         _scrollType = ScrollType.FromBorder;
@@ -833,9 +821,8 @@ public partial class Map : IDisposable
         reader.ReadInto(ref savedTime);
         Session.PrevCurrentTime = LevelStartPreviousTime;
         Session.CurrentTime = LevelStartTime;
-        if (!IsPlayingDemo && IsRecordingNextMap)
+        if (!IsPlayingDemo && _demoFile is not null)
         {
-            IsRecordingNextMap = false;
             StartDemoRecording(name, seed);
         }
 

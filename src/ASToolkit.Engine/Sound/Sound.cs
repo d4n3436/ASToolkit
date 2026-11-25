@@ -55,6 +55,7 @@ public sealed class Sound
 
     private readonly IGameFileSystem _fileSystem;
     private readonly ISoundDevice? _device;
+    private readonly TimeProvider _time;
     private Sfx[] _sfx = [];
     private readonly SoundBuffer[] _duplicates = new SoundBuffer[VoiceCount];
     private readonly SfxRequest[] _requests = new SfxRequest[RequestCount];
@@ -88,13 +89,14 @@ public sealed class Sound
     }
 
     [EngineRoutine(0x0041cba0)]
-    internal Sound(ref Resource resource, IGameFileSystem fileSystem, MyError? error, ISoundDevice? device = null, bool isDisabled = false, bool isHighQuality = false, nint window = 0)
+    internal Sound(ref Resource resource, IGameFileSystem fileSystem, MyError? error, ISoundDevice? device = null, bool isDisabled = false, bool isHighQuality = false, nint window = 0, TimeProvider? time = null)
     {
         _window = window;
         Error = error;
         IsHighQuality = isHighQuality;
         _fileSystem = fileSystem;
         _device = device;
+        _time = time ?? TimeProvider.System;
         for (int i = 0; i < RequestCount; i++)
         {
             _requests[i].Id = NoSound;
@@ -126,7 +128,7 @@ public sealed class Sound
 
     internal ISoundDevice? Device => _device;
 
-    internal bool IsLoaded => _deviceState == DeviceReady && _sfx.Length > 0;
+    internal bool HasSfx => _sfx.Length > 0;
 
     [EngineRoutine(0x0041d020)]
     internal int PlayingCount
@@ -160,9 +162,9 @@ public sealed class Sound
     /// <summary>
     /// Determines whether a music track is playing or looping.
     /// </summary>
-    /// <param name="wallTime">The wall time in milliseconds.</param>
+    /// <param name="realTime">The real time in milliseconds.</param>
     /// <returns><see langword="true"/> while music plays; otherwise, <see langword="false"/>.</returns>
-    public bool IsPlayMusic(uint wallTime) => _music is not null && (_music.IsPlaying(wallTime) || _loop != 0);
+    public bool IsPlayMusic(uint realTime) => _music is not null && (_music.IsPlaying(realTime) || _loop != 0);
 
     /// <summary>
     /// Attempts to get the state of a sound buffer that is playing.
@@ -290,15 +292,15 @@ public sealed class Sound
     /// </summary>
     /// <param name="random">The random number generator.</param>
     /// <param name="time">The game time in milliseconds.</param>
-    /// <param name="wallTime">The wall time in milliseconds.</param>
+    /// <param name="realTime">The real time in milliseconds.</param>
     [EngineRoutine(0x0041d770)]
-    public void Tact(GameRandom random, int time, uint wallTime)
+    public void Tact(GameRandom random, int time, uint realTime)
     {
         var music = _music;
 
         if (music is not null)
         {
-            UpdateMusic(music, random, wallTime);
+            UpdateMusic(music, random, realTime);
         }
 
         if (_deviceState != DeviceReady)
@@ -306,18 +308,18 @@ public sealed class Sound
 
         var requests = _requests.AsSpan();
         var voices = _voices.AsSpan();
-        int pending = MergeRequests(requests, voices, time, wallTime);
+        int pending = MergeRequests(requests, voices, time, realTime);
         int free = 0;
         for (int v = 0; v < voices.Length; v++)
         {
-            if (!voices[v].CheckPlay(this, v, time, wallTime))
+            if (!voices[v].CheckPlay(this, v, time, realTime))
             {
                 free++;
             }
         }
 
         pending = DropQuietestRequests(requests, free, pending);
-        StopVoicesForRequests(voices, free, pending, wallTime);
+        StopVoicesForRequests(voices, free, pending, realTime);
         for (int r = 0; r < requests.Length; r++)
         {
             ref var request = ref requests[r];
@@ -329,7 +331,7 @@ public sealed class Sound
 
             if (picked >= 0)
             {
-                voices[picked].Play(this, picked, request.Pan, request.Volume, time, wallTime);
+                voices[picked].Play(this, picked, request.Pan, request.Volume, time, realTime);
             }
 
             request.Id = NoSound;
@@ -340,16 +342,16 @@ public sealed class Sound
     /// Stops the voices of a sound, or every voice.
     /// </summary>
     /// <param name="id">The sound, or -1 to stop every voice.</param>
-    /// <param name="wallTime">The wall time in milliseconds.</param>
+    /// <param name="realTime">The real time in milliseconds.</param>
     [EngineRoutine(0x0041d560)]
-    public void Stop(int id, uint wallTime)
+    public void Stop(int id, uint realTime)
     {
         if (_deviceState != DeviceReady)
             return;
 
         if (id == NoSound)
         {
-            StopAll(wallTime);
+            StopAll(realTime);
 
             return;
         }
@@ -376,13 +378,13 @@ public sealed class Sound
     /// </summary>
     /// <param name="name">The path of the track.</param>
     /// <param name="loop">Any nonzero value to play the track again when it ends.</param>
-    /// <param name="wallTime">The wall time in milliseconds.</param>
+    /// <param name="realTime">The real time in milliseconds.</param>
     [EngineRoutine(0x0041dec0)]
-    public void PlayMusicFile(ReadOnlySpan<byte> name, int loop, uint wallTime)
+    public void PlayMusicFile(ReadOnlySpan<byte> name, int loop, uint realTime)
     {
         if (_music is null)
         {
-            StartMusic(name.ToArray(), loop, wallTime);
+            StartMusic(name.ToArray(), loop, realTime);
 
             return;
         }
@@ -395,12 +397,12 @@ public sealed class Sound
     /// <summary>
     /// Stops the music and clears the remembered track to play again.
     /// </summary>
-    /// <param name="wallTime">The wall time in milliseconds.</param>
+    /// <param name="realTime">The real time in milliseconds.</param>
     /// <returns><see langword="true"/> if closing the music device failed; otherwise, <see langword="false"/>.</returns>
     [EngineRoutine(0x0041dc70)]
-    public bool StopMusic(uint wallTime)
+    public bool StopMusic(uint realTime)
     {
-        _music?.Stop(wallTime);
+        _music?.Stop(realTime);
         _trackName = default;
         _loop = 0;
         PlayToState = NoSound;
@@ -413,9 +415,9 @@ public sealed class Sound
     /// Sets the volume of the music, removing the track at 0 and starting the remembered one when the volume is above 0.
     /// </summary>
     /// <param name="volume">The volume from 0 to 100.</param>
-    /// <param name="wallTime">The wall time in milliseconds.</param>
+    /// <param name="realTime">The real time in milliseconds.</param>
     [EngineRoutine(0x0041ddf0)]
-    public void SetMusicVolume(int volume, uint wallTime)
+    public void SetMusicVolume(int volume, uint realTime)
     {
         if (volume <= 0)
         {
@@ -438,7 +440,7 @@ public sealed class Sound
 
         if (_music is null && volume != 0)
         {
-            StartMusic(_trackName, _loop, wallTime);
+            StartMusic(_trackName, _loop, realTime);
         }
 
         _music?.SetVolume((volume - FullVolume) * VolumeScale);
@@ -469,23 +471,23 @@ public sealed class Sound
     /// <summary>
     /// Pauses the music and every voice that plays.
     /// </summary>
-    /// <param name="wallTime">The wall time in milliseconds.</param>
+    /// <param name="realTime">The real time in milliseconds.</param>
     [EngineRoutine(0x0041dd80)]
-    public void Pause(uint wallTime)
+    public void Pause(uint realTime)
     {
-        PauseMusic(wallTime);
-        PauseSound(wallTime);
+        PauseMusic(realTime);
+        PauseSound(realTime);
     }
 
     /// <summary>
     /// Resumes the music and every voice that was playing.
     /// </summary>
-    /// <param name="wallTime">The wall time in milliseconds.</param>
+    /// <param name="realTime">The real time in milliseconds.</param>
     [EngineRoutine(0x0041dda0)]
-    public void Resume(uint wallTime)
+    public void Resume(uint realTime)
     {
-        ResumeMusic(wallTime);
-        ResumeSound(wallTime);
+        ResumeMusic(realTime);
+        ResumeSound(realTime);
     }
 
     internal bool IsValid(int id) => id >= 0 && id < _sfx.Length && _sfx[id].Count > 0;
@@ -524,7 +526,7 @@ public sealed class Sound
     [EngineRoutine(0x0041d110)]
     private void LoadSfx(ref Resource resource)
     {
-        int start = Environment.TickCount;
+        uint start = GameSession.TimeGetTime(_time);
         if (_deviceState != DeviceReady)
             return;
 
@@ -554,7 +556,7 @@ public sealed class Sound
         }
         while (resource.GoNextSub(SfxTag) == Resource.Found);
 
-        Error?.Write($"LoadSFX::No   ={count,-15}   sizeof(SFX)   ={SfxRecordSize,-5}    load time     ={Environment.TickCount - start}ms Quality={(IsHighQuality ? 1 : 0)}");
+        Error?.Write($"LoadSFX::No   ={count,-15}   sizeof(SFX)   ={SfxRecordSize,-5}    load time     ={GameSession.TimeGetTime(_time) - start}ms Quality={(IsHighQuality ? 1 : 0)}");
     }
 
     [EngineRoutine(0x0041cd30)]
@@ -666,17 +668,17 @@ public sealed class Sound
     }
 
     [EngineRoutine(0x0041db80)]
-    private bool PauseMusic(uint wallTime)
+    private bool PauseMusic(uint realTime)
     {
-        _music?.Pause(wallTime);
+        _music?.Pause(realTime);
 
         return (_device?.SendMusicCommand("stop FWMUSIC"u8, _window) ?? 0) != 0;
     }
 
     [EngineRoutine(0x0041dbd0)]
-    private bool ResumeMusic(uint wallTime)
+    private bool ResumeMusic(uint realTime)
     {
-        _music?.Resume(wallTime);
+        _music?.Resume(realTime);
 
         string command = PlayToState < 0 ? "play FWMUSIC notify" : $"play FWMUSIC to {PlayToPosition + 1} notify";
 
@@ -684,7 +686,7 @@ public sealed class Sound
     }
 
     [EngineRoutine(0x0041dd10)]
-    private void PauseSound(uint wallTime)
+    private void PauseSound(uint realTime)
     {
         if (_deviceState != DeviceReady)
             return;
@@ -696,14 +698,14 @@ public sealed class Sound
 
             if (voice.IsPlaying && voice.Buffer != NoBuffer)
             {
-                GetBuffer(voice.Buffer).Stop(wallTime);
+                GetBuffer(voice.Buffer).Stop(realTime);
                 _device?.StopVoice(v);
             }
         }
     }
 
     [EngineRoutine(0x0041dd50)]
-    private void ResumeSound(uint wallTime)
+    private void ResumeSound(uint realTime)
     {
         if (_deviceState != DeviceReady)
             return;
@@ -711,7 +713,7 @@ public sealed class Sound
         var voices = _voices.AsSpan();
         for (int v = 0; v < voices.Length; v++)
         {
-            voices[v].Resume(this, v, wallTime);
+            voices[v].Resume(this, v, realTime);
         }
     }
 
@@ -882,17 +884,17 @@ public sealed class Sound
     }
 
     [EngineRoutine(0x0041dcd0)]
-    private void StopAll(uint wallTime)
+    private void StopAll(uint realTime)
     {
         var voices = _voices.AsSpan();
         for (int v = 0; v < voices.Length; v++)
         {
-            StopVoice(ref voices[v], wallTime);
+            StopVoice(ref voices[v], realTime);
         }
     }
 
     [EngineRoutine(0x0041df20)]
-    private int StartMusic(ReadOnlyMemory<byte> name, int loop, uint wallTime)
+    private int StartMusic(ReadOnlyMemory<byte> name, int loop, uint realTime)
     {
         if (name.Length == 0)
             return 1;
@@ -916,7 +918,7 @@ public sealed class Sound
             _music.SetVolume((_musicVolume - FullVolume) * VolumeScale);
         }
 
-        _music.Play(wallTime);
+        _music.Play(realTime);
 
         return 0;
     }
@@ -952,20 +954,20 @@ public sealed class Sound
         PlayToPosition = NoSound;
     }
 
-    private void UpdateMusic(OggMusic music, GameRandom random, uint wallTime)
+    private void UpdateMusic(OggMusic music, GameRandom random, uint realTime)
     {
-        music.Update(wallTime);
+        music.Update(realTime);
         bool isNextTrack;
 
         if (_fade < 0)
         {
-            if (_fadeStartedAt == 0 || wallTime - _fadeStartedAt > FadeWindow)
+            if (_fadeStartedAt == 0 || realTime - _fadeStartedAt > FadeWindow)
             {
-                _fadeStartedAt = wallTime;
+                _fadeStartedAt = realTime;
             }
 
             music.SetVolume(_fade + (_musicVolume >= 0 ? (_musicVolume - FullVolume) * VolumeScale : 0));
-            _fade -= (int)((wallTime - _fadeStartedAt) / 2);
+            _fade -= (int)((realTime - _fadeStartedAt) / 2);
             isNextTrack = _fade < QuietestVolume;
 
             if (isNextTrack)
@@ -976,23 +978,23 @@ public sealed class Sound
         }
         else
         {
-            isNextTrack = (random.Next() & TrackCheckMask) == 0 && !music.IsPlaying(wallTime);
+            isNextTrack = (random.Next() & TrackCheckMask) == 0 && !music.IsPlaying(realTime);
         }
 
         if (isNextTrack)
         {
             if (_trackName.Length == 0)
             {
-                StopMusic(wallTime);
+                StopMusic(realTime);
             }
             else
             {
-                StartMusic(_trackName, _loop, wallTime);
+                StartMusic(_trackName, _loop, realTime);
             }
         }
     }
 
-    private int MergeRequests(Span<SfxRequest> requests, Span<SfxBuffer> voices, int time, uint wallTime)
+    private int MergeRequests(Span<SfxRequest> requests, Span<SfxBuffer> voices, int time, uint realTime)
     {
         int pending = 0;
         for (int r = 0; r < requests.Length; r++)
@@ -1014,7 +1016,7 @@ public sealed class Sound
                 if (IsLooped(id) && Math.Abs(voice.Volume - request.Volume) < MergeReach && Math.Abs(voice.Pan - request.Pan) < MergeReach)
                 {
                     request.Id = NoSound;
-                    voice.Play(this, v, request.Pan, request.Volume, time, wallTime);
+                    voice.Play(this, v, request.Pan, request.Volume, time, realTime);
 
                     break;
                 }
@@ -1069,7 +1071,7 @@ public sealed class Sound
         return pending;
     }
 
-    private void StopVoicesForRequests(Span<SfxBuffer> voices, int free, int pending, uint wallTime)
+    private void StopVoicesForRequests(Span<SfxBuffer> voices, int free, int pending, uint realTime)
     {
         for (int v = 0; free < pending && v < voices.Length; v++)
         {
@@ -1077,19 +1079,19 @@ public sealed class Sound
 
             if (voice.IsPlaying && _sfx[voice.Id].Record.VoiceLimit != GlobalLimit)
             {
-                StopVoice(ref voice, wallTime);
+                StopVoice(ref voice, realTime);
                 free++;
             }
         }
     }
 
-    private void StopVoice(ref SfxBuffer voice, uint wallTime)
+    private void StopVoice(ref SfxBuffer voice, uint realTime)
     {
         voice.IsPlaying = false;
 
         if (voice.Buffer != NoBuffer)
         {
-            GetBuffer(voice.Buffer).Stop(wallTime);
+            GetBuffer(voice.Buffer).Stop(realTime);
         }
     }
 }

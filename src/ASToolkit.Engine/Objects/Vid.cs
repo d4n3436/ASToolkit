@@ -403,7 +403,7 @@ public class Vid
     public int CollisionHandler { get; set; } = NoHandler;
 
     /// <summary>
-    /// Gets or sets the wall time at which a sprite of this object ID was last created or recounted.
+    /// Gets or sets the real time at which a sprite of this object ID was last created or recounted.
     /// </summary>
     public uint LastCreatedAt { get; set; }
 
@@ -1133,7 +1133,7 @@ public class Vid
         int firstPopulated = -1;
         for (int state = 0; state < StateCount; state++)
         {
-            if (sound is not null && !sound.IsValid(_sounds[state]) && Id != KnownObject.None)
+            if (sound is not null && sound.HasSfx && !sound.IsValid(_sounds[state]) && Id != KnownObject.None)
             {
                 Report(error, LogError.Invalid, _sounds[state], "sfx"u8);
                 _sounds[state] = 0;

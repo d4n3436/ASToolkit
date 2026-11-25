@@ -110,11 +110,10 @@ public class PlaythroughTests
 
     private static IEnumerable<Map> PlayDemo(Map map)
     {
-        uint now = 0;
         while (true)
         {
-            uint wallTime = map.TryGetNextDemoTime(out int next) ? map.WallTime + (uint)(next - map.Time) : map.GetPacer().TakeNextWallTime(map);
-            if (map.StepAimed(wallTime, now, out now) || !map.IsPlayingDemo)
+            uint realTime = map.TryGetNextDemoTime(out int next) ? map.RealTime + (uint)(next - map.Time) : map.GetPacer().TakeNextRealTime(map);
+            if (map.StepAimed(realTime) || !map.IsPlayingDemo)
                 yield break;
 
             yield return map;

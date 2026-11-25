@@ -45,8 +45,8 @@ public class ExecFuncTests
             }
             """);
         int pausedAt = map.Time;
-        map.AdvanceClock();
-        map.AdvanceClock();
+        map.AdvancePacedClock();
+        map.AdvancePacedClock();
 
         Assert.True(map.IsPaused);
         Assert.True(map.Time > pausedAt);
@@ -376,6 +376,23 @@ public class ExecFuncTests
         Assert.Equal(55, Read(script, "ammo"));
         Assert.Equal(map.FindVid((KnownObject)second)!.Damage, Read(script, "damage"));
         Assert.NotEqual(999, Read(script, "damage"));
+    }
+
+    [Fact]
+    public void ExecFunc_SaveDemo_RecordsTheNextLoadIntoTheNamedFile()
+    {
+        var (map, _) = Run("""
+            main()
+            {
+              SaveDemo("maps\\saved.dem");
+            }
+            """);
+        map.LoadAt(EngineTestMap.MapName, EngineTestMap.StartRealTime);
+        var demo = new DemoResource(map.FinishDemoRecording());
+
+        Assert.True(map.FileSystem.TryRead("maps\\saved.dem", out var file));
+        Assert.Equal(demo.Data.ToArray(), file.ToArray());
+        Assert.Equal(EngineTestMap.MapName.ToArray(), demo.MapName.ToArray());
     }
 
     private static (int First, int Second) FindWeaponPair(Map map)

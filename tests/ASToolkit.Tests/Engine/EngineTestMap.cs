@@ -12,6 +12,7 @@ internal static class EngineTestMap
 {
     public const string MapPath = "maps\\engine_test.map";
     private const string ScriptPath = "maps\\engine_test.lgc";
+    public const uint StartRealTime = 1;
     private const string DemoPath = "maps\\engine_test.dem";
     private const int MapVersion = 12;
     private const float MapSide = 8192;
@@ -55,18 +56,21 @@ internal static class EngineTestMap
     {
         var files = CreateFiles(sprites, environment, script, ambient, placePlayer, camera);
 
-        var map = new MapSteam(TestGameFolder.RequireFolder(), TestGameFolder.Objects, files, session ?? new GameSession(CreateRegistry(loadout, blood), time: new LoadingRedrawClock()));
+        var map = new MapSteam(TestGameFolder.RequireFolder(), TestGameFolder.Objects, files, session ?? new GameSession(CreateRegistry(loadout, blood), time: new SteppedClock()));
         map.Pace([frameTime]);
         map.Input.PostMessage(WindowMessageId.ActivateApp, 1, 0);
-        map.IsRecordingNextMap = recordDemo;
+        if (recordDemo)
+        {
+            map.SaveDemo(Encoding.ASCII.GetBytes(DemoPath));
+        }
         if (demo is null)
         {
-            map.Load(MapName, Map.StartWallTime);
+            map.LoadAt(MapName, StartRealTime);
         }
         else
         {
             files.Set(DemoPath, demo.Value.Data);
-            map.Load(Encoding.ASCII.GetBytes(DemoPath), Map.StartWallTime);
+            map.LoadAt(Encoding.ASCII.GetBytes(DemoPath), StartRealTime);
         }
 
         if (placePlayer)

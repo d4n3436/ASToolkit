@@ -65,7 +65,7 @@ public sealed partial class Graphics
         Error.Write(DescribeTextureStage());
         SetDefaultRenderStates();
         Error.Write(DescribeTextureStage());
-        Error.Write(Texture.CapabilitiesText);
+        Error.Write(Texture.ReadCapabilities(_session));
         if (!CreateBuffers(Buffers))
             return 1;
 

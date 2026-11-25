@@ -54,7 +54,7 @@ public sealed partial class Graphics
     public bool IsFullScreen { get; internal set; }
 
     /// <summary>
-    /// Gets the wall time each effect started at, or zero for an effect that isn't running.
+    /// Gets the real time each effect started at, or zero for an effect that isn't running.
     /// </summary>
     public uint[] EffectStartTimes { get; } = new uint[EffectCount];
 

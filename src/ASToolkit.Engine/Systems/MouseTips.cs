@@ -27,7 +27,7 @@ internal sealed class MouseTips
     [EngineRoutine(0x0043da80)]
     public void Tact(Input input)
     {
-        uint now = _map.WallTime;
+        uint now = _map.RealTime;
         var cursor = input.ScreenCursor;
 
         if (_map.Session.MouseTipCursor != cursor)

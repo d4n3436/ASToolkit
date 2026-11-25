@@ -30,10 +30,10 @@ internal sealed unsafe class MusicTrack : IDisposable
 
     public float Gain { get; set; }
 
-    public static MusicTrack? Open(string file, string path, uint startedAt, uint wallTime, int rate)
+    public static MusicTrack? Open(string file, string path, uint startedAt, uint realTime, int rate)
     {
         var reader = new VorbisReader(file);
-        long offset = (long)((wallTime - startedAt) * (double)reader.SampleRate / MillisecondsPerSecond);
+        long offset = (long)((realTime - startedAt) * (double)reader.SampleRate / MillisecondsPerSecond);
 
         if (offset >= reader.TotalSamples)
         {

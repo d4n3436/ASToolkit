@@ -1,5 +1,4 @@
 using System.Collections.Concurrent;
-using System.Numerics;
 using System.Text;
 using ASToolkit.Core;
 using ASToolkit.Engine.IO;
@@ -36,8 +35,6 @@ public partial class Map
     private const string AnimationExtension = ".flc";
     private const string HardwareGroundName = "Self Created Hardware Prerendered Ground ";
 
-    private static readonly ConcurrentDictionary<(string Path, bool IsText), Lazy<ReadOnlyMemory<byte>>> ConvertedPictures = new();
-    
     private readonly ConcurrentDictionary<(KnownObject Id, int Frame), FrameMask?> _masks = new();
 
     /// <summary>
@@ -69,7 +66,7 @@ public partial class Map
     [EngineRoutine(0x00411510)]
     private void LoadVid(ref Resource resource)
     {
-        int start = Environment.TickCount;
+        uint start = Session.TimeGetTime();
         if (_weapons is null)
         {
             LoadWeaponRecords(ref resource);
@@ -86,7 +83,6 @@ public partial class Map
         }
 
         int existing = _vidCount;
-        var sound = Sound.IsLoaded ? Sound : null;
         var screen = Session.Graphics.Screen;
         bool isTrueColor = screen?.IsTrueColor ?? true;
         var format = screen?.Format ?? HighColorFormat.Rgb565;
@@ -106,7 +102,7 @@ public partial class Map
                 Session.Error.Error(MapLogTag, LogError.Load, id, "this VID already loaded"u8);
             }
 
-            var vid = CreateVid(ref resource, (KnownObject)id, isTrueColor, format, sound);
+            var vid = CreateVid(ref resource, (KnownObject)id, isTrueColor, format);
             _vids[id] = vid;
             if (vid is null)
                 continue;
@@ -140,7 +136,7 @@ public partial class Map
             }
         }
 
-        Session.Error.Write($"LoadVid::No   ={_vidCount,-15}   sizeof(VID)   ={VidSize,-5}    load time     ={Environment.TickCount - start}ms   MaxSizeX,Y={largest.Width},{largest.Height}");
+        Session.Error.Write($"LoadVid::No   ={_vidCount,-15}   sizeof(VID)   ={VidSize,-5}    load time     ={Session.TimeGetTime() - start}ms   MaxSizeX,Y={largest.Width},{largest.Height}");
     }
 
     /// <summary>
@@ -469,14 +465,14 @@ public partial class Map
     }
 
     [EngineRoutine(0x00411b50)]
-    private Vid? CreateVid(ref Resource resource, KnownObject id, bool isTrueColor, HighColorFormat format, Sound? sound)
+    private Vid? CreateVid(ref Resource resource, KnownObject id, bool isTrueColor, HighColorFormat format)
     {
         string name = GameTextEncoding.Cyrillic.GetString(resource.ReadText());
         var gameObject = _objects.ReadObject(resource.Read<byte>(_objects.ObjectSize));
         string path = Encoding.ASCII.GetString(resource.ReadText());
         string gameFolder = _gameFolder;
         var temporary = ASToolkit.Engine.Vid.CreateEmpty(KnownObject.None, gameObject, DefaultSpriteSpeed, ObjectLayer.Menu);
-        temporary.LoadParameters(gameObject, Session.Error, sound, ShouldResetBuiltTerrain);
+        temporary.LoadParameters(gameObject, Session.Error, Sound, ShouldResetBuiltTerrain);
         var source = FindCopySource(path, temporary);
         if (source is not null)
         {
@@ -485,7 +481,7 @@ public partial class Map
             mirror.RecordId = id;
             mirror.Name = name;
             mirror.Path = path;
-            mirror.LoadParameters(gameObject, Session.Error, sound, ShouldResetBuiltTerrain);
+            mirror.LoadParameters(gameObject, Session.Error, Sound, ShouldResetBuiltTerrain);
             mirror.SetLayer();
 
             return mirror;
@@ -498,7 +494,7 @@ public partial class Map
             if (path.Contains(FontExtension, StringComparison.Ordinal) || path.Contains(TrueTypeExtension, StringComparison.Ordinal))
             {
                 var font = new VidFont(id, gameObject, _weapons!, DefaultMaxTextureSize);
-                PrepareVid(font, gameObject, name, path, sound);
+                PrepareVid(font, gameObject, name, path);
                 font.Load(default, default, Session);
                 font.SetLayer();
                 return font;
@@ -506,7 +502,12 @@ public partial class Map
             else if (path.Contains(TgaImage.Extension, StringComparison.Ordinal) || path.Contains(BmpImage.Extension, StringComparison.Ordinal) || path.Contains(AnimationExtension, StringComparison.Ordinal))
             {
                 bool isText = gameObject.SpriteClass == SpriteClass.Text;
-                data = ConvertedPictures.GetOrAdd((Path.GetFullPath(Path.Combine(gameFolder, path)), isText), key => new(() => ConvertPicture(gameFolder, path, key.IsText, null))).Value;
+                var key = (Path.GetFullPath(Path.Combine(gameFolder, path)), isText);
+                if (!Session.ConvertedPictures.TryGetValue(key, out data))
+                {
+                    data = ConvertPicture(gameFolder, path, isText, null);
+                    Session.ConvertedPictures.Add(key, data);
+                }
                 if (data.IsEmpty)
                 {
                     ConvertPicture(gameFolder, path, isText, Session.Error);
@@ -564,7 +565,7 @@ public partial class Map
             }
         }
 
-        PrepareVid(vid, gameObject, name, path, sound);
+        PrepareVid(vid, gameObject, name, path);
         vid.Load(sprite, bytes, Session);
         if (vid is VidHardware hardware)
         {
@@ -597,11 +598,11 @@ public partial class Map
         return null;
     }
 
-    private void PrepareVid(Vid vid, in GameObject record, string name, string path, Sound? sound)
+    private void PrepareVid(Vid vid, in GameObject record, string name, string path)
     {
         vid.Name = name;
         vid.Path = path;
-        vid.LoadParameters(record, Session.Error, sound, ShouldResetBuiltTerrain);
+        vid.LoadParameters(record, Session.Error, Sound, ShouldResetBuiltTerrain);
     }
 
     private void ResolveLinks(bool isReload)

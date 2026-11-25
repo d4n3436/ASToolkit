@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using System.Drawing;
 using System.Numerics;
 using ASToolkit.Formats;
@@ -16,8 +15,6 @@ public sealed class SpritePartReader
     private const int MaxFramePixels = FrameCells * Map.GridZCellSize;
     private const int DepthShift = 3;
     private const int DepthBias = 0x80;
-
-    private static readonly ConcurrentDictionary<string, byte[]> FileBytes = new(StringComparer.Ordinal);
 
     private readonly string _gameFolder;
     private readonly ObjectTable _objects;
@@ -158,7 +155,7 @@ public sealed class SpritePartReader
         if (!_files.TryGetValue(path, out var file))
         {
             string? resolved = GamePath.Resolve(_gameFolder, path);
-            file = resolved is not null && resolved.EndsWith(SpriteFileExtension, StringComparison.OrdinalIgnoreCase) ? new VidResource(FileBytes.GetOrAdd(Path.GetFullPath(resolved), File.ReadAllBytes)) : null;
+            file = resolved is not null && resolved.EndsWith(SpriteFileExtension, StringComparison.OrdinalIgnoreCase) ? new VidResource(File.ReadAllBytes(resolved)) : null;
             _files[path] = file;
         }
 

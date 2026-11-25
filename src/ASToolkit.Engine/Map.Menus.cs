@@ -1,5 +1,4 @@
 using System.Numerics;
-using ASToolkit.Core;
 using ASToolkit.Engine.IO;
 using ASToolkit.Formats;
 

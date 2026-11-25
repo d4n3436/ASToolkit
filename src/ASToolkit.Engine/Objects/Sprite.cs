@@ -121,7 +121,7 @@ public partial class Sprite
 
         CreateLink();
         Map.Collector.InsertToHash(this);
-        vid.LastCreatedAt = Map.WallTime;
+        vid.LastCreatedAt = Map.RealTime;
         vid.Counts[(int)Army & 3]++;
 
         if (state != SpriteAnimation.Birth && !Map.IsLoading)
@@ -600,7 +600,7 @@ public partial class Sprite
             Vid.Counts[army]--;
         }
 
-        vid.LastCreatedAt = Map.WallTime;
+        vid.LastCreatedAt = Map.RealTime;
         vid.Counts[army]++;
 
         Vid = vid;
@@ -1302,7 +1302,7 @@ public partial class Sprite
             Map.Collector.ChangeCoor(this, Position.AsVector2() + delta.AsVector2());
         }
 
-        uint stamp = Map.WallTime;
+        uint stamp = Map.RealTime;
 
         if (Extra is not null && Extra.PreviousPositionStamp != stamp)
         {

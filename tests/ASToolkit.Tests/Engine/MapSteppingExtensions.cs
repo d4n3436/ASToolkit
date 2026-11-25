@@ -21,5 +21,5 @@ internal static class MapSteppingExtensions
 
     public static bool Step(this Map map) => map.GetPacer().Step(map);
 
-    public static bool AdvanceClock(this Map map) => map.GetPacer().AdvanceClock(map);
+    public static bool AdvancePacedClock(this Map map) => map.GetPacer().AdvanceClock(map);
 }

@@ -358,7 +358,7 @@ public partial class Sprite
             vid.Counts[previous]--;
         }
 
-        vid.LastCreatedAt = Map.WallTime;
+        vid.LastCreatedAt = Map.RealTime;
         vid.Counts[current]++;
     }
 

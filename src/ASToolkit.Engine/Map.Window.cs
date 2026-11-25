@@ -58,7 +58,7 @@ public partial class Map
         switch ((MenuCommand)(message.WParam & CommandIdMask))
         {
             case MenuCommand.Load when Constant.IsDebugMode:
-                Load(GetOpenFileName().Span, WallTime);
+                Load(GetOpenFileName().Span);
                 break;
             case MenuCommand.Exit:
                 Input.PostMessage(WindowMessageId.Close, 0, 0);
@@ -99,23 +99,23 @@ public partial class Map
         {
             case WindowMessageId.EnterMenuLoop or WindowMessageId.EnterSizeMove:
                 Session.Graphics.EnterMenuLoop();
-                Sound.Pause(WallTime);
+                Sound.Pause(RealTime);
                 break;
             case WindowMessageId.ExitMenuLoop or WindowMessageId.ExitSizeMove:
                 Session.Graphics.ExitMenuLoop();
-                Sound.Resume(WallTime);
+                Sound.Resume(RealTime);
                 break;
             case WindowMessageId.ActivateApp:
                 SetFlag(MapFlags.WindowActive, message.WParam != 0);
 
                 if (_flags.HasFlag(MapFlags.WindowActive))
                 {
-                    Sound.Resume(WallTime);
+                    Sound.Resume(RealTime);
                     CursorSprite.Enable(FileSystem);
                 }
                 else
                 {
-                    Sound.Pause(WallTime);
+                    Sound.Pause(RealTime);
                     CursorSprite.Disable();
                 }
 

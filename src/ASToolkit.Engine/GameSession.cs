@@ -10,6 +10,7 @@ namespace ASToolkit.Engine;
 public sealed class GameSession : IDisposable
 {
     private const string ProgramName = "AlienShooter.exe";
+    private const long MillisecondsPerSecond = 1000;
     private const string ScreenWidthValue = "ScreenX";
     private const string ScreenHeightValue = "ScreenY";
     private const string FullScreenValue = "FullScreen";
@@ -18,11 +19,23 @@ public sealed class GameSession : IDisposable
     private const int DefaultBitsPerPixel = 32;
     private const int DefaultVSync = 1;
 
+    internal bool IsTexturePowerOfTwoRequired = true;
+    internal Size TextureMaxSize = new(256, 256);
     internal int TextureMemoryInUse;
+    internal bool IsTextureSquareRequired;
+    internal bool IsTextureDynamicSupported;
+    internal bool IsTexturePaletteSupported;
+    internal bool IsTextureDxt1Supported;
+    internal bool IsTextureDxt3Supported;
+    internal bool IsTextureDxt5Supported;
+    internal bool IsTextureAlphaPaletteSupported;
+    internal bool IsTextureConditionalNonPowerOfTwo;
     internal int PrevCurrentTime;
     internal int CurrentTime;
     internal uint PrevRealCurrentTime;
     internal uint RealCurrentTime;
+    internal uint DemoPacedAt;
+    internal int DemoPacedTime;
     internal uint FrameRateStartedAt;
     internal int VidMemoryInUse;
 
@@ -31,7 +44,7 @@ public sealed class GameSession : IDisposable
     /// </summary>
     /// <param name="registry">The registry that holds the game's settings, or null for an empty one.</param>
     /// <param name="fileSystem">The file system that holds the configuration file and gets the log, or <see langword="null"/> to not write logs and use the default configuration.</param>
-    /// <param name="time">The clock used for the log's file name and timestamps and for the wall time, or <see langword="null"/> for the system clock.</param>
+    /// <param name="time">The clock used for the log's file name and timestamps and for the real time, or <see langword="null"/> for the system clock.</param>
     /// <param name="desktop">The size of the desktop, or <see langword="null"/> if it is at least as large as the screen.</param>
     /// <param name="windowRect">The bounds of the game window on the desktop, or <see langword="null"/> if it covers the screen.</param>
     /// <param name="clientRect">The bounds of the client area of the game window on the desktop, or <see langword="null"/> if it covers the screen.</param>
@@ -81,7 +94,14 @@ public sealed class GameSession : IDisposable
     /// </summary>
     public bool HasAppMenu { get; }
 
+    /// <summary>
+    /// Gets the clock the game reads its real time from and the log takes its timestamps from.
+    /// </summary>
+    public TimeProvider Time { get; }
+
     internal MyError Error { get; }
+
+    internal Dictionary<(string Path, bool IsText), ReadOnlyMemory<byte>> ConvertedPictures { get; } = [];
 
     internal Registry Registry { get; }
 
@@ -91,12 +111,12 @@ public sealed class GameSession : IDisposable
 
     internal ReadOnlyMemory<byte> MouseTipText { get; set; }
 
-    internal TimeProvider Time { get; }
-
     /// <summary>
     /// Closes the log and keeps it as the last run's log.
     /// </summary>
     public void Dispose() => Error.Dispose();
 
-    internal uint GetWallTime() => (uint)(Time.GetElapsedTime(0).Ticks / TimeSpan.TicksPerMillisecond);
+    internal static uint TimeGetTime(TimeProvider time) => (uint)(Math.BigMul(time.GetTimestamp(), MillisecondsPerSecond) / time.TimestampFrequency);
+
+    internal uint TimeGetTime() => TimeGetTime(Time);
 }
