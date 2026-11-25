@@ -164,7 +164,28 @@ public partial class Picture
         {
             if (Flags.HasFlag(PictureFlags.Palette))
             {
-                WriteSoftwarePalette(builder);
+                var record = new ResRecordBuilder();
+                if (!Flags.HasFlag(PictureFlags.CurrentVersion))
+                {
+                    Span<VidPackedColor> packed = stackalloc VidPackedColor[PaletteSize];
+                    for (int i = 0; i < PaletteSize; i++)
+                    {
+                        packed[i] = new VidPackedColor(Colors.Image.Palette[i]);
+                    }
+
+                    record.Write(MemoryMarshal.AsBytes(packed));
+                }
+                else if (!Flags.HasFlag(PictureFlags.Alpha))
+                {
+                    record.Write(MemoryMarshal.AsBytes(Colors.Image.Palette));
+                }
+                else
+                {
+                    QuantizePalette();
+                    record.Write(MemoryMarshal.AsBytes(new ReadOnlySpan<uint>(_palette)));
+                }
+
+                builder.Chunks.Add(CreateChunk("PAL ", [record.Bytes.ToArray()]));
             }
 
             var frames = new List<byte[]>();
@@ -179,10 +200,80 @@ public partial class Picture
                 if (match >= 0)
                 {
                     Append(buffer, ref length, (short)match);
+                    AddFrame(frames, ref savings, buffer.AsSpan(0, length), coder);
+                    Advance();
+                    continue;
                 }
-                else
+
+                length = ConvertOutline(buffer);
+                var bounds = GetBounds(true, false);
+                int top = bounds.Top;
+                int bottom = bounds.Bottom;
+                if (Flags.HasFlag(PictureFlags.OutlineOnly))
                 {
-                    length = ConvertRuns(buffer);
+                    top = 0;
+                    bottom = 0;
+                }
+
+                Append(buffer, ref length, new VidRowsHeader((short)top, (short)(bottom - top)));
+                bool isDepth = Flags.HasFlag(PictureFlags.Depth);
+                bool isPalette = Flags.HasFlag(PictureFlags.Palette);
+                for (int y = top; y < bottom; y++)
+                {
+                    int x = 0;
+                    while (true)
+                    {
+                        int start = x;
+                        while (!IsOpaque(new Point(x, y)))
+                        {
+                            x++;
+                            if (x >= Colors.Image.Size.Width)
+                                break;
+                        }
+
+                        if (x >= Colors.Image.Size.Width)
+                            break;
+
+                        for (; x - start > MaxRunLength; start += MaxRunLength)
+                        {
+                            Append(buffer, ref length, new VidRunHeader(MaxRunLength, 0));
+                        }
+
+                        byte skip = (byte)(x - start);
+                        int runStart = x;
+                        int lookahead = x + 2;
+                        do
+                        {
+                            if (!IsOpaque(new Point(x, y)) && (!isDepth || !IsOpaque(new Point(lookahead - 1, y)) && !IsOpaque(new Point(lookahead, y))))
+                                break;
+
+                            x++;
+                            lookahead++;
+                        }
+                        while (x - runStart < MaxRunLength);
+
+                        Append(buffer, ref length, new VidRunHeader(skip, (byte)(x - runStart)));
+                        if (isDepth)
+                        {
+                            for (int i = runStart; i < x; i++)
+                            {
+                                Append(buffer, ref length, GetDepth(new Point(i, y)));
+                            }
+                        }
+
+                        for (int i = runStart; i < x; i++)
+                        {
+                            if (isPalette)
+                            {
+                                buffer[length++] = (byte)GetHighColor(new Point(i, y));
+                                continue;
+                            }
+
+                            Append(buffer, ref length, (short)GetHighColor(new Point(i, y)));
+                        }
+                    }
+
+                    Append(buffer, ref length, new VidRunHeader(0, 0));
                 }
 
                 AddFrame(frames, ref savings, buffer.AsSpan(0, length), coder);
@@ -243,123 +334,4 @@ public partial class Picture
         return checksums[..frame].IndexOf(checksums[frame]);
     }
 
-    private void WriteSoftwarePalette(ResContainerBuilder builder)
-    {
-        var record = new ResRecordBuilder();
-        if (!Flags.HasFlag(PictureFlags.CurrentVersion))
-        {
-            Span<VidPackedColor> packed = stackalloc VidPackedColor[PaletteSize];
-            for (int i = 0; i < PaletteSize; i++)
-            {
-                packed[i] = new VidPackedColor(Colors.Image.Palette[i]);
-            }
-
-            record.Write(MemoryMarshal.AsBytes(packed));
-        }
-        else if (!Flags.HasFlag(PictureFlags.Alpha))
-        {
-            record.Write(MemoryMarshal.AsBytes(Colors.Image.Palette));
-        }
-        else
-        {
-            QuantizePalette();
-            record.Write(MemoryMarshal.AsBytes(new ReadOnlySpan<uint>(_palette)));
-        }
-
-        builder.Chunks.Add(CreateChunk("PAL ", [record.Bytes.ToArray()]));
-    }
-
-    private int ConvertRuns(byte[] buffer)
-    {
-        int length = ConvertOutline(buffer);
-        var bounds = GetBounds(true, false);
-        int top = bounds.Top;
-        int bottom = bounds.Bottom;
-        if (Flags.HasFlag(PictureFlags.OutlineOnly))
-        {
-            top = 0;
-            bottom = 0;
-        }
-
-        Append(buffer, ref length, new VidRowsHeader((short)top, (short)(bottom - top)));
-        bool isDepth = Flags.HasFlag(PictureFlags.Depth);
-        bool isPalette = Flags.HasFlag(PictureFlags.Palette);
-        for (int y = top; y < bottom; y++)
-        {
-            AppendRow(buffer, ref length, y, isDepth, isPalette);
-        }
-
-        return length;
-    }
-
-    private void AppendRow(byte[] buffer, ref int length, int y, bool isDepth, bool isPalette)
-    {
-        int x = 0;
-        while (true)
-        {
-            int start = x;
-            while (!IsOpaque(new Point(x, y)))
-            {
-                x++;
-                if (x >= Colors.Image.Size.Width)
-                    break;
-            }
-
-            if (x >= Colors.Image.Size.Width)
-                break;
-
-            for (; x - start > MaxRunLength; start += MaxRunLength)
-            {
-                Append(buffer, ref length, new VidRunHeader(MaxRunLength, 0));
-            }
-
-            byte skip = (byte)(x - start);
-            int runStart = x;
-            int lookahead = x + 2;
-            do
-            {
-                if (isDepth)
-                {
-                    if (!IsOpaque(new Point(x, y)) && !IsOpaque(new Point(lookahead - 1, y)) && !IsOpaque(new Point(lookahead, y)))
-                        break;
-                }
-                else if (!IsOpaque(new Point(x, y)))
-                {
-                    break;
-                }
-
-                x++;
-                lookahead++;
-            }
-            while (x - runStart < MaxRunLength);
-
-            Append(buffer, ref length, new VidRunHeader(skip, (byte)(x - runStart)));
-            AppendRunPixels(buffer, ref length, y, runStart, x, isDepth, isPalette);
-        }
-
-        Append(buffer, ref length, new VidRunHeader(0, 0));
-    }
-
-    private void AppendRunPixels(byte[] buffer, ref int length, int y, int start, int end, bool isDepth, bool isPalette)
-    {
-        if (isDepth)
-        {
-            for (int i = start; i < end; i++)
-            {
-                Append(buffer, ref length, GetDepth(new Point(i, y)));
-            }
-        }
-
-        for (int i = start; i < end; i++)
-        {
-            if (isPalette)
-            {
-                buffer[length++] = (byte)GetHighColor(new Point(i, y));
-            }
-            else
-            {
-                Append(buffer, ref length, (short)GetHighColor(new Point(i, y)));
-            }
-        }
-    }
 }

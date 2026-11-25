@@ -69,6 +69,8 @@ public sealed class SpriteCollector
     /// </summary>
     public ReadOnlySpan<Sprite> Listed => _listed.Items;
 
+    internal SpriteList ListedSprites => _listed;
+
     /// <summary>
     /// Gets half the width and depth of the largest object.
     /// </summary>
@@ -91,7 +93,7 @@ public sealed class SpriteCollector
     {
         if (IsHashed(sprite.Vid))
         {
-            _buckets[GetBucket(sprite.Position.AsVector2())].Insert(sprite);
+            _buckets[GetRow(sprite.Position.Y) * _columns + GetColumn(sprite.Position.X)].Insert(sprite);
         }
 
         if (IsListed(sprite.Vid))
@@ -281,8 +283,6 @@ public sealed class SpriteCollector
     }
 
     private static int GetCell(float scaled, int count) => scaled < 0 ? 0 : scaled < count ? (int)scaled : count - 1;
-
-    private int GetBucket(Vector2 point) => (GetRow(point.Y) * _columns) + GetColumn(point.X);
 
     private int GetColumn(float x) => GetCell(x * _scale.X, _columns);
 

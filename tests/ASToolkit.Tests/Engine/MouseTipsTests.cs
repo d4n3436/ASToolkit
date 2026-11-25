@@ -12,10 +12,10 @@ public class MouseTipsTests
     {
         var map = EngineTestMap.CreateMap();
         ((MemoryWriteOverlay)map.FileSystem).Set(Map.StringsFile, Encoding.ASCII.GetBytes($"[Units]\r\n{(int)map.Flagman(0)!.Vid.Id}=Hero\r\n"));
-        map.GetPlayer(Map.ControlledPlayer).Hovered = map.Flagman(0);
+        map.Player(Map.ControlledPlayer).Hovered = map.Flagman(0);
 
         var text = map.GetMouseTipsString();
-        map.Pause();
+        map.PauseOn();
         var paused = map.GetMouseTipsString();
 
         Assert.Equal("Hero", Encoding.ASCII.GetString(text.Span));

@@ -351,10 +351,7 @@ public sealed partial class Graphics
         {
             for (int i = 0; i < ColorTableGroup; i++)
             {
-                int red = Math.Clamp(top + ColorTableOffsets[i * 3], 0, byte.MaxValue);
-                int green = Math.Clamp(top + ColorTableOffsets[i * 3 + 1], 0, byte.MaxValue);
-                int blue = Math.Clamp(top + ColorTableOffsets[i * 3 + 2], 0, byte.MaxValue);
-                table[index++] = format.Pack((uint)(red << 16 | green << 8 | blue));
+                table[index++] = format.Pack(PackColor(top + ColorTableOffsets[i * 3], top + ColorTableOffsets[i * 3 + 1], top + ColorTableOffsets[i * 3 + 2]));
             }
         }
 
@@ -399,7 +396,7 @@ public sealed partial class Graphics
         var texture = new Texture(new Size(TextureSide, TextureSide), format, TextureFlags.None, _session);
         if (texture.Format == VidPixelFormat.P8)
         {
-            texture.Palette = GrayPalette;
+            texture.SetPalette(GrayPalette, _session);
         }
 
         return texture;

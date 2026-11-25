@@ -196,13 +196,6 @@ public partial class Map
     /// <summary>
     /// Clears the counts and script handlers of every object ID for a new level.
     /// </summary>
-    public void ResetVidLevelState()
-    {
-        foreach (var vid in Vids)
-        {
-            vid?.ResetLevelState();
-        }
-    }
 
     /// <summary>
     /// Returns the shared data of an object ID.
@@ -210,18 +203,6 @@ public partial class Map
     /// <param name="id">The object ID.</param>
     /// <returns>The shared data of the object ID, or null if the ID isn't loaded.</returns>
     public Vid? FindVid(KnownObject id) => id >= 0 && (int)id < _vidCount ? _vids[(int)id] : null;
-
-    /// <summary>
-    /// Applies an ambient gamma to the palettes of every sprite file.
-    /// </summary>
-    /// <param name="ambient">The ambient gamma.</param>
-    public void SetAmbient(Gamma ambient)
-    {
-        foreach (var vid in Vids)
-        {
-            vid?.SetGamma(ambient, ASToolkit.Engine.Vid.AllArmies, ambient, Session);
-        }
-    }
 
     internal FrameMask? GetFrameMask(Vid vid, int frame)
     {
@@ -321,23 +302,12 @@ public partial class Map
             target.LoadParameters(gameObject, Session.Error, Sound, ShouldResetBuiltTerrain);
         }
 
-        ResolveLinks(true);
-    }
-
-    internal void LogCounts()
-    {
-        for (int i = 0; i < _vidCount; i++)
+        foreach (var vid in Vids)
         {
-            var vid = _vids[i];
-
-            if (vid is null)
-                continue;
-
-            var counts = vid.Counts;
-            if (counts[0] + counts[1] + counts[2] + counts[3] == 0)
-                continue;
-
-            Session.Error.Log($"NoVid[{i,3}]={counts[0]} {counts[1]} {counts[2]} {counts[3]} {vid.Name} Layer={(int)vid.Layer} {vid.Path}");
+            if (vid is not null && !vid.FileType.HasFlag(VidType.FrameVector))
+            {
+                SetChildAndLink(vid);
+            }
         }
     }
 
@@ -355,10 +325,49 @@ public partial class Map
         }
 
         ref readonly var weapon = ref vid.Weapon;
-        vid.HasColorKeyframes = GetHasColorKeyframes(weapon);
-        vid.HasScaleKeyframes = GetHasScaleKeyframes(weapon);
-        vid.HasOffsetKeyframes = GetHasOffsetKeyframes(weapon);
-        vid.HasRotationKeyframes = GetHasRotationKeyframes(weapon);
+        vid.HasColorKeyframes = false;
+        for (int key = 0; key < WeaponRecord.KeyframeCount; key++)
+        {
+            if (weapon.RedKeys[key] != 0 || weapon.GreenKeys[key] != 0 || weapon.BlueKeys[key] != 0 || weapon.AlphaKeys[key] != 0)
+            {
+                vid.HasColorKeyframes = true;
+
+                break;
+            }
+        }
+
+        vid.HasScaleKeyframes = false;
+        for (int key = 0; key < WeaponRecord.KeyframeCount; key++)
+        {
+            if (BitConverter.SingleToInt32Bits(weapon.ScaleXKeys[key]) != OneBits || BitConverter.SingleToInt32Bits(weapon.ScaleYKeys[key]) != OneBits || BitConverter.SingleToInt32Bits(weapon.ScaleHeightKeys[key]) != OneBits)
+            {
+                vid.HasScaleKeyframes = true;
+
+                break;
+            }
+        }
+
+        vid.HasOffsetKeyframes = false;
+        for (int key = 0; key < WeaponRecord.KeyframeCount; key++)
+        {
+            if (!weapon.OffsetXKeys[key].IsExactlyZero() || !weapon.OffsetYKeys[key].IsExactlyZero() || !weapon.OffsetZKeys[key].IsExactlyZero())
+            {
+                vid.HasOffsetKeyframes = true;
+
+                break;
+            }
+        }
+
+        vid.HasRotationKeyframes = false;
+        for (int key = 0; key < WeaponRecord.KeyframeCount; key++)
+        {
+            if (weapon.RotationXKeys[key] != 0 || weapon.RotationYKeys[key] != 0 || weapon.RotationZKeys[key] != 0)
+            {
+                vid.HasRotationKeyframes = true;
+
+                break;
+            }
+        }
 
         if (vid.Lifetime != ASToolkit.Engine.Vid.Unlimited || vid.HasKeyframes || vid.Properties.HasFlag(ObjectProperties.Blur) || vid.Properties.HasFlag(ObjectProperties.RandomSpeed))
         {
@@ -406,56 +415,6 @@ public partial class Map
         return picture.Load(path, string.Empty, string.Empty) ? picture.Convert() : default;
     }
 
-    private static bool IsScaleKey(in AlienShooterWeaponRecord weapon, int key) =>
-        BitConverter.SingleToInt32Bits(weapon.ScaleXKeys[key]) != OneBits || BitConverter.SingleToInt32Bits(weapon.ScaleYKeys[key]) != OneBits || BitConverter.SingleToInt32Bits(weapon.ScaleHeightKeys[key]) != OneBits;
-
-    private static bool IsOffsetKey(in AlienShooterWeaponRecord weapon, int key) =>
-        !weapon.OffsetXKeys[key].IsExactlyZero() || !weapon.OffsetYKeys[key].IsExactlyZero() || !weapon.OffsetZKeys[key].IsExactlyZero();
-
-    private static bool GetHasScaleKeyframes(in AlienShooterWeaponRecord weapon)
-    {
-        for (int key = 0; key < WeaponRecord.KeyframeCount; key++)
-        {
-            if (IsScaleKey(weapon, key))
-                return true;
-        }
-
-        return false;
-    }
-
-    private static bool GetHasOffsetKeyframes(in AlienShooterWeaponRecord weapon)
-    {
-        for (int key = 0; key < WeaponRecord.KeyframeCount; key++)
-        {
-            if (IsOffsetKey(weapon, key))
-                return true;
-        }
-
-        return false;
-    }
-
-    private static bool GetHasColorKeyframes(in AlienShooterWeaponRecord weapon)
-    {
-        for (int key = 0; key < WeaponRecord.KeyframeCount; key++)
-        {
-            if (weapon.RedKeys[key] != 0 || weapon.GreenKeys[key] != 0 || weapon.BlueKeys[key] != 0 || weapon.AlphaKeys[key] != 0)
-                return true;
-        }
-
-        return false;
-    }
-
-    private static bool GetHasRotationKeyframes(in AlienShooterWeaponRecord weapon)
-    {
-        for (int key = 0; key < WeaponRecord.KeyframeCount; key++)
-        {
-            if (weapon.RotationXKeys[key] != 0 || weapon.RotationYKeys[key] != 0 || weapon.RotationZKeys[key] != 0)
-                return true;
-        }
-
-        return false;
-    }
-
     private ReadOnlyMemory<byte> GetVidBytes(string path)
     {
         lock (Parts)
@@ -470,10 +429,27 @@ public partial class Map
         string name = GameTextEncoding.Cyrillic.GetString(resource.ReadText());
         var gameObject = _objects.ReadObject(resource.Read<byte>(_objects.ObjectSize));
         string path = Encoding.ASCII.GetString(resource.ReadText());
-        string gameFolder = _gameFolder;
         var temporary = ASToolkit.Engine.Vid.CreateEmpty(KnownObject.None, gameObject, DefaultSpriteSpeed, ObjectLayer.Menu);
         temporary.LoadParameters(gameObject, Session.Error, Sound, ShouldResetBuiltTerrain);
-        var source = FindCopySource(path, temporary);
+        Vid? source = null;
+        bool isBuiltTerrain = temporary.Class == SpriteClass.BuiltTerrain;
+        foreach (var existing in Vids)
+        {
+            if (existing is null || !string.Equals(existing.Path, path, StringComparison.Ordinal))
+                continue;
+
+            if (isBuiltTerrain != (existing.Class == SpriteClass.BuiltTerrain))
+                continue;
+
+            bool isHardware = existing.FileType.HasFlag(VidType.Hardware);
+            if ((isHardware || existing.ObjectGamma == temporary.ObjectGamma) && (isHardware || existing.Properties.HasFlag(ObjectProperties.Gamma) == temporary.Properties.HasFlag(ObjectProperties.Gamma)))
+            {
+                source = existing;
+
+                break;
+            }
+        }
+
         if (source is not null)
         {
             var mirror = source.CreateMirror();
@@ -502,15 +478,15 @@ public partial class Map
             else if (path.Contains(TgaImage.Extension, StringComparison.Ordinal) || path.Contains(BmpImage.Extension, StringComparison.Ordinal) || path.Contains(AnimationExtension, StringComparison.Ordinal))
             {
                 bool isText = gameObject.SpriteClass == SpriteClass.Text;
-                var key = (Path.GetFullPath(Path.Combine(gameFolder, path)), isText);
+                var key = (Path.GetFullPath(Path.Combine(_gameFolder, path)), isText);
                 if (!Session.ConvertedPictures.TryGetValue(key, out data))
                 {
-                    data = ConvertPicture(gameFolder, path, isText, null);
+                    data = ConvertPicture(_gameFolder, path, isText, null);
                     Session.ConvertedPictures.Add(key, data);
                 }
                 if (data.IsEmpty)
                 {
-                    ConvertPicture(gameFolder, path, isText, Session.Error);
+                    ConvertPicture(_gameFolder, path, isText, Session.Error);
                     LogUnopened(Session.Error, path);
                 }
             }
@@ -523,7 +499,7 @@ public partial class Map
 
         if (file is null)
         {
-            new Resource().Open(new GameFolder(gameFolder), Session.Error, Encoding.ASCII.GetBytes(path), Resource.AnyTag);
+            new Resource().Open(new GameFolder(_gameFolder), Session.Error, Encoding.ASCII.GetBytes(path), Resource.AnyTag);
 
             LogUnopened(Session.Error, path);
             return null;
@@ -579,41 +555,11 @@ public partial class Map
         return vid;
     }
 
-    private Vid? FindCopySource(string path, Vid temporary)
-    {
-        bool isBuiltTerrain = temporary.Class == SpriteClass.BuiltTerrain;
-        foreach (var existing in Vids)
-        {
-            if (existing is null || !string.Equals(existing.Path, path, StringComparison.Ordinal))
-                continue;
-
-            if (isBuiltTerrain != (existing.Class == SpriteClass.BuiltTerrain))
-                continue;
-
-            bool isHardware = existing.FileType.HasFlag(VidType.Hardware);
-            if ((isHardware || existing.ObjectGamma == temporary.ObjectGamma) && (isHardware || existing.Properties.HasFlag(ObjectProperties.Gamma) == temporary.Properties.HasFlag(ObjectProperties.Gamma)))
-                return existing;
-        }
-
-        return null;
-    }
-
     private void PrepareVid(Vid vid, in GameObject record, string name, string path)
     {
         vid.Name = name;
         vid.Path = path;
         vid.LoadParameters(record, Session.Error, Sound, ShouldResetBuiltTerrain);
-    }
-
-    private void ResolveLinks(bool isReload)
-    {
-        foreach (var vid in Vids)
-        {
-            if (vid is not null && !(isReload && vid.FileType.HasFlag(VidType.FrameVector)))
-            {
-                SetChildAndLink(vid);
-            }
-        }
     }
 
     private bool IsVidDefined(int id) => id >= 0 && id < _vidCount && _vids[id] is not null;

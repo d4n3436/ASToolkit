@@ -40,13 +40,6 @@ public struct ScriptStack
     public ReadOnlyMemory<byte> Text { get; set; }
 
     /// <summary>
-    /// Creates a number value.
-    /// </summary>
-    /// <param name="value">The number.</param>
-    /// <returns>The value.</returns>
-    public static ScriptStack FromNumber(int value) => new(ScriptStackFlags.Number, value);
-
-    /// <summary>
     /// Creates a text value.
     /// </summary>
     /// <param name="text">The text.</param>
@@ -84,6 +77,14 @@ public struct ScriptStack
 
         return text.AsMemory()[..length];
     }
+
+    /// <summary>
+    /// Creates a number value.
+    /// </summary>
+    /// <param name="value">The number.</param>
+    /// <returns>The value.</returns>
+    [EngineRoutine(0x004243a0)]
+    public static ScriptStack FromNumber(int value) => new(ScriptStackFlags.Number, value);
 
     /// <summary>
     /// Returns the value as text, with a number written in decimal.
@@ -158,5 +159,87 @@ public struct ScriptStack
         }
 
         Text = text;
+    }
+
+    [EngineRoutine(0x004245e0)]
+    internal void BinarOperator(ScriptOpcode opcode, in ScriptStack right, MyError? error)
+    {
+        int value = right.GetValue();
+        bool areTexts = Flags.HasFlag(ScriptStackFlags.Text) && right.Flags.HasFlag(ScriptStackFlags.Text);
+        if (Flags.HasFlag(ScriptStackFlags.Text))
+        {
+            Value = ParseNumber(Text.Span);
+        }
+
+        int current = Value;
+        switch (opcode)
+        {
+            case ScriptOpcode.Divide:
+                Value = value == 0 ? 0x0fffffff : current / value;
+                break;
+            case ScriptOpcode.Modulo:
+                Value = current % value;
+                break;
+            case ScriptOpcode.Add when areTexts:
+                byte[] joined = GC.AllocateUninitializedArray<byte>(Text.Length + right.Text.Length);
+                Text.Span.CopyTo(joined);
+                right.Text.Span.CopyTo(joined.AsSpan(Text.Length));
+                Text = joined;
+                Flags = ScriptStackFlags.Text;
+                return;
+            case ScriptOpcode.Add:
+                Value = unchecked(current + value);
+                break;
+            case ScriptOpcode.Subtract:
+                Value = unchecked(current - value);
+                break;
+            case ScriptOpcode.Xor:
+                Value = current ^ value;
+                break;
+            case ScriptOpcode.Or:
+                Value = current | value;
+                break;
+            case ScriptOpcode.And:
+                Value = current & value;
+                break;
+            case ScriptOpcode.Equal:
+                Value = (areTexts ? Text.Span.SequenceEqual(right.Text.Span) : current == value) ? 1 : 0;
+                break;
+            case ScriptOpcode.LogicalOr:
+                Value = current == 0 && value == 0 ? 0 : 1;
+                break;
+            case ScriptOpcode.Greater:
+                Value = current > value ? 1 : 0;
+                break;
+            case ScriptOpcode.Less:
+                Value = current < value ? 1 : 0;
+                break;
+            case ScriptOpcode.GreaterOrEqual:
+                Value = current >= value ? 1 : 0;
+                break;
+            case ScriptOpcode.LessOrEqual:
+                Value = current <= value ? 1 : 0;
+                break;
+            case ScriptOpcode.Multiply:
+                Value = unchecked(current * value);
+                break;
+            case ScriptOpcode.NotEqual:
+                Value = (areTexts ? !Text.Span.SequenceEqual(right.Text.Span) : current != value) ? 1 : 0;
+                break;
+            case ScriptOpcode.LogicalAnd:
+                Value = current != 0 && value != 0 ? 1 : 0;
+                break;
+            case ScriptOpcode.ShiftRight:
+                Value = current >> (value & 31);
+                break;
+            case ScriptOpcode.ShiftLeft:
+                Value = current << (value & 31);
+                break;
+            default:
+                error?.Log($"!!!ERROE!!!LOGIC::Unknown Binary command {(int)opcode}");
+                break;
+        }
+
+        Flags = ScriptStackFlags.Number;
     }
 }

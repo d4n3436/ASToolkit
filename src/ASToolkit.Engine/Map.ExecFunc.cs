@@ -84,37 +84,78 @@ public partial class Map : IScriptFunctionHost
         switch ((ScriptFunction)function)
         {
             case ScriptFunction.CreateSprite:
-                ExecCreateSprite(script);
+                var createParent = PopSprite(script);
+                var createDirection = new Angle((byte)script.PopNumber());
+                var createPosition = PopPosition(script);
+                int createId = script.PopNumber();
+                if (!TryLookupVid(createId, "for CreateSprite()"u8, out var createVid))
+                {
+                    script.PushInt(0);
+                    break;
+                }
+
+                PushSprite(script, CreateSprite(createVid, createPosition, createDirection, createParent));
                 break;
             case ScriptFunction.Destroy:
-                Destroy(script);
+                var target = PopSprite(script);
+                if (target is not null)
+                {
+                    DeleteSprite(target);
+                }
+
                 break;
             case ScriptFunction.Flagman:
                 PushSprite(script, Flagman(script.PopNumber()));
                 break;
             case ScriptFunction.FirstUnit:
-                PushSprite(script, FirstUnit(script));
+                _unitMask = (OldSpriteType)script.PopNumber();
+                var firstUnit = Sprites.ListedSprites.BeginIterate(ref _unitIndex);
+                PushSprite(script, firstUnit is null ? null : FindUnitOfMask(firstUnit));
                 break;
             case ScriptFunction.NextUnit:
-                PushSprite(script, FindUnitOfMask(GetNextUnit()));
+                PushSprite(script, FindUnitOfMask(Sprites.ListedSprites.NextIterate(ref _unitIndex)));
                 break;
             case ScriptFunction.FirstInBox:
-                PushSprite(script, FirstInBox(script));
+                var boxMax = PopPoint(script);
+                PushSprite(script, Sprites.First(PopPoint(script), boxMax));
                 break;
             case ScriptFunction.NextInBox:
                 PushSprite(script, Sprites.NextHashInBox());
                 break;
             case ScriptFunction.DirectionTo:
-                script.PushInt(DirectionTo(script));
+                var directionPoint = PopPoint(script);
+                var directionSprite = PopSprite(script);
+                script.PushInt(directionSprite is null ? 0 : new Angle(directionPoint - directionSprite.Position.AsVector2()).Value);
                 break;
             case ScriptFunction.ChangeZUnit:
-                ChangeZUnit(script);
+                int newZ = script.PopNumber();
+                int zId = script.PopNumber();
+                var zVid = FindVid((KnownObject)zId);
+                if (zVid is null)
+                {
+                    LogInvalidVid("for ChangeZUnit"u8, zId);
+                    break;
+                }
+
+                foreach (var sprite in EnumerateSprites(zVid))
+                {
+                    sprite.ChangeZCoor(newZ);
+                }
+
                 break;
             case ScriptFunction.GetGroundZ:
                 script.PushInt((int)GetGroundZ(PopPoint(script)));
                 break;
             case ScriptFunction.CanPlace:
-                PushSprite(script, CanPlace(script));
+                var placePosition = PopPosition(script);
+                int placeId = script.PopNumber();
+                var placeVid = FindVid((KnownObject)placeId);
+                if (placeVid is null)
+                {
+                    LogInvalidVid("for CanPlace"u8, placeId);
+                }
+
+                PushSprite(script, Sprites.CanPlace(placeVid ?? EmptyVid, placePosition));
                 break;
             case ScriptFunction.MapSizeX:
                 PushInt((int)Size.Width);
@@ -123,16 +164,70 @@ public partial class Map : IScriptFunctionHost
                 PushInt((int)Size.Height);
                 break;
             case ScriptFunction.Genocide:
-                Genocide(script);
+                var genocideVid = PopVid(script);
+                if (genocideVid == EmptyVid)
+                    break;
+
+                foreach (var sprite in EnumerateSprites(genocideVid))
+                {
+                    DeleteSprite(sprite);
+                }
+
                 break;
             case ScriptFunction.ReplaceUnit:
-                ReplaceUnit(script);
+                var replacementVid = PopVid(script);
+                var replacedVid = PopVid(script);
+                if (replacedVid == EmptyVid || replacementVid == EmptyVid)
+                    break;
+
+                foreach (var sprite in EnumerateSprites(replacedVid))
+                {
+                    CreateSprite(replacementVid, sprite.Position, sprite.Direction);
+                    DeleteSprite(sprite);
+                }
+
                 break;
             case ScriptFunction.Action:
-                ExecAction(script);
+                int actionThird = script.PopNumber();
+                int actionSecond = script.PopNumber();
+                int actionFirst = script.PopNumber();
+                var actionCode = (ActionCode)script.PopNumber();
+                var actionSprite = PopSprite(script);
+                if (actionSprite is null)
+                {
+                    script.PushInt(0);
+                    break;
+                }
+
+                if ((int)actionCode <= LastAnimationAction)
+                {
+                    actionSprite.ChangeAnimation((SpriteAnimation)actionCode);
+                    script.PushInt(0);
+                    break;
+                }
+
+                switch (actionCode)
+                {
+                    case ActionCode.GetGoal or ActionCode.GetLink or ActionCode.GetUplink:
+                        script.PushSprite(Action(actionSprite, actionCode, actionFirst, actionSecond, actionThird));
+                        return;
+
+                    case ActionCode.GetTextDesc when actionSprite is SText text:
+                        script.PushText(text.Description);
+                        return;
+
+                    // TODO: Port the trains
+                    case ActionCode.FirstEngine or ActionCode.LastEngine or ActionCode.NextEngine:
+                        PushSprite(script, null);
+                        return;
+                }
+
+                script.PushInt(Action(actionSprite, actionCode, actionFirst, actionSecond, actionThird));
                 break;
             case ScriptFunction.SizeTo:
-                script.PushInt(SizeTo(script));
+                var sizePoint = PopPoint(script);
+                var sizeSprite = PopSprite(script);
+                script.PushInt(sizeSprite is null ? NoUnitDistance : (int)sizeSprite.Position.AsVector2().NearLength(sizePoint));
                 break;
             case ScriptFunction.GetUnitVid:
                 script.PushInt((int)(PopSprite(script)?.Vid.Id ?? 0));
@@ -165,7 +260,17 @@ public partial class Map : IScriptFunctionHost
                 script.PushInt(Input.Key);
                 break;
             case ScriptFunction.GetInputState:
-                script.PushInt((int)GetInputState());
+                var inputFlags = Input.Flags;
+                var inputState = ScriptInput.None;
+                foreach (var (raw, scriptBit) in InputStateBits)
+                {
+                    if ((inputFlags & raw) != 0)
+                    {
+                        inputState |= scriptBit;
+                    }
+                }
+
+                script.PushInt((int)inputState);
                 break;
             case ScriptFunction.SetScrollType:
                 _scrollType = (ScrollType)script.PopNumber();
@@ -181,7 +286,10 @@ public partial class Map : IScriptFunctionHost
                 Input.PostMessage(WindowMessageId.Close, 0, 0);
                 break;
             case ScriptFunction.Effect:
-                Effect(script);
+                int effectDuration = script.PopNumber();
+                int effectSecond = script.PopNumber();
+                int effectFirst = script.PopNumber();
+                Session.Graphics.Effect(this, script.PopNumber(), effectFirst, effectSecond, effectDuration);
                 break;
             case ScriptFunction.SetEnvironment:
                 Session.Graphics.SetEnvironment((MapEnvironment)script.PopNumber());
@@ -190,19 +298,238 @@ public partial class Map : IScriptFunctionHost
                 script.PushInt(Session.Graphics.GetEffectState(this, script.PopNumber()));
                 break;
             case ScriptFunction.Charat:
-                script.PushInt(Charat(script));
+                int charIndex = script.PopNumber();
+                var charText = script.PopText().Span;
+                script.PushInt(charIndex == charText.Length ? 0 : (sbyte)charText[charIndex]);
                 break;
             case ScriptFunction.Random:
-                script.PushInt(NextRandom(script.PopNumber()));
+                int randomMax = script.PopNumber();
+                script.PushInt(_rng.Next() % (randomMax + 1));
                 break;
             case ScriptFunction.GetTime:
-                script.PushInt(GetTime());
+                script.PushInt(CurrentTime);
                 break;
             case ScriptFunction.GetVidData:
-                GetVidData(script);
+                int getType = PopInt();
+                var getVid = PopVid(script);
+                if (getVid == EmptyVid)
+                {
+                    PushInt(0);
+                    break;
+                }
+
+                switch ((VidDataType)getType)
+                {
+                    case VidDataType.MaxHp:
+                        PushInt(getVid.MaxHp);
+                        break;
+                    case VidDataType.BattleRange:
+                        PushInt((int)getVid.Weapon.BattleRange);
+                        break;
+                    case VidDataType.Ammo:
+                        PushInt(GetAmmoOwner(getVid).Weapon.Ammo);
+                        break;
+                    case VidDataType.Count:
+                        PushInt(getVid.GetTotalCount());
+                        break;
+                    case VidDataType.KilledUnit:
+                        PushInt(getVid.GetTotalKilled());
+                        break;
+                    case >= VidDataType.KilledUnit0 and <= VidDataType.KilledUnit3:
+                        PushInt(getVid.GetKilled(getType - (int)VidDataType.KilledUnit0));
+                        break;
+                    case >= VidDataType.Count0 and <= VidDataType.Count3:
+                        PushInt(getVid.GetCount(getType - (int)VidDataType.Count0));
+                        break;
+                    case >= VidDataType.MaxHp0 and <= VidDataType.MaxHp3:
+                        PushInt(getVid.GetArmyMaxHp(getType - (int)VidDataType.MaxHp0));
+                        break;
+                    case VidDataType.SpriteClass:
+                        PushInt((int)getVid.Class);
+                        break;
+                    case VidDataType.Speed:
+                        PushInt(getVid.ScriptSpeed);
+                        break;
+                    case VidDataType.Lifetime:
+                        PushInt(getVid.Lifetime);
+                        break;
+                    case VidDataType.DetectRange:
+                        PushInt((int)getVid.Weapon.DetectRange);
+                        break;
+                    case VidDataType.WeaponAim:
+                        PushInt((int)getVid.Weapon.Aim);
+                        break;
+                    case VidDataType.MoveMask:
+                        PushInt((int)getVid.MoveMask);
+                        break;
+                    case VidDataType.BuildTime:
+                        PushInt(getVid.Weapon.BuildTime);
+                        break;
+                    case VidDataType.NotCreateAsChild:
+                        PushInt(getVid.NotCreatedAsChild);
+                        break;
+                    case VidDataType.Link:
+                        PushInt((int)(getVid.LinkVid?.Id ?? 0));
+                        break;
+                    case >= VidDataType.Child and < VidDataType.Child + ASToolkit.Engine.Vid.StateCount:
+                        PushInt((int)(getVid.ChildVids[getType - (int)VidDataType.Child]?.Id ?? 0));
+                        break;
+                    case >= VidDataType.ChildCounts and < VidDataType.ChildCounts + ASToolkit.Engine.Vid.StateCount:
+                        PushInt(getVid.ChildCounts[getType - (int)VidDataType.ChildCounts]);
+                        break;
+                    case VidDataType.Damage:
+                        PushInt(getVid.Damage);
+                        break;
+                    case VidDataType.RecolorUnit:
+                        PushInt(getVid.GetTotalRecolored());
+                        break;
+                    case >= VidDataType.RecolorUnit0 and <= VidDataType.RecolorUnit3:
+                        PushInt(getVid.GetRecolored(getType - (int)VidDataType.RecolorUnit0));
+                        break;
+                    case VidDataType.Name:
+                        PushText(GameTextEncoding.Cyrillic.GetBytes(GetVidName(getVid)));
+                        break;
+                    case VidDataType.SpriteType:
+                        PushInt((int)getVid.SpriteType);
+                        break;
+                    case VidDataType.Directions:
+                        PushInt(getVid.Directions);
+                        break;
+                    case VidDataType.Hide:
+                        PushInt(getVid.IsHidden ? 1 : 0);
+                        break;
+                    case VidDataType.FrameSpeed:
+                        PushInt(getVid.SpriteSpeed);
+                        break;
+                    default:
+                        LogMapError(LogError.Unknown, "GetVid type"u8, getType);
+                        break;
+                }
+
                 break;
             case ScriptFunction.SetVidData:
-                SetVidData(script);
+                int setValue = PopInt();
+                int setType = PopInt();
+                var setVid = PopVid(script);
+                if (setVid == EmptyVid)
+                    break;
+
+                switch ((VidDataType)setType)
+                {
+                    case VidDataType.MaxHp:
+                        setVid.MaxHp = setValue;
+                        break;
+                    case >= VidDataType.Gamma and < VidDataType.Properties:
+                        var gamma = Gamma.FromScript((uint)setValue);
+                        setVid.Gammas[setType - (int)VidDataType.Gamma] = gamma;
+                        setVid.SetGamma(gamma, setType - (int)VidDataType.Gamma, Session.Graphics.Gamma, Session);
+                        break;
+                    case VidDataType.Ammo:
+                        GetAmmoOwner(setVid).Weapon.Ammo = setValue;
+                        break;
+                    case VidDataType.KilledUnit:
+                        setVid.Killed.Fill(setValue);
+                        break;
+                    case >= VidDataType.KilledUnit0 and <= VidDataType.KilledUnit3:
+                        setVid.Killed[setType - (int)VidDataType.KilledUnit0] = setValue;
+                        break;
+                    case >= VidDataType.MaxHp0 and <= VidDataType.MaxHp3:
+                        setVid.SetMaxHp(this, setType - (int)VidDataType.MaxHp0, setValue);
+                        break;
+                    case >= VidDataType.HpCoefficient0 and <= VidDataType.HpCoefficient3:
+                        setVid.SetHpCoeff(this, setType - (int)VidDataType.HpCoefficient0, setValue);
+                        break;
+                    case VidDataType.Speed:
+                        setVid.Speed = setValue == ASToolkit.Engine.Vid.Unlimited ? ASToolkit.Engine.Vid.Unlimited : setValue * ASToolkit.Engine.Vid.PerMillisecond;
+                        foreach (var entry in _layers[(int)setVid.Layer].Items)
+                        {
+                            if (entry is not null && entry.Vid == setVid && entry.HasExtraData)
+                            {
+                                entry.MaxSpeed = setVid.Speed;
+                            }
+                        }
+
+                        break;
+                    case VidDataType.Lifetime:
+                        if (setVid.Id == 0)
+                            break;
+
+                        setVid.Lifetime = setValue;
+                        setVid.HasTimers = true;
+                        break;
+                    case VidDataType.DetectRange:
+                        setVid.Weapon.DetectRange = setValue;
+                        break;
+                    case VidDataType.WeaponAim:
+                        setVid.Weapon.Aim = setValue;
+                        break;
+                    case VidDataType.ExchangeVid:
+                        var exchangeOther = FindVid((KnownObject)setValue);
+                        if (exchangeOther is not null)
+                        {
+                            ExchangeVid(setVid, exchangeOther);
+                        }
+                        else
+                        {
+                            LogMapError(LogError.Invalid, "SetVid get_image"u8, setValue);
+                        }
+
+                        break;
+                    case VidDataType.MoveMask:
+                        setVid.MoveMask = (CollisionLayers)setValue;
+                        break;
+                    case VidDataType.BuildTime:
+                        setVid.Weapon.BuildTime = setValue;
+                        break;
+                    case VidDataType.NotCreateAsChild:
+                        setVid.NotCreatedAsChild = setValue;
+                        break;
+                    case VidDataType.Link:
+                        setVid.LinkVid = Vid(setValue);
+                        break;
+                    case >= VidDataType.Child and < VidDataType.Child + ASToolkit.Engine.Vid.StateCount:
+                        int childState = setType - (int)VidDataType.Child;
+                        if (setValue == 0)
+                        {
+                            setVid.Children[childState] = 0;
+                            setVid.ChildVids[childState] = null;
+                            break;
+                        }
+
+                        int childSign = setValue >> 31;
+                        var childVid = FindVid((KnownObject)unchecked((setValue ^ childSign) - childSign));
+                        if (childVid is null)
+                        {
+                            LogMapError(LogError.Invalid, "SetVid child"u8, setValue);
+                            break;
+                        }
+
+                        setVid.Children[childState] = setValue;
+                        setVid.ChildVids[childState] = childVid;
+
+                        if (childVid.IsBirthAsSmoke())
+                        {
+                            setVid.HasTimers = true;
+                        }
+
+                        break;
+                    case >= VidDataType.ChildCounts and < VidDataType.ChildCounts + ASToolkit.Engine.Vid.StateCount:
+                        setVid.ChildCounts[setType - (int)VidDataType.ChildCounts] = setValue;
+                        break;
+                    case VidDataType.Damage:
+                        setVid.Damage = setValue;
+                        break;
+                    case VidDataType.Hide:
+                        setVid.SetPropHide(setValue != 0);
+                        break;
+                    case VidDataType.FrameSpeed:
+                        setVid.SetFrameSpeed(setValue);
+                        break;
+                    default:
+                        LogMapError(LogError.Unknown, "SetVid type"u8, setType);
+                        break;
+                }
+
                 break;
             case ScriptFunction.Log:
                 Session.Error.Log(script.PopText().Span);
@@ -215,13 +542,13 @@ public partial class Map : IScriptFunctionHost
                 PushInt(PopText().Length);
                 break;
             case ScriptFunction.Itoa:
-                PushText(ScriptStack.FormatNumber(PopNumber()));
+                PushText(ScriptStack.FormatNumber(PopInt()));
                 break;
             case ScriptFunction.Sin:
-                PushInt((int)(new Angle((byte)PopNumber()).Sine * TrigonometryScale));
+                PushInt((int)(new Angle((byte)PopInt()).Sine * TrigonometryScale));
                 break;
             case ScriptFunction.Cos:
-                PushInt((int)(new Angle((byte)PopNumber()).Cosine * TrigonometryScale));
+                PushInt((int)(new Angle((byte)PopInt()).Cosine * TrigonometryScale));
                 break;
             case ScriptFunction.GetScreenInputX:
                 PushInt((int)Input.ScreenCursor.X);
@@ -240,13 +567,39 @@ public partial class Map : IScriptFunctionHost
                 break;
 
             case ScriptFunction.MenuFind:
-                PushSprite(script, MenuFind(script));
+                int findDirection = script.PopNumber();
+                if (!TryLookupVid(script.PopNumber(), "for MenuFind"u8, out var findVid) || Sum(findVid.Counts) == 0)
+                {
+                    PushSprite(script, null);
+                    break;
+                }
+
+                Sprite? foundMenuSprite = null;
+                foreach (var sprite in Menu.Items)
+                {
+                    if (!IsMenuMatch(sprite, findVid, findDirection))
+                        continue;
+
+                    foundMenuSprite = sprite;
+                    break;
+                }
+
+                PushSprite(script, foundMenuSprite);
                 break;
             case ScriptFunction.MenuLoad:
                 Menu.Load(script.PopText().Span);
                 break;
             case ScriptFunction.MenuRelease:
-                MenuRelease(script);
+                var releaseName = script.PopText();
+                if (releaseName.IsEmpty)
+                {
+                    Menu.DeleteAll();
+                }
+                else
+                {
+                    Menu.DeleteFromFile(releaseName.Span);
+                }
+
                 break;
             case ScriptFunction.MenuNVidUnderCursor:
                 script.PushInt(Menu.GetIdUnderCursor());
@@ -255,10 +608,45 @@ public partial class Map : IScriptFunctionHost
                 script.PushInt(Menu.GetDirectionUnderCursor());
                 break;
             case ScriptFunction.MenuAction:
-                MenuAction(script);
+                int menuVar3 = script.PopNumber();
+                int menuVar2 = script.PopNumber();
+                int menuVar1 = script.PopNumber();
+                int menuAct = script.PopNumber();
+                int menuDirection = script.PopNumber();
+                if (!TryLookupVid(script.PopNumber(), "for MenuAction"u8, out var menuVid))
+                    break;
+
+                for (int i = 0; i < Menu.Count; i++)
+                {
+                    var sprite = Menu[i];
+
+                    if (!IsMenuMatch(sprite, menuVid, menuDirection))
+                        continue;
+
+                    if (menuAct <= Act.LastState)
+                    {
+                        sprite.ChangeAnimation((SpriteAnimation)menuAct);
+                    }
+                    else
+                    {
+                        Action(sprite, (ActionCode)menuAct, menuVar1, menuVar2, menuVar3);
+                    }
+                }
+
                 break;
             case ScriptFunction.MenuCreate:
-                MenuCreate(script);
+                int menuZ = script.PopNumber();
+                int menuY = script.PopNumber() + menuZ;
+                var menuPosition = new Vector3(script.PopNumber(), menuY, menuZ);
+                int menuDirection2 = script.PopNumber();
+                if (!TryLookupVid(script.PopNumber(), "for MenuCreate"u8, out var menuCreateVid))
+                {
+                    script.PushInt(0);
+                    break;
+                }
+
+                var menuHeading = new Angle(unchecked((byte)((menuDirection2 << 8) / menuCreateVid.Directions)));
+                PushSprite(script, CreateSprite(menuCreateVid, menuPosition, menuHeading));
                 break;
             case ScriptFunction.MenuLClick:
                 PushSprite(script, Menu.LeftClick);
@@ -268,7 +656,31 @@ public partial class Map : IScriptFunctionHost
                 break;
 
             case ScriptFunction.SetCursor:
-                SetCursor(script.PopNumber());
+                int cursorType = script.PopNumber();
+                if (cursorType == CursorOff)
+                {
+                    Mouse.Disable();
+                    break;
+                }
+
+                if (cursorType == HardwareCursor)
+                {
+                    Mouse.HardwareOn(EmptyVid, FileSystem);
+                    break;
+                }
+
+                if (cursorType == SoftwareCursor)
+                {
+                    Mouse.HardwareOff(FindVid(KnownObject.Cursor) ?? EmptyVid, FileSystem);
+                    break;
+                }
+
+                if (!Mouse.IsCursorLoaded)
+                {
+                    Mouse.Enable(FileSystem);
+                }
+
+                Mouse.ChangeAnimation((SpriteAnimation)cursorType);
                 break;
             case ScriptFunction.SetStateBar:
                 script.Stack.Pop();
@@ -277,19 +689,33 @@ public partial class Map : IScriptFunctionHost
                 script.Stack.Pop();
                 break;
             case ScriptFunction.MessageText:
-                MessageText(script);
+                var messageTarget = PopPoint(script);
+                _players[ControlledPlayer].Messages.Put(script.PopText(), messageTarget);
                 break;
             case ScriptFunction.SetPosition:
                 SetShiftCoordinates(PopPoint(script), ShiftMove.None);
                 break;
             case ScriptFunction.SetMouseClick:
-                SetMouseClick(script.PopNumber(), script.PopNumber());
+                int clickKey = script.PopNumber();
+                int clickButton = script.PopNumber();
+                if (clickButton == FirstMouseClick)
+                {
+                    _controls.First = new ControlBinding((VirtualKey)clickKey, (VirtualKey)clickKey);
+                }
+                else if (clickButton == SecondMouseClick)
+                {
+                    _controls.Second = new ControlBinding((VirtualKey)clickKey, (VirtualKey)clickKey);
+                }
+
                 break;
             case ScriptFunction.SetCursorPosition:
-                SetCursorPosition(script);
+                int cursorY = script.PopNumber();
+                var cursorTarget = new Point(script.PopNumber(), cursorY);
+                Action(Mouse, ActionCode.ChangeCoor, cursorTarget.X, cursorTarget.Y);
                 break;
             case ScriptFunction.SetWind:
-                SetWind(script);
+                var windDirection = new Angle((byte)script.PopNumber());
+                Session.Graphics.SetWind(PopInt(), windDirection);
                 break;
             case ScriptFunction.ScreenX:
                 script.PushInt((int)Session.Graphics.ScreenSize.Width);
@@ -298,14 +724,16 @@ public partial class Map : IScriptFunctionHost
                 script.PushInt((int)Session.Graphics.ScreenSize.Height);
                 break;
             case ScriptFunction.ToScreenX:
-                script.PushInt((int)(script.PopNumber() - Shift.X));
+                script.PushInt((int)ToScreenX(script.PopNumber()));
                 break;
             case ScriptFunction.ToScreenY:
-                script.PushInt(ToScreenY(script));
+                int screenZ = script.PopNumber();
+                int screenY = script.PopNumber();
+                script.PushInt((int)ToScreenY(screenY, screenZ));
                 break;
 
             case ScriptFunction.SetSoundVolume:
-                Sound.SetVolume(script.PopNumber());
+                Sound.VolumeSound(script.PopNumber());
                 break;
             case ScriptFunction.SetMusicVolume:
                 Sound.VolumeMusic(script.PopNumber(), Session.RealCurrentTime);
@@ -320,10 +748,12 @@ public partial class Map : IScriptFunctionHost
                 Sound.StopMusic(Session.RealCurrentTime);
                 break;
             case ScriptFunction.PlaySfxFromCoor:
-                PlaySfxFromCoor(script);
+                var sfxPoint = PopPoint(script);
+                Sound.PlayAt(script.PopNumber(), sfxPoint - Shift - Session.Graphics.ScreenSize.ToVector2() * HalfShare);
                 break;
             case ScriptFunction.PlayMusicFile:
-                PlayMusicFile(script);
+                int musicLoop = script.PopNumber();
+                Sound.FadeAndPlayFile(script.PopText().Span, musicLoop, Session.RealCurrentTime);
                 break;
             case ScriptFunction.IsPlayMusic:
                 script.PushInt(Sound.IsPlayMusic(Session.RealCurrentTime) ? 1 : 0);
@@ -343,7 +773,9 @@ public partial class Map : IScriptFunctionHost
                 Session.Graphics.SetGamma(Gamma.FromScript((uint)script.PopNumber()), this);
                 break;
             case ScriptFunction.CountGamma:
-                script.PushInt(CountGamma(script));
+                int gammaShare = script.PopNumber();
+                int gammaLast = script.PopNumber();
+                script.PushInt(BlendGamma(script.PopNumber(), gammaLast, gammaShare));
                 break;
             case ScriptFunction.GetGamma:
                 script.PushInt((int)Gamma.ToScript());
@@ -351,16 +783,49 @@ public partial class Map : IScriptFunctionHost
 
             // TODO: Port the saves
             case ScriptFunction.GetCommands:
-                ExecGetCommands(script);
+                var commandsSprite = PopSprite(script);
+                if (commandsSprite is null)
+                {
+                    script.PushText(default);
+                    break;
+                }
+
+                var commandItems = commandsSprite.GetTextItems();
+                var commandActions = commandsSprite.GetTextActions();
+                byte[] commandText = new byte[commandItems.Length + commandActions.Length];
+                commandItems.CopyTo(commandText);
+                commandActions.CopyTo(commandText.AsMemory(commandItems.Length));
+                script.PushText(commandText);
                 break;
             case ScriptFunction.SetCommands:
-                ExecSetCommands(script);
+                var commandsText = script.PopText();
+                var setCommandsSprite = PopSprite(script);
+                if (setCommandsSprite is null)
+                    break;
+
+                setCommandsSprite.SetTextItems(commandsText);
+                if (commandsText.Span.IndexOf(ItemsEnd) >= 0)
+                {
+                    commandsText = GetAfter(commandsText, ItemsEnd);
+                }
+
+                setCommandsSprite.SetTextActions(commandsText);
                 break;
             case ScriptFunction.FRead:
-                FRead();
+                var readFile = PopScriptFile();
+                var readLine = IsPlayingDemo || readFile is null ? default : readFile.ReadLine();
+                // TODO: Port the demo stream strings of FRead and the shared text buffer a null handle pushes; recording stores each line and playback reads it back
+                PushText(readLine);
                 break;
             case ScriptFunction.FWrite:
-                FWrite();
+                var writeText = PopText();
+                var writeFile = PopScriptFile();
+                if (writeFile is null)
+                    break;
+
+                writeFile.WriteText(writeText.Span);
+                writeFile.SeekBack();
+                writeFile.WriteLineFeed();
                 break;
             case ScriptFunction.SaveDemo:
                 if (!IsPlayingDemo)
@@ -370,17 +835,18 @@ public partial class Map : IScriptFunctionHost
 
                 break;
             case ScriptFunction.GetString:
-                GetString(script);
+                var stringKeyword = script.PopText();
+                script.PushText(Session.Strings?.GetString(script.PopText().Span, stringKeyword.Span) ?? default);
                 break;
             case ScriptFunction.Pause:
                 if (script.PopNumber() != 0)
                 {
-                    Pause();
+                    PauseOn();
                     Mouse.ChangeAnimation(0);
                 }
                 else
                 {
-                    Resume();
+                    PauseOff();
                 }
 
                 break;
@@ -392,7 +858,12 @@ public partial class Map : IScriptFunctionHost
                 Session.Error.Log($"Exec '{MyError.Decode(script.PopText().Span)}'");
                 break;
             case ScriptFunction.FClose:
-                FClose();
+                int closeHandle = PopInt();
+                if (_scriptFiles.Remove(closeHandle, out var closeFile))
+                {
+                    closeFile.Dispose();
+                }
+
                 break;
             case ScriptFunction.GetPreviousMapName:
                 script.PushText(_previousMapName);
@@ -410,44 +881,82 @@ public partial class Map : IScriptFunctionHost
                 PushText(Printf());
                 break;
             case ScriptFunction.ToLower:
-                ToLower();
+                byte[] lowerText = CRuntime.GetString(PopText().Span).ToArray();
+                CRuntime.ToLowerInPlace(lowerText);
+                PushText(lowerText);
                 break;
             case ScriptFunction.ToUpper:
-                ToUpper();
+                byte[] upperText = CRuntime.GetString(PopText().Span).ToArray();
+                CRuntime.ToUpperInPlace(upperText);
+                PushText(upperText);
                 break;
             case ScriptFunction.FOpen:
-                PushInt(FOpen());
+                string openName = ReadText(PopText());
+                int openHandle = 0;
+                if (!IsPlayingDemo)
+                {
+                    var openFile = openName.Length != 0 && ScriptFiles.TryRead(openName, out var openData) ? new ScriptFile(openData.Span, null) : null;
+                    if (openFile is null)
+                    {
+                        LogMapError(LogError.Open, Encoding.ASCII.GetBytes(openName), 0);
+                    }
+
+                    openHandle = AddScriptFile(openFile);
+                }
+
+                PushInt(openHandle);
                 break;
             case ScriptFunction.FCreate:
-                PushInt(FCreate());
+                string createName = ReadText(PopText());
+                int createHandle = 0;
+                if (!IsPlayingDemo)
+                {
+                    var createWriter = createName.Length != 0 ? ScriptFiles.OpenWrite(createName, false) : null;
+                    createHandle = AddScriptFile(createWriter is null ? null : new ScriptFile(default, createWriter));
+                }
+
+                PushInt(createHandle);
                 break;
             case ScriptFunction.FEof:
-                PushInt(FEof());
+                var eofFile = PopScriptFile();
+                PushInt(eofFile is null ? 1 : eofFile.IsEnd ? EndOfFileFlag : 0);
                 break;
             case ScriptFunction.GetReg:
-                GetReg();
+                string regDefault = ReadText(PopText());
+                string regName = ReadText(PopText());
+                PushText(GameTextEncoding.Cyrillic.GetBytes(Registry.Get(ReadText(PopText()), regName, regDefault)));
                 break;
             case ScriptFunction.SetReg:
-                SetReg();
+                string regValue = ReadText(PopText());
+                string setRegName = ReadText(PopText());
+                Registry.Set(ReadText(PopText()), setRegName, regValue);
                 break;
             case ScriptFunction.DelReg:
-                DelReg();
+                string delRegName = ReadText(PopText());
+                Registry.DeleteKey(ReadText(PopText()), delRegName);
                 break;
             case ScriptFunction.GetDefaultRegPath:
                 PushText(GameTextEncoding.Cyrillic.GetBytes(Registry.DefaultPath));
                 break;
             case ScriptFunction.ToBase64:
-                ExecToBase64();
+                int base64Add = PopInt();
+                PushText(ToBase64(PopText().Span, base64Add));
                 break;
 
             case ScriptFunction.GetSprite:
-                PushSprite(script, ExecGetSprite(script));
+                var getPrevious = PopSprite(script);
+                var getPoint = PopPoint(script);
+                PushSprite(script, GetSprite((SpriteSearch)script.PopNumber(), getPoint, getPrevious));
                 break;
             case ScriptFunction.GetSpriteScr:
-                PushSprite(script, ExecGetSpriteScr(script));
+                var scrPoint = PopPoint(script);
+                PushSprite(script, GetSpriteScr((SpriteSearch)script.PopNumber(), scrPoint));
                 break;
             case ScriptFunction.FindNearestSprite:
-                PushSprite(script, ExecFindNearestSprite(script));
+                var nearestPrevious = PopSprite(script);
+                int nearestRadius = script.PopNumber();
+                var nearestPoint = PopPoint(script);
+                PushSprite(script, FindNearestSprite((SpriteSearch)script.PopNumber(), nearestPoint, nearestRadius, nearestPrevious));
                 break;
             case ScriptFunction.FirstSprite:
                 _spriteLayer = 0;
@@ -455,30 +964,61 @@ public partial class Map : IScriptFunctionHost
                 PushSprite(script, FindListedSprite());
                 break;
             case ScriptFunction.NextSprite:
-                PushSprite(script, GetNextSprite());
+                var nextSprite = FindListedSprite();
+                while (nextSprite is null && _spriteLayer < LayerCount - 1)
+                {
+                    _spriteLayer++;
+                    _spriteIndex = _layers[_spriteLayer].Count;
+                    nextSprite = FindListedSprite();
+                }
+
+                PushSprite(script, nextSprite);
                 break;
             case ScriptFunction.AddCommand:
-                ExecAddCommand(script);
+                int commandThird = script.PopNumber();
+                int commandSecond = script.PopNumber();
+                int commandFirst = script.PopNumber();
+                int commandAct = script.PopNumber();
+                var commandTarget = PopSprite(script);
+
+                commandTarget?.AddActionAfterStop(commandAct,commandFirst,commandSecond,commandThird);
                 break;
             case ScriptFunction.SetFlagman:
-                ExecSetFlagman(script);
+                var flagmanSprite = PopSprite(script);
+                SetFlagman(script.PopNumber(), flagmanSprite);
                 break;
             case ScriptFunction.AddUnitLimit:
-                AddUnitLimit(script);
+                int limitArmy = PopInt();
+                var limitVid = PopVid(script);
+                int limitValue = PopInt();
+                if (limitVid == EmptyVid)
+                    break;
+
+                if (limitArmy == AllArmies)
+                {
+                    limitVid.MaxUnits = limitValue;
+                }
+                // TODO: Port AS1's out-of-range write for armies outside 0..3; AS1 writes def+0x398+army*4 into the fields around ArmyMaxUnits
+                else if (limitArmy >= 0 && limitArmy < limitVid.ArmyMaxUnits.Length)
+                {
+                    limitVid.ArmyMaxUnits[limitArmy] = limitValue;
+                }
+
                 break;
             case ScriptFunction.SetEnemyCanAttackNeutralTrains:
-                SetMonstersAttackNeutralTrains(PopNumber() != 0);
+                SetMonstersAttackNeutralTrains(PopInt() != 0);
                 break;
             case ScriptFunction.SetMoney:
-                SetMoney();
+                int newMoney = PopInt();
+                Player(PopInt()).Money = newMoney;
                 break;
             case ScriptFunction.GetMoney:
-                PushInt(GetPlayer(PopNumber()).Money);
+                PushInt(Player(PopInt()).Money);
                 break;
 
             // TODO: Port the trains and the rail map
             case ScriptFunction.TrainProperty:
-                PopNumber();
+                PopInt();
                 PopSprite();
                 PushInt(0);
                 break;
@@ -491,7 +1031,7 @@ public partial class Map : IScriptFunctionHost
                 PopSprite();
                 break;
             case ScriptFunction.FirstTrain:
-                PopNumber();
+                PopInt();
                 PushSprite(null);
                 break;
             case ScriptFunction.NextTrain:
@@ -501,7 +1041,7 @@ public partial class Map : IScriptFunctionHost
                 PopValues(5);
                 break;
             case ScriptFunction.SetCleverEnemyAttack:
-                GetPlayer(1).IsCleverEnemyAttack = PopNumber() != 0;
+                Player(1).IsCleverEnemyAttack = PopInt() != 0;
                 break;
             default:
                 Session.Error.Log($"!!!ERROR!!!LOGIC: Unknown extern Function {function}");
@@ -510,7 +1050,7 @@ public partial class Map : IScriptFunctionHost
     }
 
     [EngineRoutine(0x0043a330)]
-    internal int PopNumber() => Script.PopNumber();
+    internal int PopInt() => Script.PopNumber();
 
     [EngineRoutine(0x0043a390)]
     internal ReadOnlyMemory<byte> PopText() => Script.PopText();
@@ -552,11 +1092,10 @@ public partial class Map : IScriptFunctionHost
 
         if (IsListedSearch(types))
         {
-            var listed = Sprites.Listed;
-            for (int i = listed.Length - 1; i >= 0; i--)
+            var listed = Sprites.ListedSprites;
+            int index = 0;
+            for (var sprite = listed.BeginIterate(ref index); sprite is not null; sprite = listed.NextIterate(ref index))
             {
-                var sprite = listed[i];
-
                 if (IsSearched(sprite, search, types, armies) && IsScreenHit(sprite, sprite.Vid.Half, point, found))
                 {
                     found = sprite;
@@ -612,7 +1151,7 @@ public partial class Map : IScriptFunctionHost
     }
 
     [EngineRoutine(0x00405a90)]
-    internal Vid Vid(int id) => FindVid((KnownObject)id) ?? EmptyVid;
+    internal Vid Vid(int id) => ValidateVid(id) ? _vids[id]! : EmptyVid;
 
     [EngineRoutine(0x00439db0)]
     private static int ComputeChecksum(ReadOnlySpan<byte> text)
@@ -786,7 +1325,7 @@ public partial class Map : IScriptFunctionHost
     {
         bool isText = Script.IsLastStackString;
         var text = isText ? PopText() : default;
-        int number = isText ? 0 : PopNumber();
+        int number = isText ? 0 : PopInt();
         var format = PopText();
 
         return FormatPrintf(format.Span, isText, text.Span, number);
@@ -796,98 +1335,18 @@ public partial class Map : IScriptFunctionHost
     {
         for (int i = 0; i < count; i++)
         {
-            PopNumber();
+            PopInt();
         }
     }
 
-    private int GetTime() => CurrentTime;
+    private float ToScreenX(float x) => x - Shift.X;
+
+    private float ToScreenY(float y, float z) => y - z - Shift.Y;
 
     private void LogInvalidVid(ReadOnlySpan<byte> function, int id) =>
         Session.Error.Log($"!!!ERROR!!!SCRIPT: Invalid nvid {MyError.Decode(function)} {id}");
 
-    private void SetMouseClick(int key, int button)
-    {
-        if (button == FirstMouseClick)
-        {
-            _controls.First = new ControlBinding((VirtualKey)key, (VirtualKey)key);
-        }
-        else if (button == SecondMouseClick)
-        {
-            _controls.Second = new ControlBinding((VirtualKey)key, (VirtualKey)key);
-        }
-    }
-
-    private void SetCursor(int type)
-    {
-        switch (type)
-        {
-            case CursorOff:
-                Mouse.Disable();
-                break;
-            case HardwareCursor:
-                Mouse.HardwareOn(EmptyVid, FileSystem);
-                break;
-            case SoftwareCursor:
-                Mouse.HardwareOff(FindVid(KnownObject.Cursor) ?? EmptyVid, FileSystem);
-                break;
-            default:
-                if (!Mouse.IsCursorLoaded)
-                {
-                    Mouse.Enable(FileSystem);
-                }
-
-                Mouse.ChangeAnimation((SpriteAnimation)type);
-                break;
-        }
-    }
-
-    private Sprite? MenuFind(Script script)
-    {
-        int direction = script.PopNumber();
-        if (!TryLookupVid(script.PopNumber(), "for MenuFind"u8, out var vid))
-            return null;
-
-        if (Sum(vid.Counts) == 0)
-            return null;
-
-        foreach (var sprite in Menu.Items)
-        {
-            if (IsMenuMatch(sprite, vid, direction))
-                return sprite;
-        }
-
-        return null;
-    }
-
-    private void MenuAction(Script script)
-    {
-        int var3 = script.PopNumber();
-        int var2 = script.PopNumber();
-        int var1 = script.PopNumber();
-        int act = script.PopNumber();
-        int direction = script.PopNumber();
-        if (!TryLookupVid(script.PopNumber(), "for MenuAction"u8, out var vid))
-            return;
-
-        for (int i = 0; i < Menu.Count; i++)
-        {
-            var sprite = Menu[i];
-
-            if (!IsMenuMatch(sprite, vid, direction))
-                continue;
-
-            if (act <= Act.LastState)
-            {
-                sprite.ChangeAnimation((SpriteAnimation)act);
-            }
-            else
-            {
-                Action(sprite, (ActionCode)act, var1, var2, var3);
-            }
-        }
-    }
-
-    private ScriptFile? PopScriptFile() => _scriptFiles.GetValueOrDefault(PopNumber());
+    private ScriptFile? PopScriptFile() => _scriptFiles.GetValueOrDefault(PopInt());
 
     private int AddScriptFile(ScriptFile? file)
     {
@@ -942,7 +1401,7 @@ public partial class Map : IScriptFunctionHost
     }
 
     [EngineRoutine(0x0043a7e0)]
-    internal Player GetPlayer(int army) => _players[army & ASToolkit.Engine.Vid.ArmyMask];
+    internal Player Player(int army) => _players[army & ASToolkit.Engine.Vid.ArmyMask];
 
     [EngineRoutine(0x0043a7b0)]
     private void LogMapError(LogError code, ReadOnlySpan<byte> text, int value) => Session.Error.Error(MapLogTag, code, value, text);
@@ -964,6 +1423,9 @@ public partial class Map : IScriptFunctionHost
         return sprite.Position.X - half.X <= point.X && point.X <= half.X + sprite.Position.X && sprite.Position.Y - half.Y <= point.Y && point.Y <= half.Y + sprite.Position.Y
             ? sprite : null;
     }
+
+    [EngineRoutine(0x00410640)]
+    internal bool ValidateVid(int id) => id >= 0 && id < _vidCount && _vids[id] is not null;
 
     [EngineRoutine(0x00410670)]
     private Sprite? FindNearestSprite(SpriteSearch search, Vector2 point, float radius, Sprite? previous)
@@ -988,16 +1450,17 @@ public partial class Map : IScriptFunctionHost
 
         if (IsListedSearch(types))
         {
-            var listed = Sprites.Listed;
-            for (int i = listed.Length - 1; i >= 0; i--)
+            var listed = Sprites.ListedSprites;
+            int index = 0;
+            for (var sprite = listed.BeginIterate(ref index); sprite is not null; sprite = listed.NextIterate(ref index))
             {
-                TakeNearer(listed[i]);
+                TakeNearer(sprite);
             }
 
             return found;
         }
 
-        if (vid is not null && vid.Class is SpriteClass.Frame or SpriteClass.Text)
+        if (vid?.Class is SpriteClass.Frame or SpriteClass.Text)
         {
             for (int i = Menu.Count - 1; i >= 0; i--)
             {
@@ -1116,715 +1579,13 @@ public partial class Map : IScriptFunctionHost
         return null;
     }
 
-    private Sprite? GetNextSprite()
-    {
-        var sprite = FindListedSprite();
-        while (sprite is null && _spriteLayer < LayerCount - 1)
-        {
-            _spriteLayer++;
-            _spriteIndex = _layers[_spriteLayer].Count;
-            sprite = FindListedSprite();
-        }
-
-        return sprite;
-    }
-
-    [EngineRoutine(0x00412e80)]
-    private Sprite? GetNextUnit()
-    {
-        _unitIndex = Math.Min(_unitIndex, Sprites.Listed.Length) - 1;
-
-        return _unitIndex >= 0 ? Sprites.Listed[_unitIndex] : null;
-    }
-
     private Sprite? FindUnitOfMask(Sprite? sprite)
     {
         while (sprite is not null && (sprite.Vid.SpriteType & _unitMask) == 0)
         {
-            sprite = GetNextUnit();
+            sprite = Sprites.ListedSprites.NextIterate(ref _unitIndex);
         }
 
         return sprite;
-    }
-
-    private void ExecAction(Script script)
-    {
-        int third = script.PopNumber();
-        int second = script.PopNumber();
-        int first = script.PopNumber();
-        var code = (ActionCode)script.PopNumber();
-        var sprite = PopSprite(script);
-        if (sprite is null)
-        {
-            script.PushInt(0);
-            return;
-        }
-
-        if ((int)code <= LastAnimationAction)
-        {
-            sprite.ChangeAnimation((SpriteAnimation)code);
-            script.PushInt(0);
-            return;
-        }
-
-        switch (code)
-        {
-            case ActionCode.GetGoal or ActionCode.GetLink or ActionCode.GetUplink:
-                script.PushSprite(Action(sprite, code, first, second, third));
-                return;
-
-            case ActionCode.GetTextDesc when sprite is SText text:
-                script.PushText(text.Description);
-                return;
-
-            // TODO: Port the trains
-            case ActionCode.FirstEngine or ActionCode.LastEngine or ActionCode.NextEngine:
-                PushSprite(script, null);
-                return;
-        }
-
-        script.PushInt(Action(sprite, code, first, second, third));
-    }
-
-    private void ExecCreateSprite(Script script)
-    {
-        var parent = PopSprite(script);
-        var direction = new Angle((byte)script.PopNumber());
-        var position = PopPosition(script);
-        int id = script.PopNumber();
-        if (!TryLookupVid(id, "for CreateSprite()"u8, out var vid))
-        {
-            script.PushInt(0);
-            return;
-        }
-
-        PushSprite(script, CreateSprite(vid, position, direction, parent));
-    }
-
-    private void Destroy(Script script)
-    {
-        var sprite = PopSprite(script);
-        if (sprite is not null)
-        {
-            DeleteSprite(sprite);
-        }
-    }
-
-    private Sprite? FirstUnit(Script script)
-    {
-        _unitMask = (OldSpriteType)script.PopNumber();
-        var sprites = Sprites.Listed;
-        _unitIndex = sprites.Length - 1;
-        return sprites.IsEmpty ? null : FindUnitOfMask(sprites[_unitIndex]);
-    }
-
-    private Sprite? FirstInBox(Script script)
-    {
-        var max = PopPoint(script);
-        return Sprites.First(PopPoint(script), max);
-    }
-
-    private int DirectionTo(Script script)
-    {
-        var point = PopPoint(script);
-        var sprite = PopSprite(script);
-        return sprite is null ? 0 : new Angle(point - sprite.Position.AsVector2()).Value;
-    }
-
-    private void ChangeZUnit(Script script)
-    {
-        int z = script.PopNumber();
-        int id = script.PopNumber();
-        var vid = FindVid((KnownObject)id);
-        if (vid is null)
-        {
-            LogInvalidVid("for ChangeZUnit"u8, id);
-            return;
-        }
-
-        foreach (var sprite in EnumerateSprites(vid))
-        {
-            sprite.ChangeCoor(sprite.Position with { Z = z });
-        }
-    }
-
-    private Sprite? CanPlace(Script script)
-    {
-        var position = PopPosition(script);
-        int id = script.PopNumber();
-        var vid = FindVid((KnownObject)id);
-        if (vid is null)
-        {
-            LogInvalidVid("for CanPlace"u8, id);
-        }
-
-        return Sprites.CanPlace(vid ?? EmptyVid, position);
-    }
-
-    private void Genocide(Script script)
-    {
-        var vid = PopVid(script);
-        if (vid == EmptyVid)
-            return;
-
-        foreach (var sprite in EnumerateSprites(vid))
-        {
-            DeleteSprite(sprite);
-        }
-    }
-
-    private void ReplaceUnit(Script script)
-    {
-        var replacement = PopVid(script);
-        var vid = PopVid(script);
-        if (vid == EmptyVid || replacement == EmptyVid)
-            return;
-
-        foreach (var sprite in EnumerateSprites(vid))
-        {
-            CreateSprite(replacement, sprite.Position, sprite.Direction);
-            DeleteSprite(sprite);
-        }
-    }
-
-    private int SizeTo(Script script)
-    {
-        var point = PopPoint(script);
-        var sprite = PopSprite(script);
-        return sprite is null ? NoUnitDistance : (int)sprite.Position.AsVector2().NearLength(point);
-    }
-
-    private void Effect(Script script)
-    {
-        int duration = script.PopNumber();
-        int second = script.PopNumber();
-        int first = script.PopNumber();
-        Session.Graphics.Effect(this, script.PopNumber(), first, second, duration);
-    }
-
-    private int Charat(Script script)
-    {
-        int index = script.PopNumber();
-        var text = script.PopText().Span;
-        return index == text.Length ? 0 : (sbyte)text[index];
-    }
-
-    private int NextRandom(int max) => _rng.Next() % (max + 1);
-
-    private void GetVidData(Script script)
-    {
-        int type = PopNumber();
-        var vid = PopVid(script);
-        if (vid == EmptyVid)
-        {
-            PushInt(0);
-            return;
-        }
-
-        switch ((VidDataType)type)
-        {
-            case VidDataType.MaxHp:
-                PushInt(vid.MaxHp);
-                break;
-            case VidDataType.BattleRange:
-                PushInt((int)vid.Weapon.BattleRange);
-                break;
-            case VidDataType.Ammo:
-                PushInt(GetAmmoOwner(vid).Weapon.Ammo);
-                break;
-            case VidDataType.Count:
-                PushInt(vid.GetTotalCount());
-                break;
-            case VidDataType.KilledUnit:
-                PushInt(vid.GetTotalKilled());
-                break;
-            case >= VidDataType.KilledUnit0 and <= VidDataType.KilledUnit3:
-                PushInt(vid.GetKilled(type - (int)VidDataType.KilledUnit0));
-                break;
-            case >= VidDataType.Count0 and <= VidDataType.Count3:
-                PushInt(vid.GetCount(type - (int)VidDataType.Count0));
-                break;
-            case >= VidDataType.MaxHp0 and <= VidDataType.MaxHp3:
-                PushInt(vid.GetArmyMaxHp(type - (int)VidDataType.MaxHp0));
-                break;
-            case VidDataType.SpriteClass:
-                PushInt((int)vid.Class);
-                break;
-            case VidDataType.Speed:
-                PushInt(vid.ScriptSpeed);
-                break;
-            case VidDataType.Lifetime:
-                PushInt(vid.Lifetime);
-                break;
-            case VidDataType.DetectRange:
-                PushInt((int)vid.Weapon.DetectRange);
-                break;
-            case VidDataType.WeaponAim:
-                PushInt((int)vid.Weapon.Aim);
-                break;
-            case VidDataType.MoveMask:
-                PushInt((int)vid.MoveMask);
-                break;
-            case VidDataType.BuildTime:
-                PushInt(vid.Weapon.BuildTime);
-                break;
-            case VidDataType.NotCreateAsChild:
-                PushInt(vid.NotCreatedAsChild);
-                break;
-            case VidDataType.Link:
-                PushInt((int)(vid.LinkVid?.Id ?? 0));
-                break;
-            case >= VidDataType.Child and < VidDataType.Child + ASToolkit.Engine.Vid.StateCount:
-                PushInt((int)(vid.ChildVids[type - (int)VidDataType.Child]?.Id ?? 0));
-                break;
-            case >= VidDataType.ChildCounts and < VidDataType.ChildCounts + ASToolkit.Engine.Vid.StateCount:
-                PushInt(vid.ChildCounts[type - (int)VidDataType.ChildCounts]);
-                break;
-            case VidDataType.Damage:
-                PushInt(vid.Damage);
-                break;
-            case VidDataType.RecolorUnit:
-                PushInt(vid.GetTotalRecolored());
-                break;
-            case >= VidDataType.RecolorUnit0 and <= VidDataType.RecolorUnit3:
-                PushInt(vid.GetRecolored(type - (int)VidDataType.RecolorUnit0));
-                break;
-            case VidDataType.Name:
-                PushText(GameTextEncoding.Cyrillic.GetBytes(GetVidName(vid)));
-                break;
-            case VidDataType.SpriteType:
-                PushInt((int)vid.SpriteType);
-                break;
-            case VidDataType.Directions:
-                PushInt(vid.Directions);
-                break;
-            case VidDataType.Hide:
-                PushInt(vid.IsHidden ? 1 : 0);
-                break;
-            case VidDataType.FrameSpeed:
-                PushInt(vid.SpriteSpeed);
-                break;
-            default:
-                LogMapError(LogError.Unknown, "GetVid type"u8, type);
-                break;
-        }
-    }
-
-    private void SetVidData(Script script)
-    {
-        int value = PopNumber();
-        int type = PopNumber();
-        var vid = PopVid(script);
-        if (vid == EmptyVid)
-            return;
-
-        switch ((VidDataType)type)
-        {
-            case VidDataType.MaxHp:
-                vid.MaxHp = value;
-                break;
-            case >= VidDataType.Gamma and < VidDataType.Properties:
-                SetVidGamma(vid, type - (int)VidDataType.Gamma, value);
-                break;
-            case VidDataType.Ammo:
-                GetAmmoOwner(vid).Weapon.Ammo = value;
-                break;
-            case VidDataType.KilledUnit:
-                vid.Killed.Fill(value);
-                break;
-            case >= VidDataType.KilledUnit0 and <= VidDataType.KilledUnit3:
-                vid.Killed[type - (int)VidDataType.KilledUnit0] = value;
-                break;
-            case >= VidDataType.MaxHp0 and <= VidDataType.MaxHp3:
-                vid.SetMaxHp(this, type - (int)VidDataType.MaxHp0, value);
-                break;
-            case >= VidDataType.HpCoefficient0 and <= VidDataType.HpCoefficient3:
-                vid.SetHpCoeff(this, type - (int)VidDataType.HpCoefficient0, value);
-                break;
-            case VidDataType.Speed:
-                SetVidSpeed(vid, value);
-                break;
-            case VidDataType.Lifetime:
-                if (vid.Id != 0)
-                {
-                    vid.Lifetime = value;
-                    vid.HasTimers = true;
-                }
-
-                break;
-            case VidDataType.DetectRange:
-                vid.Weapon.DetectRange = value;
-                break;
-            case VidDataType.WeaponAim:
-                vid.Weapon.Aim = value;
-                break;
-            case VidDataType.ExchangeVid:
-                ExchangeVid(vid, value);
-                break;
-            case VidDataType.MoveMask:
-                vid.MoveMask = (CollisionLayers)value;
-                break;
-            case VidDataType.BuildTime:
-                vid.Weapon.BuildTime = value;
-                break;
-            case VidDataType.NotCreateAsChild:
-                vid.NotCreatedAsChild = value;
-                break;
-            case VidDataType.Link:
-                vid.LinkVid = Vid(value);
-                break;
-            case >= VidDataType.Child and < VidDataType.Child + ASToolkit.Engine.Vid.StateCount:
-                SetVidChild(vid, type - (int)VidDataType.Child, value);
-                break;
-            case >= VidDataType.ChildCounts and < VidDataType.ChildCounts + ASToolkit.Engine.Vid.StateCount:
-                vid.ChildCounts[type - (int)VidDataType.ChildCounts] = value;
-                break;
-            case VidDataType.Damage:
-                vid.Damage = value;
-                break;
-            case VidDataType.Hide:
-                vid.SetPropHide(value != 0);
-                break;
-            case VidDataType.FrameSpeed:
-                vid.SetFrameSpeed(value);
-                break;
-            default:
-                LogMapError(LogError.Unknown, "SetVid type"u8, type);
-                break;
-        }
-    }
-
-    private void SetVidGamma(Vid vid, int army, int value)
-    {
-        var gamma = Gamma.FromScript((uint)value);
-        vid.Gammas[army] = gamma;
-        vid.SetGamma(gamma, army, Session.Graphics.Gamma, Session);
-    }
-
-    private void SetVidSpeed(Vid vid, int value)
-    {
-        vid.Speed = value == ASToolkit.Engine.Vid.Unlimited ? ASToolkit.Engine.Vid.Unlimited : value * ASToolkit.Engine.Vid.PerMillisecond;
-        foreach (var entry in _layers[(int)vid.Layer].Items)
-        {
-            if (entry is not null && entry.Vid == vid && entry.HasExtraData)
-            {
-                entry.MaxSpeed = vid.Speed;
-            }
-        }
-    }
-
-    private void ExchangeVid(Vid vid, int value)
-    {
-        var other = FindVid((KnownObject)value);
-        if (other is not null)
-        {
-            ExchangeVid(vid, other);
-        }
-        else
-        {
-            LogMapError(LogError.Invalid, "SetVid get_image"u8, value);
-        }
-    }
-
-    private void SetVidChild(Vid vid, int state, int value)
-    {
-        if (value == 0)
-        {
-            vid.Children[state] = 0;
-            vid.ChildVids[state] = null;
-            return;
-        }
-
-        int sign = value >> 31;
-        var child = FindVid((KnownObject)unchecked((value ^ sign) - sign));
-        if (child is null)
-        {
-            LogMapError(LogError.Invalid, "SetVid child"u8, value);
-            return;
-        }
-
-        vid.Children[state] = value;
-        vid.ChildVids[state] = child;
-
-        if (child.IsBirthAsSmoke())
-        {
-            vid.HasTimers = true;
-        }
-    }
-
-    private void MenuRelease(Script script)
-    {
-        var name = script.PopText();
-        if (name.IsEmpty)
-        {
-            Menu.DeleteAll();
-        }
-        else
-        {
-            Menu.DeleteFromFile(name.Span);
-        }
-    }
-
-    private void MenuCreate(Script script)
-    {
-        int z = script.PopNumber();
-        int y = script.PopNumber() + z;
-        var position = new Vector3(script.PopNumber(), y, z);
-        int direction = script.PopNumber();
-        if (!TryLookupVid(script.PopNumber(), "for MenuCreate"u8, out var vid))
-        {
-            script.PushInt(0);
-            return;
-        }
-
-        var heading = new Angle(unchecked((byte)((direction << 8) / vid.Directions)));
-        PushSprite(script, CreateSprite(vid, position, heading));
-    }
-
-    private void MessageText(Script script)
-    {
-        var target = PopPoint(script);
-        _players[ControlledPlayer].Messages.Put(script.PopText(), target);
-    }
-
-    private void SetCursorPosition(Script script)
-    {
-        int y = script.PopNumber();
-        var target = new Point(script.PopNumber(), y);
-        Action(Mouse, ActionCode.ChangeCoor, target.X, target.Y);
-    }
-
-    private void SetWind(Script script)
-    {
-        var direction = new Angle((byte)script.PopNumber());
-        Session.Graphics.SetWind(PopNumber(), direction);
-    }
-
-    private int ToScreenY(Script script)
-    {
-        int z = script.PopNumber();
-        int y = script.PopNumber();
-        return (int)((float)y - z - Shift.Y);
-    }
-
-    private void PlaySfxFromCoor(Script script)
-    {
-        var point = PopPoint(script);
-        Sound.PlayAt(script.PopNumber(), point - Shift - Session.Graphics.ScreenSize.ToVector2() * HalfShare);
-    }
-
-    private void PlayMusicFile(Script script)
-    {
-        int loop = script.PopNumber();
-        Sound.FadeAndPlayFile(script.PopText().Span, loop, Session.RealCurrentTime);
-    }
-
-    private int CountGamma(Script script)
-    {
-        int share = script.PopNumber();
-        int last = script.PopNumber();
-        return BlendGamma(script.PopNumber(), last, share);
-    }
-
-    private void ExecGetCommands(Script script)
-    {
-        var sprite = PopSprite(script);
-        if (sprite is null)
-        {
-            script.PushText(default);
-            return;
-        }
-
-        var items = sprite.GetTextItems();
-        var commands = sprite.GetTextActions();
-        byte[] both = new byte[items.Length + commands.Length];
-        items.CopyTo(both);
-        commands.CopyTo(both.AsMemory(items.Length));
-        script.PushText(both);
-    }
-
-    private void ExecSetCommands(Script script)
-    {
-        var text = script.PopText();
-        var sprite = PopSprite(script);
-        if (sprite is null)
-            return;
-
-        sprite.SetTextItems(text);
-        if (text.Span.IndexOf(ItemsEnd) >= 0)
-        {
-            text = GetAfter(text, ItemsEnd);
-        }
-
-        sprite.SetTextActions(text);
-    }
-
-    private void FRead()
-    {
-        var file = PopScriptFile();
-        var line = IsPlayingDemo || file is null ? default : file.ReadLine();
-        // TODO: Port the demo stream strings of FRead and the shared text buffer a null handle pushes; recording stores each line and playback reads it back
-        PushText(line);
-    }
-
-    private void FWrite()
-    {
-        var text = PopText();
-        var file = PopScriptFile();
-        if (file is null)
-            return;
-
-        file.WriteText(text.Span);
-        file.SeekBack();
-        file.WriteLineFeed();
-    }
-
-    private void GetString(Script script)
-    {
-        var keyword = script.PopText();
-        script.PushText(Session.Strings?.GetString(script.PopText().Span, keyword.Span) ?? default);
-    }
-
-    private void FClose()
-    {
-        int handle = PopNumber();
-        if (_scriptFiles.Remove(handle, out var file))
-        {
-            file.Dispose();
-        }
-    }
-
-    private void ToLower()
-    {
-        byte[] text = CRuntime.GetString(PopText().Span).ToArray();
-        CRuntime.ToLowerInPlace(text);
-        PushText(text);
-    }
-
-    private void ToUpper()
-    {
-        byte[] text = CRuntime.GetString(PopText().Span).ToArray();
-        CRuntime.ToUpperInPlace(text);
-        PushText(text);
-    }
-
-    private int FOpen()
-    {
-        string name = ReadText(PopText());
-        if (IsPlayingDemo)
-            return 0;
-
-        var file = name.Length != 0 && ScriptFiles.TryRead(name, out var data) ? new ScriptFile(data.Span, null) : null;
-        if (file is null)
-        {
-            LogMapError(LogError.Open, Encoding.ASCII.GetBytes(name), 0);
-        }
-
-        return AddScriptFile(file);
-    }
-
-    private int FCreate()
-    {
-        string name = ReadText(PopText());
-        if (IsPlayingDemo)
-            return 0;
-
-        var writer = name.Length != 0 ? ScriptFiles.OpenWrite(name, false) : null;
-        return AddScriptFile(writer is null ? null : new ScriptFile(default, writer));
-    }
-
-    private int FEof()
-    {
-        var file = PopScriptFile();
-        return file is null ? 1 : file.IsEnd ? EndOfFileFlag : 0;
-    }
-
-    private void GetReg()
-    {
-        string defaultValue = ReadText(PopText());
-        string name = ReadText(PopText());
-        PushText(GameTextEncoding.Cyrillic.GetBytes(Registry.Get(ReadText(PopText()), name, defaultValue)));
-    }
-
-    private void SetReg()
-    {
-        string value = ReadText(PopText());
-        string name = ReadText(PopText());
-        Registry.Set(ReadText(PopText()), name, value);
-    }
-
-    private void DelReg()
-    {
-        string name = ReadText(PopText());
-        Registry.DeleteKey(ReadText(PopText()), name);
-    }
-
-    private void ExecToBase64()
-    {
-        int add = PopNumber();
-        PushText(ToBase64(PopText().Span, add));
-    }
-
-    private Sprite? ExecGetSprite(Script script)
-    {
-        var previous = PopSprite(script);
-        var point = PopPoint(script);
-        return GetSprite((SpriteSearch)script.PopNumber(), point, previous);
-    }
-
-    private Sprite? ExecGetSpriteScr(Script script)
-    {
-        var point = PopPoint(script);
-        return GetSpriteScr((SpriteSearch)script.PopNumber(), point);
-    }
-
-    private Sprite? ExecFindNearestSprite(Script script)
-    {
-        var previous = PopSprite(script);
-        int radius = script.PopNumber();
-        var point = PopPoint(script);
-        return FindNearestSprite((SpriteSearch)script.PopNumber(), point, radius, previous);
-    }
-
-    private void ExecAddCommand(Script script)
-    {
-        int third = script.PopNumber();
-        int second = script.PopNumber();
-        int first = script.PopNumber();
-        int act = script.PopNumber();
-        var sprite = PopSprite(script);
-
-        sprite?.AddCommand(act,first,second,third);
-    }
-
-    private void ExecSetFlagman(Script script)
-    {
-        var sprite = PopSprite(script);
-        SetFlagman(script.PopNumber(), sprite);
-    }
-
-    private void AddUnitLimit(Script script)
-    {
-        int army = PopNumber();
-        var vid = PopVid(script);
-        int value = PopNumber();
-        if (vid == EmptyVid)
-            return;
-
-        if (army == AllArmies)
-        {
-            vid.MaxUnits = value;
-        }
-        // TODO: Port AS1's out-of-range write for armies outside 0..3; AS1 writes def+0x398+army*4 into the fields around ArmyMaxUnits
-        else if (army >= 0 && army < vid.ArmyMaxUnits.Length)
-        {
-            vid.ArmyMaxUnits[army] = value;
-        }
-    }
-
-    private void SetMoney()
-    {
-        int money = PopNumber();
-        GetPlayer(PopNumber()).Money = money;
     }
 }

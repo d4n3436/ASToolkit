@@ -82,7 +82,7 @@ internal sealed class MyError : IDisposable
         if (_stream is null)
             return;
 
-        WriteLine(Encode(text));
+        WriteLine(GameTextEncoding.Cyrillic.GetBytes(text));
     }
 
     public void Log(ReadOnlySpan<byte> text)
@@ -149,8 +149,6 @@ internal sealed class MyError : IDisposable
 
         return $"{CreatedPrefix}{stamp}{AccessedPrefix}{stamp}{WrittenPrefix}{stamp}";
     }
-
-    private static byte[] Encode(string text) => GameTextEncoding.Cyrillic.GetBytes(text);
 
     private void WriteLine(ReadOnlySpan<byte> text)
     {

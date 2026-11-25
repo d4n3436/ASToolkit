@@ -65,7 +65,7 @@ public sealed partial class Script
     public bool IsLastStackString
     {
         [EngineRoutine(0x0043a190)]
-        get => _stack[_stack.Count - 1].Flags.HasFlag(ScriptStackFlags.Text);
+        get => _stack[^1].Flags.HasFlag(ScriptStackFlags.Text);
     }
 
     internal MyError? Error
@@ -80,13 +80,6 @@ public sealed partial class Script
     }
 
     private bool IsAlienShooter2 => Version == ScriptVersion.AlienShooter2;
-
-    /// <summary>
-    /// Returns the address of a slot's text as a number, never 0.
-    /// </summary>
-    /// <param name="slot">The index of the slot.</param>
-    /// <returns>The address.</returns>
-    public static int GetTextAddress(int slot) => slot + 1;
 
     /// <summary>
     /// Returns a variable or stack slot.
@@ -156,7 +149,7 @@ public sealed partial class Script
     [EngineRoutine(0x00439fd0)]
     public int PopHandle()
     {
-        ref readonly var slot = ref _stack[_stack.Count - 1];
+        ref readonly var slot = ref _stack[^1];
         if (slot.Value != 0 && !slot.Flags.HasFlag(ScriptStackFlags.Sprite))
         {
             Error?.Error("LOGIC"u8, LogError.Text, 0, "this variable is not unit"u8);
@@ -261,29 +254,277 @@ public sealed partial class Script
             function = MainIndex;
         }
 
-        if (!CanCallFunction(function))
+        if (function >= _objects.Count || function < 0)
+        {
+            Error?.Log($"!!!ERROR!!! SCRIPT Call unexisted function {function}");
+
             return 0;
+        }
 
         ref readonly var entry = ref _objects[function];
+        if (entry.Kind != ScriptObjectKind.Function)
+        {
+            Error?.Log($"!!!ERROR!!!LOGIC: Call unexisted function {MyError.Decode(_objects.Name(function).Span)}()");
+
+            return 0;
+        }
+
         int savedCount = _stack.Count;
         PushInt(savedCount);
         PushInt(_code.Length);
-        SetArgument(entry, 0, first, true);
-        SetArgument(entry, 1, second, true);
-        SetArgument(entry, 2, third, false);
-        int result = RunFunction(host, function, first, _code, entry.Address);
+        if (entry.Count > 0)
+        {
+            _stack[entry.FirstVariable] = new ScriptStack(first != 0 ? ScriptStackFlags.Number | ScriptStackFlags.Sprite : ScriptStackFlags.Number, first);
+        }
+
+        if (entry.Count > 1)
+        {
+            _stack[entry.FirstVariable + 1] = new ScriptStack(second != 0 ? ScriptStackFlags.Number | ScriptStackFlags.Sprite : ScriptStackFlags.Number, second);
+        }
+
+        if (entry.Count > 2)
+        {
+            _stack[entry.FirstVariable + 2] = new ScriptStack(ScriptStackFlags.Number, third);
+        }
+
+        byte[] code = _code;
+        int programCounter = entry.Address;
+        int result = 0;
+        bool indexPending = false;
+        int index = 0;
+        int frame = _stack.Count;
+        int statement = programCounter;
+        while (programCounter < code.Length)
+        {
+            if (_stack.Count < frame)
+            {
+                Error?.Log($"!!!ERROR!!!LOGIC: 'pop, but not push' stack error {programCounter}");
+
+                throw new InvalidOperationException($"Script function {function} pops more values than it pushes, at address {programCounter}.");
+            }
+
+            var opcode = (ScriptOpcode)code[programCounter];
+            if (opcode is >= ScriptOpcode.Divide and <= ScriptOpcode.ShiftLeft)
+            {
+                programCounter++;
+                _stack[^2].BinarOperator(opcode, _stack[^1], Error);
+                _stack.Count--;
+                continue;
+            }
+
+            if (opcode is >= ScriptOpcode.PostIncrement and <= ScriptOpcode.CompoundAssign)
+            {
+                int operand = BinaryPrimitives.ReadInt32LittleEndian(code.AsSpan(programCounter + 1));
+                int target = operand;
+                if (_stack[operand].Flags.HasFlag(ScriptStackFlags.Pointer) && indexPending)
+                {
+                    target = _stack[operand].Value;
+                }
+
+                target += index;
+                programCounter++;
+                switch (opcode)
+                {
+                    case ScriptOpcode.PostIncrement:
+                        _stack.Insert(_stack[target]);
+                        _stack[target].Flags &= ~ScriptStackFlags.Sprite;
+                        if ((_stack[target].Flags & (ScriptStackFlags.Number | ScriptStackFlags.Pointer)) != 0)
+                        {
+                            _stack[target].Value += 1;
+                        }
+                        break;
+                    case ScriptOpcode.PostDecrement:
+                        _stack.Insert(_stack[target]);
+                        _stack[target].Flags &= ~ScriptStackFlags.Sprite;
+                        if ((_stack[target].Flags & (ScriptStackFlags.Number | ScriptStackFlags.Pointer)) != 0)
+                        {
+                            _stack[target].Value += -1;
+                        }
+                        break;
+                    case ScriptOpcode.PreIncrement:
+                        _stack[target].Flags &= ~ScriptStackFlags.Sprite;
+                        if ((_stack[target].Flags & (ScriptStackFlags.Number | ScriptStackFlags.Pointer)) != 0)
+                        {
+                            _stack[target].Value += 1;
+                        }
+                        _stack.Insert(_stack[target]);
+                        break;
+                    case ScriptOpcode.PreDecrement:
+                        _stack[target].Flags &= ~ScriptStackFlags.Sprite;
+                        if ((_stack[target].Flags & (ScriptStackFlags.Number | ScriptStackFlags.Pointer)) != 0)
+                        {
+                            _stack[target].Value += -1;
+                        }
+                        _stack.Insert(_stack[target]);
+                        break;
+                    case ScriptOpcode.Load:
+                        if (!indexPending && _stack[target].Flags.HasFlag(ScriptStackFlags.ArrayElement))
+                        {
+                            PushInt(BinaryPrimitives.ReadInt32LittleEndian(code.AsSpan(programCounter)));
+                        }
+                        else
+                        {
+                            _stack.Insert(_stack[target]);
+                        }
+
+                        break;
+                    case ScriptOpcode.LoadTextAddress:
+                        PushInt(_stack[target].Flags.HasFlag(ScriptStackFlags.Text) ? target + 1 : 0);
+                        break;
+                    case ScriptOpcode.Assign:
+                        if (!_stack[operand].Flags.HasFlag(ScriptStackFlags.Text))
+                        {
+                            _stack[target].Flags &= ~(ScriptStackFlags.Sprite | ScriptStackFlags.NotInitialized);
+                            _stack[target].Value = _stack[^1].GetValue();
+                            if (_stack[^1].Flags.HasFlag(ScriptStackFlags.Sprite))
+                            {
+                                _stack[target].Flags |= ScriptStackFlags.Sprite;
+                            }
+                        }
+                        else if (indexPending && !_stack[operand].Flags.HasFlag(ScriptStackFlags.ArrayElement))
+                        {
+                            StoreCharacter(ref _stack[operand], index, _stack[^1].GetValue());
+                        }
+                        else
+                        {
+                            _stack[target].Text = _stack[^1].Flags.HasFlag(ScriptStackFlags.Number) ? ScriptStack.FormatNumber(_stack[^1].Value) : _stack[^1].Text;
+                        }
+                        break;
+                    case ScriptOpcode.CompoundAssign:
+                        _stack.Count--;
+                        _stack[target].BinarOperator((ScriptOpcode)code[programCounter + 4], _stack[_stack.Count], Error);
+                        _stack.Insert(_stack[target]);
+                        programCounter++;
+                        break;
+                }
+
+                programCounter += 4;
+                indexPending = false;
+                index = 0;
+                continue;
+            }
+
+            programCounter++;
+            switch (opcode)
+            {
+                case ScriptOpcode.PushNumber:
+                    PushInt(BinaryPrimitives.ReadInt32LittleEndian(code.AsSpan(programCounter)));
+                    programCounter += 4;
+                    break;
+                case ScriptOpcode.PushText:
+                    int length = code.AsSpan(programCounter).IndexOf((byte)0);
+                    _stack.Insert(ScriptStack.FromText(code.AsMemory(programCounter, length)));
+                    programCounter += length + 1;
+                    break;
+                case ScriptOpcode.Negate:
+                    _stack[^1].Value = -_stack[^1].GetValue();
+                    _stack[^1].Flags = ScriptStackFlags.Number;
+                    break;
+                case ScriptOpcode.BitwiseNot:
+                    _stack[^1].Value = ~_stack[^1].GetValue();
+                    _stack[^1].Flags = ScriptStackFlags.Number;
+                    break;
+                case ScriptOpcode.LogicalNot:
+                    _stack[^1].Value = _stack[^1].GetValue() == 0 ? 1 : 0;
+                    _stack[^1].Flags = ScriptStackFlags.Number;
+                    break;
+                case ScriptOpcode.JumpIfFalse:
+                    _stack.Count--;
+                    programCounter += _stack[_stack.Count].GetValue() == 0 ? BinaryPrimitives.ReadInt32LittleEndian(code.AsSpan(programCounter)) : 4;
+                    if (_stack.Count - frame > 1)
+                    {
+                        Error?.Log($"!!!ERROR!!!LOGIC: 'if' stack error {programCounter}");
+                    }
+
+                    RestoreStack(frame);
+                    statement = programCounter;
+                    break;
+                case ScriptOpcode.EndStatement:
+                    programCounter += 4;
+                    if (_stack.Count - frame > 1)
+                    {
+                        Error?.Log($"!!!ERROR!!!LOGIC: ';' stack error {programCounter}");
+                    }
+
+                    RestoreStack(frame);
+                    statement = programCounter;
+                    break;
+                case ScriptOpcode.Pop:
+                    _stack.Count--;
+                    break;
+                case ScriptOpcode.Jump:
+                    programCounter += BinaryPrimitives.ReadInt32LittleEndian(code.AsSpan(programCounter));
+                    break;
+                case ScriptOpcode.JumpIfFalseOnce:
+                    _stack.Count--;
+                    if (_stack[_stack.Count].GetValue() == 0)
+                    {
+                        programCounter += BinaryPrimitives.ReadInt32LittleEndian(code.AsSpan(programCounter));
+                    }
+                    else
+                    {
+                        code[statement] = (byte)ScriptOpcode.Jump;
+                        BinaryPrimitives.WriteInt32LittleEndian(code.AsSpan(statement + 1), BinaryPrimitives.ReadInt32LittleEndian(code.AsSpan(programCounter)) - statement + programCounter - 1);
+                        programCounter += 4;
+                    }
+
+                    if (_stack.Count - frame > 1)
+                    {
+                        Error?.Log($"!!!ERROR!!!LOGIC: 'iff' stack error {programCounter}");
+                    }
+
+                    RestoreStack(frame);
+                    statement = programCounter;
+                    break;
+                case ScriptOpcode.Call:
+                    PushInt(frame);
+                    PushInt(programCounter + 4);
+                    programCounter = BinaryPrimitives.ReadInt32LittleEndian(code.AsSpan(programCounter));
+                    frame = _stack.Count;
+                    statement = programCounter;
+                    break;
+                case ScriptOpcode.Return:
+                    if (_stack.Count - frame > 1)
+                    {
+                        Error?.Log($"!!!ERROR!!!LOGIC: 'return' stack error {programCounter}");
+                    }
+
+                    bool hasValue = _stack.Count > frame;
+                    var returned = hasValue ? _stack.Pop() : default;
+                    RestoreStack(frame);
+                    programCounter = _stack.Pop().GetValue();
+                    frame = _stack.Pop().GetValue();
+                    if (hasValue)
+                    {
+                        _stack.Insert(returned);
+                    }
+
+                    if (hasValue && programCounter >= code.Length && result == 0)
+                    {
+                        result = returned.GetValue();
+                    }
+
+                    statement = programCounter;
+                    break;
+                case ScriptOpcode.SetIndex:
+                    _stack.Count--;
+                    index = _stack[_stack.Count].GetValue();
+                    indexPending = true;
+                    break;
+                default:
+                    if (code[programCounter - 1] == (byte)ScriptFunction.Destroy && _stack[^1].GetValue() == first)
+                    {
+                        result = 1;
+                    }
+
+                    host.ExecFunc(this, code[programCounter - 1]);
+                    break;
+            }
+        }
+
         RestoreStack(savedCount);
 
         return result;
-    }
-
-    private static void Step(ref ScriptStack slot, int amount)
-    {
-        slot.Flags &= ~ScriptStackFlags.Sprite;
-        if ((slot.Flags & (ScriptStackFlags.Number | ScriptStackFlags.Pointer)) != 0)
-        {
-            slot.Value += amount;
-        }
     }
 
     private static void StoreCharacter(ref ScriptStack slot, int index, int character)
@@ -303,362 +544,9 @@ public sealed partial class Script
         slot.Text = text;
     }
 
-    private bool CanCallFunction(int function)
-    {
-        if (function >= _objects.Count || function < 0)
-        {
-            Error?.Log($"!!!ERROR!!! SCRIPT Call unexisted function {function}");
-
-            return false;
-        }
-
-        ref readonly var entry = ref _objects[function];
-        if (entry.Kind != ScriptObjectKind.Function)
-        {
-            Error?.Log($"!!!ERROR!!!LOGIC: Call unexisted function {MyError.Decode(_objects.Name(function).Span)}()");
-
-            return false;
-        }
-
-        return true;
-    }
-
-    private void SetArgument(in ScriptObject entry, int parameter, int value, bool isHandle)
-    {
-        if (entry.Count > parameter)
-        {
-            _stack[entry.FirstVariable + parameter] = new ScriptStack(isHandle && value != 0 ? ScriptStackFlags.Number | ScriptStackFlags.Sprite : ScriptStackFlags.Number, value);
-        }
-    }
-
-    private void SetTop(int value)
-    {
-        _stack[_stack.Count - 1].Value = value;
-        _stack[_stack.Count - 1].Flags = ScriptStackFlags.Number;
-    }
-
     private void RestoreStack(int count)
     {
         _stack.Expand(count);
         _stack.Count = count;
-    }
-
-    private void EndStatement(string name, int frame, int programCounter)
-    {
-        if (_stack.Count - frame > 1)
-        {
-            Error?.Log($"!!!ERROR!!!LOGIC: '{name}' stack error {programCounter}");
-        }
-
-        RestoreStack(frame);
-    }
-
-    private int RunFunction(IScriptFunctionHost host, int function, int first, byte[] code, int programCounter)
-    {
-        int result = 0;
-        bool indexPending = false;
-        int index = 0;
-        int frame = _stack.Count;
-        int statement = programCounter;
-        while (programCounter < code.Length)
-        {
-            if (_stack.Count < frame)
-            {
-                Error?.Log($"!!!ERROR!!!LOGIC: 'pop, but not push' stack error {programCounter}");
-
-                throw new InvalidOperationException($"Script function {function} pops more values than it pushes, at address {programCounter}.");
-            }
-
-            var opcode = (ScriptOpcode)code[programCounter];
-            if (opcode is >= ScriptOpcode.Divide and <= ScriptOpcode.ShiftLeft)
-            {
-                programCounter++;
-                BinarOperator(ref _stack[_stack.Count - 2], opcode, _stack[_stack.Count - 1]);
-                _stack.Count--;
-                continue;
-            }
-
-            if (opcode is >= ScriptOpcode.PostIncrement and <= ScriptOpcode.CompoundAssign)
-            {
-                programCounter = RunVariableOp(code, programCounter, indexPending, index);
-                indexPending = false;
-                index = 0;
-                continue;
-            }
-
-            programCounter++;
-            switch (opcode)
-            {
-                case ScriptOpcode.PushNumber:
-                    PushInt(BinaryPrimitives.ReadInt32LittleEndian(code.AsSpan(programCounter)));
-                    programCounter += 4;
-                    break;
-                case ScriptOpcode.PushText:
-                    int length = code.AsSpan(programCounter).IndexOf((byte)0);
-                    _stack.Insert(ScriptStack.FromText(code.AsMemory(programCounter, length)));
-                    programCounter += length + 1;
-                    break;
-                case ScriptOpcode.Negate:
-                    SetTop(-_stack[_stack.Count - 1].GetValue());
-                    break;
-                case ScriptOpcode.BitwiseNot:
-                    SetTop(~_stack[_stack.Count - 1].GetValue());
-                    break;
-                case ScriptOpcode.LogicalNot:
-                    SetTop(_stack[_stack.Count - 1].GetValue() == 0 ? 1 : 0);
-                    break;
-                case ScriptOpcode.JumpIfFalse:
-                    programCounter = RunJumpIfFalse(code, programCounter);
-                    EndStatement("if", frame, programCounter);
-                    statement = programCounter;
-                    break;
-                case ScriptOpcode.EndStatement:
-                    programCounter += 4;
-                    EndStatement(";", frame, programCounter);
-                    statement = programCounter;
-                    break;
-                case ScriptOpcode.Pop:
-                    _stack.Count--;
-                    break;
-                case ScriptOpcode.Jump:
-                    programCounter += BinaryPrimitives.ReadInt32LittleEndian(code.AsSpan(programCounter));
-                    break;
-                case ScriptOpcode.JumpIfFalseOnce:
-                    programCounter = RunJumpIfFalseOnce(code, programCounter, statement);
-                    EndStatement("iff", frame, programCounter);
-                    statement = programCounter;
-                    break;
-                case ScriptOpcode.Call:
-                    PushInt(frame);
-                    PushInt(programCounter + 4);
-                    programCounter = BinaryPrimitives.ReadInt32LittleEndian(code.AsSpan(programCounter));
-                    frame = _stack.Count;
-                    statement = programCounter;
-                    break;
-                case ScriptOpcode.Return:
-                    RunReturn(code.Length, ref programCounter, ref frame, ref result);
-                    statement = programCounter;
-                    break;
-                case ScriptOpcode.SetIndex:
-                    _stack.Count--;
-                    index = _stack[_stack.Count].GetValue();
-                    indexPending = true;
-                    break;
-                default:
-                    if (code[programCounter - 1] == (byte)ScriptFunction.Destroy && _stack[_stack.Count - 1].GetValue() == first)
-                    {
-                        result = 1;
-                    }
-
-                    host.ExecFunc(this, code[programCounter - 1]);
-                    break;
-            }
-        }
-
-        return result;
-    }
-
-    private int RunVariableOp(byte[] code, int programCounter, bool indexPending, int index)
-    {
-        var opcode = (ScriptOpcode)code[programCounter];
-        int operand = BinaryPrimitives.ReadInt32LittleEndian(code.AsSpan(programCounter + 1));
-        int target = operand;
-        if (_stack[operand].Flags.HasFlag(ScriptStackFlags.Pointer) && indexPending)
-        {
-            target = _stack[operand].Value;
-        }
-
-        target += index;
-        programCounter++;
-        switch (opcode)
-        {
-            case ScriptOpcode.PostIncrement:
-                _stack.Insert(_stack[target]);
-                Step(ref _stack[target], 1);
-                break;
-            case ScriptOpcode.PostDecrement:
-                _stack.Insert(_stack[target]);
-                Step(ref _stack[target], -1);
-                break;
-            case ScriptOpcode.PreIncrement:
-                Step(ref _stack[target], 1);
-                _stack.Insert(_stack[target]);
-                break;
-            case ScriptOpcode.PreDecrement:
-                Step(ref _stack[target], -1);
-                _stack.Insert(_stack[target]);
-                break;
-            case ScriptOpcode.Load:
-                if (!indexPending && _stack[target].Flags.HasFlag(ScriptStackFlags.ArrayElement))
-                {
-                    PushInt(BinaryPrimitives.ReadInt32LittleEndian(code.AsSpan(programCounter)));
-                }
-                else
-                {
-                    _stack.Insert(_stack[target]);
-                }
-
-                break;
-            case ScriptOpcode.LoadTextAddress:
-                PushInt(_stack[target].Flags.HasFlag(ScriptStackFlags.Text) ? GetTextAddress(target) : 0);
-                break;
-            case ScriptOpcode.Assign:
-                Assign(operand, target, indexPending, index);
-                break;
-            case ScriptOpcode.CompoundAssign:
-                _stack.Count--;
-                BinarOperator(ref _stack[target], (ScriptOpcode)code[programCounter + 4], _stack[_stack.Count]);
-                _stack.Insert(_stack[target]);
-                programCounter++;
-                break;
-        }
-
-        return programCounter + 4;
-    }
-
-    private void Assign(int operand, int target, bool indexPending, int index)
-    {
-        if (!_stack[operand].Flags.HasFlag(ScriptStackFlags.Text))
-        {
-            _stack[target].Flags &= ~(ScriptStackFlags.Sprite | ScriptStackFlags.NotInitialized);
-            _stack[target].Value = _stack[_stack.Count - 1].GetValue();
-            if (_stack[_stack.Count - 1].Flags.HasFlag(ScriptStackFlags.Sprite))
-            {
-                _stack[target].Flags |= ScriptStackFlags.Sprite;
-            }
-        }
-        else if (indexPending && !_stack[operand].Flags.HasFlag(ScriptStackFlags.ArrayElement))
-        {
-            StoreCharacter(ref _stack[operand], index, _stack[_stack.Count - 1].GetValue());
-        }
-        else
-        {
-            _stack[target].Text = _stack[_stack.Count - 1].Flags.HasFlag(ScriptStackFlags.Number) ? ScriptStack.FormatNumber(_stack[_stack.Count - 1].Value) : _stack[_stack.Count - 1].Text;
-        }
-    }
-
-    private int RunJumpIfFalse(byte[] code, int programCounter)
-    {
-        _stack.Count--;
-        if (_stack[_stack.Count].GetValue() == 0)
-            return programCounter + BinaryPrimitives.ReadInt32LittleEndian(code.AsSpan(programCounter));
-
-        return programCounter + 4;
-    }
-
-    private int RunJumpIfFalseOnce(byte[] code, int programCounter, int statement)
-    {
-        _stack.Count--;
-        if (_stack[_stack.Count].GetValue() == 0)
-            return programCounter + BinaryPrimitives.ReadInt32LittleEndian(code.AsSpan(programCounter));
-
-        code[statement] = (byte)ScriptOpcode.Jump;
-        BinaryPrimitives.WriteInt32LittleEndian(code.AsSpan(statement + 1), BinaryPrimitives.ReadInt32LittleEndian(code.AsSpan(programCounter)) - statement + programCounter - 1);
-
-        return programCounter + 4;
-    }
-
-    private void RunReturn(int codeLength, ref int programCounter, ref int frame, ref int result)
-    {
-        if (_stack.Count - frame > 1)
-        {
-            Error?.Log($"!!!ERROR!!!LOGIC: 'return' stack error {programCounter}");
-        }
-
-        bool hasValue = _stack.Count > frame;
-        var returned = hasValue ? _stack.Pop() : default;
-        RestoreStack(frame);
-        programCounter = _stack.Pop().GetValue();
-        frame = _stack.Pop().GetValue();
-        if (hasValue)
-        {
-            _stack.Insert(returned);
-            if (programCounter >= codeLength && result == 0)
-            {
-                result = returned.GetValue();
-            }
-        }
-    }
-
-    [EngineRoutine(0x004245e0)]
-    private void BinarOperator(ref ScriptStack left, ScriptOpcode opcode, in ScriptStack right)
-    {
-        int value = right.GetValue();
-        bool areTexts = left.Flags.HasFlag(ScriptStackFlags.Text) && right.Flags.HasFlag(ScriptStackFlags.Text);
-        if (left.Flags.HasFlag(ScriptStackFlags.Text))
-        {
-            left.Value = ScriptStack.ParseNumber(left.Text.Span);
-        }
-
-        int current = left.Value;
-        switch (opcode)
-        {
-            case ScriptOpcode.Divide:
-                left.Value = value == 0 ? 0x0fffffff : current / value;
-                break;
-            case ScriptOpcode.Modulo:
-                left.Value = current % value;
-                break;
-            case ScriptOpcode.Add when areTexts:
-                byte[] joined = GC.AllocateUninitializedArray<byte>(left.Text.Length + right.Text.Length);
-                left.Text.Span.CopyTo(joined);
-                right.Text.Span.CopyTo(joined.AsSpan(left.Text.Length));
-                left.Text = joined;
-                left.Flags = ScriptStackFlags.Text;
-                return;
-            case ScriptOpcode.Add:
-                left.Value = unchecked(current + value);
-                break;
-            case ScriptOpcode.Subtract:
-                left.Value = unchecked(current - value);
-                break;
-            case ScriptOpcode.Xor:
-                left.Value = current ^ value;
-                break;
-            case ScriptOpcode.Or:
-                left.Value = current | value;
-                break;
-            case ScriptOpcode.And:
-                left.Value = current & value;
-                break;
-            case ScriptOpcode.Equal:
-                left.Value = (areTexts ? left.Text.Span.SequenceEqual(right.Text.Span) : current == value) ? 1 : 0;
-                break;
-            case ScriptOpcode.LogicalOr:
-                left.Value = current == 0 && value == 0 ? 0 : 1;
-                break;
-            case ScriptOpcode.Greater:
-                left.Value = current > value ? 1 : 0;
-                break;
-            case ScriptOpcode.Less:
-                left.Value = current < value ? 1 : 0;
-                break;
-            case ScriptOpcode.GreaterOrEqual:
-                left.Value = current >= value ? 1 : 0;
-                break;
-            case ScriptOpcode.LessOrEqual:
-                left.Value = current <= value ? 1 : 0;
-                break;
-            case ScriptOpcode.Multiply:
-                left.Value = unchecked(current * value);
-                break;
-            case ScriptOpcode.NotEqual:
-                left.Value = (areTexts ? !left.Text.Span.SequenceEqual(right.Text.Span) : current != value) ? 1 : 0;
-                break;
-            case ScriptOpcode.LogicalAnd:
-                left.Value = current != 0 && value != 0 ? 1 : 0;
-                break;
-            case ScriptOpcode.ShiftRight:
-                left.Value = current >> (value & 31);
-                break;
-            case ScriptOpcode.ShiftLeft:
-                left.Value = current << (value & 31);
-                break;
-            default:
-                Error?.Log($"!!!ERROE!!!LOGIC::Unknown Binary command {(int)opcode}");
-                break;
-        }
-
-        left.Flags = ScriptStackFlags.Number;
     }
 }

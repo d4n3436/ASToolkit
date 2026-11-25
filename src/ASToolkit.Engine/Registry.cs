@@ -56,7 +56,10 @@ public sealed class Registry
     [EngineRoutine(0x0042d130)]
     public int GetInt(string name, int fallback)
     {
-        return ParseLong(Get(DefaultPath, name, fallback.ToString(CultureInfo.InvariantCulture)));
+        string text = Get(DefaultPath, name, fallback.ToString(CultureInfo.InvariantCulture));
+        var bytes = text.Length <= MaxStackText ? stackalloc byte[text.Length] : new byte[text.Length];
+
+        return CRuntime.ParseInteger(bytes[..Encoding.ASCII.GetBytes(text, bytes)]);
     }
 
     /// <summary>
@@ -102,10 +105,4 @@ public sealed class Registry
     public void DeleteKey(string path, string name) => _values.Remove(GetKey(path, name));
 
     private static string GetKey(string path, string name) => $"{path}\\{name}";
-
-    private static int ParseLong(ReadOnlySpan<char> text)
-    {
-        var bytes = text.Length <= MaxStackText ? stackalloc byte[text.Length] : new byte[text.Length];
-        return CRuntime.ParseInteger(bytes[..Encoding.ASCII.GetBytes(text, bytes)]);
-    }
 }

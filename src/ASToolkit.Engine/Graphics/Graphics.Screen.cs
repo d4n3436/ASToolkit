@@ -49,7 +49,7 @@ public sealed partial class Graphics
     /// <param name="screen">The screen.</param>
     /// <param name="color">The color, packed as 0xAARRGGBB.</param>
     [EngineRoutine(0x00402600)]
-    public static void Clear(Screen screen, uint color)
+    public static void ClearScreen(Screen screen, uint color)
     {
         var area = Rectangle.Intersect(screen.Viewport, new Rectangle(Point.Empty, screen.Size));
         ushort packed = screen.IsTrueColor ? default : screen.Format.Pack(color);
@@ -247,7 +247,7 @@ public sealed partial class Graphics
         PreTact();
         if (Screen is not null)
         {
-            Clear(Screen, ClearColor);
+            ClearScreen(Screen, ClearColor);
         }
 
         var screen = ScreenSize;
@@ -287,7 +287,7 @@ public sealed partial class Graphics
     }
 
     [EngineRoutine(0x00430870)]
-    internal void UpdateScreen(Map map, bool drawFrame)
+    internal void Tact(Map map, bool drawFrame)
     {
         var screen = ScreenSize;
         var saved = map.Shift;
@@ -305,7 +305,7 @@ public sealed partial class Graphics
             {
                 if (map.FindVid(Map.HardwareGroundId) is null || map.Shift.X < 0f || map.Size.Width < Viewport.Right + map.Shift.X - Viewport.Left || map.Shift.Y < 0f || map.Size.Height < Viewport.Bottom + map.Shift.Y - Viewport.Top)
                 {
-                    Clear(Screen, ClearColor);
+                    ClearScreen(Screen, ClearColor);
                 }
             }
 
@@ -402,7 +402,7 @@ public sealed partial class Graphics
     }
 
     [EngineRoutine(0x00430d20)]
-    private void LockDepth()
+    internal void LockDepth()
     {
         if (!IsDepthLocked)
         {

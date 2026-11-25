@@ -82,6 +82,7 @@ public sealed partial class Graphics
         if (!(viewport.Left <= point.X && point.X < viewport.Right && viewport.Top <= point.Y && point.Y < viewport.Bottom))
             return;
 
+        LockDepth();
         int index = Screen.Pitch * (int)point.Y + (int)point.X;
         if (Screen.IsTrueColor)
         {

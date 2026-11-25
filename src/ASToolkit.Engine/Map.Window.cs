@@ -21,27 +21,6 @@ public partial class Map
         new(AcceleratorFlags.VirtualKey | AcceleratorFlags.NoInvert | AcceleratorFlags.Shift | AcceleratorFlags.Last, VirtualKey.F9, MenuCommand.Screenshot)
     ];
 
-    private bool TranslateAccelerator(in WindowMessage message)
-    {
-        if (message.Id is not (WindowMessageId.KeyDown or WindowMessageId.SysKeyDown))
-            return false;
-
-        foreach (var accelerator in Accelerators)
-        {
-            if (!accelerator.Flags.HasFlag(AcceleratorFlags.VirtualKey) || accelerator.Key != (VirtualKey)message.WParam ||
-                accelerator.Flags.HasFlag(AcceleratorFlags.Shift) != Input.IsKeyHeld(VirtualKey.Shift) ||
-                accelerator.Flags.HasFlag(AcceleratorFlags.Control) != Input.IsKeyHeld(VirtualKey.Control) ||
-                accelerator.Flags.HasFlag(AcceleratorFlags.Alt) != Input.IsKeyHeld(VirtualKey.Alt))
-                continue;
-
-            DispatchMessage(new WindowMessage(WindowMessageId.Command, (int)accelerator.Command | AcceleratorSource, 0));
-
-            return true;
-        }
-
-        return false;
-    }
-
     [EngineRoutine(0x00404c30)]
     private void DispatchMessage(in WindowMessage message)
     {
@@ -50,7 +29,10 @@ public partial class Map
 
         if (message.Id != WindowMessageId.Command)
         {
-            DefWindowProc(message);
+            if (message.Id == WindowMessageId.Close)
+            {
+                WindowProc(new WindowMessage(WindowMessageId.Destroy, 0, 0));
+            }
 
             return;
         }
@@ -79,14 +61,6 @@ public partial class Map
         Session.Graphics.EndPause();
 
         return default;
-    }
-
-    private void DefWindowProc(in WindowMessage message)
-    {
-        if (message.Id == WindowMessageId.Close)
-        {
-            WindowProc(new WindowMessage(WindowMessageId.Destroy, 0, 0));
-        }
     }
 
     [EngineRoutine(0x0040b930)]

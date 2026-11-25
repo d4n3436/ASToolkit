@@ -55,20 +55,6 @@ public static partial class CRuntime
     }
 
     /// <summary>
-    /// Converts the uppercase ASCII letters of a text to lowercase in place (<c>_strlwr</c>).
-    /// </summary>
-    /// <param name="text">The text.</param>
-    [EngineRoutine(0x00479c60)]
-    public static void ToLowerInPlace(Span<char> text)
-    {
-        while (!text.IsEmpty)
-        {
-            Ascii.ToLowerInPlace(text, out int converted);
-            text = text[Math.Min(converted + 1, text.Length)..];
-        }
-    }
-
-    /// <summary>
     /// Converts the lowercase ASCII letters of a text to uppercase in place (<c>_strupr</c>).
     /// </summary>
     /// <param name="text">The text.</param>

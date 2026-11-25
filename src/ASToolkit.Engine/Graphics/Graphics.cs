@@ -214,7 +214,10 @@ public sealed partial class Graphics
             return;
 
         Gamma = gamma;
-        map.SetAmbient(gamma);
+        foreach (var vid in map.Vids)
+        {
+            vid?.SetGamma(gamma, Vid.AllArmies, gamma, map.Session);
+        }
     }
 
     /// <summary>

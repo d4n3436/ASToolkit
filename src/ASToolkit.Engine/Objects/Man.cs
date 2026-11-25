@@ -57,16 +57,126 @@ public sealed class Man : Unit
         switch (act)
         {
             case ActionCode.CoorAttack:
-                CoorAttackCase(new Vector2(var1, var2));
+                var point = new Vector2(var1, var2);
+                var weapon = Vid.LinkVid;
+                var torso = Link;
+
+                if (torso is null || torso.Vid != weapon || weapon.FightChild == 0 || weapon.WeaponIndex == 0 || (uint)torso.Timer > ReloadTimerLimit ||
+                    torso.Animation == SpriteAnimation.Fight && torso.Frame <= torso.LastFrame)
+                    return 0;
+
+                var screen = Map.Session.Graphics.Screen;
+                var player = Position;
+                var pixel = point - Map.Shift;
+                float y = point.Y;
+                float height;
+
+                if (screen is not null && pixel.X >= Map.Session.Graphics.Viewport.Left && pixel.X < Map.Session.Graphics.Viewport.Right && pixel.Y >= Map.Session.Graphics.Viewport.Top && pixel.Y < Map.Session.Graphics.Viewport.Bottom)
+                {
+                    height = (screen.Depth[(int)pixel.Y * screen.DepthWidth + (int)pixel.X] >> DepthShift) - DepthBias;
+
+                    if (height > player.Z + AimRise)
+                    {
+                        height = player.Z + AimRiseCap;
+                    }
+                }
+                else if (weapon.Weapon.Targets == OldSpriteType.Unit)
+                {
+                    height = Map.GetGroundZ(point with { Y = point.Y + UnitAimLift }) + UnitAimLift;
+                }
+                else
+                {
+                    height = Map.GetGroundZ(point) + GroundAimLift;
+                    y -= GroundAimLift;
+                }
+
+                var goal = Map.ConstructGoal(new Vector3(point.X, y + height, height));
+                torso.SetCommand(Command.OneAttack, goal);
                 return 0;
             case ActionCode.ChangeVid:
-                ChangeVidCase(var1, var2, var3, target);
+                if ((int)Vid.Id < PlayerIdLimit)
+                {
+                    SlotAmmo[WeaponSlot] = base.Action(ActionCode.GetAmmo, 0, 0, 0, null);
+                }
+
+                base.Action(ActionCode.ChangeVid, var1, var2, var3, target);
+
+                if ((int)Vid.Id > PlayerIdLimit)
+                {
+                    base.Action(ActionCode.AddAmmo, Vid.GetMaxAmmo() - base.Action(ActionCode.GetAmmo, 0, 0, 0, null), 0, 0, null);
+
+                    return 0;
+                }
+
+                int armorItem = GetItemNumber(WornArmorItemBase) >= 0 ? WornArmorItemBase
+                    : GetItemNumber(WornArmorItemBase + 1) >= 0 ? WornArmorItemBase + 1
+                    : GetItemNumber(WornArmorItemBase + 2) >= 0 ? WornArmorItemBase + 2
+                    : 0;
+
+                if (armorItem != 0)
+                {
+                    var position = new Vector3(Position.X, Position.Y, Position.Z + Vid.LinkOffset.Z);
+                    var armor = Map.CreateSprite(Map.FindVid((KnownObject)(armorItem - WornArmorItemBase + (int)KnownObject.WornGreenArmor))!, position, Direction);
+                    Link!.AddLink(armor);
+                }
+
+                base.Action(ActionCode.AddAmmo, SlotAmmo[WeaponSlot] - base.Action(ActionCode.GetAmmo, 0, 0, 0, null), 0, 0, null);
                 return 0;
             case ActionCode.AddItem:
-                AddItemCase(var1);
+                if ((KnownObject)var1 is KnownObject.Dynamite or KnownObject.ExtraLife)
+                {
+                    InsertItem(var1);
+
+                    return 0;
+                }
+
+                if (!InsertUniqueItem(var1))
+                    return 0;
+
+                int slot = var1 - WeaponItemBase;
+
+                if (slot is < 0 or >= WeaponSlots)
+                    return 0;
+
+                if (base.Action(ActionCode.GetAmmo, 0, 0, 0, null) == 0 || WeaponSlot < slot || slot == 0)
+                {
+                    ChangeWeapon(slot);
+                }
+
                 return 0;
             case ActionCode.Damage:
-                return ActionDamage(var1, var2, var3, target);
+                if (var1 <= 0)
+                    return SpriteAction(ActionCode.Damage, var1, var2, var3, target);
+
+                if (Vid.Id != KnownObject.MannedCannon)
+                {
+                    foreach (var link in EnumerateLinks())
+                    {
+                        if (link.Vid.Id is KnownObject.InvulnerabilityEffect or KnownObject.RescueMedkitEffect)
+                            return 0;
+                    }
+
+                    foreach (var link in EnumerateLinks())
+                    {
+                        int armor = link.Vid.Id - KnownObject.WornGreenArmor;
+
+                        if (armor is < 0 or >= WornArmorShareCount)
+                            continue;
+
+                        int share = WornArmorShares[armor];
+                        Map.Action(link, ActionCode.Damage, (share * var1 + ArmorRounding) / Map.Percent, var2, var3);
+                        var1 -= share * var1 / Map.Percent;
+                    }
+                }
+
+                if (var1 < Hp || Map.Action(this, ActionCode.HaveItem, (int)KnownObject.Medkit) == 0)
+                    return SpriteAction(ActionCode.Damage, var1, var2, var3, target);
+
+                Map.Action(this, ActionCode.DeleteItem, (int)KnownObject.Medkit);
+                ChangeHp(Vid.GetArmyMaxHp((int)Army));
+                Map.CreateSprite(Map.FindVid(KnownObject.RescueMedkitEffect)!, Position + Vector3.UnitZ * RescueEffectHeight, default, this);
+
+                return 0;
             case ActionCode.GetAmmo:
                 if (var1 != 0 && var1 != WeaponSlot)
                     return var1 >= 0 && var1 < SlotAmmo.Length ? SlotAmmo[var1] : 0;
@@ -104,7 +214,7 @@ public sealed class Man : Unit
         int elapsed = Map.FrameTime;
         var next = MoveTactCalculateCoordinates(elapsed);
 
-        if (Position.AsVector2() != next.AsVector2() && IsInsideMap(next.AsVector2()))
+        if (Position.AsVector2() != next.AsVector2() && next is { X: >= 0, Y: >= 0 } && next.X < Map.Size.Width && next.Y < Map.Size.Height)
         {
             if (CanPlaceWithCrushAndGlide(ref next) is null)
             {
@@ -148,144 +258,5 @@ public sealed class Man : Unit
         AddAmmo(SlotAmmo[slot] - GetAmmo());
 
         return true;
-    }
-
-    private void CoorAttackCase(Vector2 point)
-    {
-        var weapon = Vid.LinkVid;
-        var torso = Link;
-
-        if (torso is null || torso.Vid != weapon || weapon.FightChild == 0 || weapon.WeaponIndex == 0 || (uint)torso.Timer > ReloadTimerLimit ||
-            torso.Animation == SpriteAnimation.Fight && torso.Frame <= torso.LastFrame)
-            return;
-
-        var goal = Map.ConstructGoal(GetCursorPoint(point, weapon));
-        torso.SetCommand(Command.OneAttack, goal);
-    }
-
-    private void ChangeVidCase(int var1, int var2, int var3, Sprite? target)
-    {
-        if ((int)Vid.Id < PlayerIdLimit)
-        {
-            SlotAmmo[WeaponSlot] = base.Action(ActionCode.GetAmmo, 0, 0, 0, null);
-        }
-
-        base.Action(ActionCode.ChangeVid, var1, var2, var3, target);
-
-        if ((int)Vid.Id > PlayerIdLimit)
-        {
-            var armed = Vid.LinkVid;
-            int capacity = armed is not null && armed.FightChild != 0 && armed.WeaponIndex != 0 ? armed.Weapon.Ammo : Vid.Weapon.Ammo;
-            base.Action(ActionCode.AddAmmo, capacity - base.Action(ActionCode.GetAmmo, 0, 0, 0, null), 0, 0, null);
-
-            return;
-        }
-
-        int armorItem = GetItemNumber(WornArmorItemBase) >= 0 ? WornArmorItemBase
-            : GetItemNumber(WornArmorItemBase + 1) >= 0 ? WornArmorItemBase + 1
-            : GetItemNumber(WornArmorItemBase + 2) >= 0 ? WornArmorItemBase + 2
-            : 0;
-
-        if (armorItem != 0)
-        {
-            var position = new Vector3(Position.X, Position.Y, Position.Z + Vid.LinkOffset.Z);
-            var armor = Map.CreateSprite(Map.FindVid((KnownObject)(armorItem - WornArmorItemBase + (int)KnownObject.WornGreenArmor))!, position, Direction);
-            Link!.AddLink(armor);
-        }
-
-        base.Action(ActionCode.AddAmmo, SlotAmmo[WeaponSlot] - base.Action(ActionCode.GetAmmo, 0, 0, 0, null), 0, 0, null);
-    }
-
-    private void AddItemCase(int item)
-    {
-        if ((KnownObject)item is KnownObject.Dynamite or KnownObject.ExtraLife)
-        {
-            InsertItem(item);
-
-            return;
-        }
-
-        if (!InsertUniqueItem(item))
-            return;
-
-        int slot = item - WeaponItemBase;
-
-        if (slot is < 0 or >= WeaponSlots)
-            return;
-
-        if (base.Action(ActionCode.GetAmmo, 0, 0, 0, null) == 0 || WeaponSlot < slot || slot == 0)
-        {
-            ChangeWeapon(slot);
-        }
-    }
-
-    private int ActionDamage(int damage, int var2, int var3, Sprite? target)
-    {
-        if (damage > 0)
-        {
-            if (Vid.Id != KnownObject.MannedCannon)
-            {
-                foreach (var link in EnumerateLinks())
-                {
-                    if (link.Vid.Id is KnownObject.InvulnerabilityEffect or KnownObject.RescueMedkitEffect)
-                        return 0;
-                }
-
-                foreach (var link in EnumerateLinks())
-                {
-                    int armor = link.Vid.Id - KnownObject.WornGreenArmor;
-
-                    if (armor is < 0 or >= WornArmorShareCount)
-                        continue;
-
-                    int share = WornArmorShares[armor];
-                    Map.Action(link, ActionCode.Damage, (share * damage + ArmorRounding) / Map.Percent, var2, var3);
-                    damage -= share * damage / Map.Percent;
-                }
-            }
-
-            if (damage >= Hp && Map.Action(this, ActionCode.HaveItem, (int)KnownObject.Medkit) != 0)
-            {
-                Map.Action(this, ActionCode.DeleteItem, (int)KnownObject.Medkit);
-                ChangeHp(Vid.GetArmyMaxHp((int)Army));
-                Map.CreateSprite(Map.FindVid(KnownObject.RescueMedkitEffect)!, Position + Vector3.UnitZ * RescueEffectHeight, default, this);
-
-                return 0;
-            }
-        }
-
-        return SpriteAction(ActionCode.Damage, damage, var2, var3, target);
-    }
-
-    private bool IsInsideMap(Vector2 point) => point is { X: >= 0, Y: >= 0 } && point.X < Map.Size.Width && point.Y < Map.Size.Height;
-
-    private Vector3 GetCursorPoint(Vector2 cursor, Vid weapon)
-    {
-        var screen = Map.Session.Graphics.Screen;
-        var player = Position;
-        var pixel = cursor - Map.Shift;
-        float y = cursor.Y;
-        float height;
-
-        if (screen is not null && pixel.X >= Map.Session.Graphics.Viewport.Left && pixel.X < Map.Session.Graphics.Viewport.Right && pixel.Y >= Map.Session.Graphics.Viewport.Top && pixel.Y < Map.Session.Graphics.Viewport.Bottom)
-        {
-            height = (screen.Depth[(int)pixel.Y * screen.DepthWidth + (int)pixel.X] >> DepthShift) - DepthBias;
-
-            if (height > player.Z + AimRise)
-            {
-                height = player.Z + AimRiseCap;
-            }
-        }
-        else if (weapon.Weapon.Targets == OldSpriteType.Unit)
-        {
-            height = Map.GetGroundZ(cursor with { Y = cursor.Y + UnitAimLift }) + UnitAimLift;
-        }
-        else
-        {
-            height = Map.GetGroundZ(cursor) + GroundAimLift;
-            y -= GroundAimLift;
-        }
-
-        return new Vector3(cursor.X, y + height, height);
     }
 }

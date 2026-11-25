@@ -66,7 +66,9 @@ public partial class Sprite
             SetCommandWithoutLink(Command.None);
         }
 
-        ClearMove();
+        IsMoving = false;
+        HasReachedX = false;
+        HasReachedY = false;
         VerticalSpeed = 0;
 
         if (Vid.Deceleration.IsExactly(Vid.Unlimited))
@@ -113,7 +115,7 @@ public partial class Sprite
 
             if (Vid.Directions == 1 || vid.Properties.HasFlag(ObjectProperties.RandomBirth))
             {
-                ChangeDirection(Angle.Aim(new Point((int)offset.X, (int)offset.Y), out distance));
+                ChangeDirection(MeasureDirectionToGoal());
             }
 
             if (!vid.SpriteType.HasFlag(OldSpriteType.Cannon) && Vid.Class != SpriteClass.Cannon)
@@ -170,7 +172,33 @@ public partial class Sprite
             Stop();
         }
 
-        Speed = Accelerate(Vid, Speed, MaxSpeed, IsMoving, elapsed);
+        if (!IsMoving)
+        {
+            if (Speed > 0)
+            {
+                if (vid.Deceleration.IsExactly(Vid.Unlimited))
+                {
+                    Speed = 0;
+                }
+                else
+                {
+                    float slowed = Speed - elapsed * vid.Deceleration;
+                    Speed = slowed < 0 ? 0 : slowed;
+                }
+            }
+        }
+        else if (Speed < MaxSpeed)
+        {
+            if (vid.Acceleration.IsExactly(Vid.Unlimited))
+            {
+                Speed = MaxSpeed;
+            }
+            else
+            {
+                float faster = elapsed * vid.Acceleration + Speed;
+                Speed = faster < MaxSpeed ? faster : MaxSpeed;
+            }
+        }
 
         if (Speed >= Vid.Unlimited)
         {
@@ -192,12 +220,22 @@ public partial class Sprite
         else if (!Speed.IsExactlyZero() || !Map.Session.Graphics.WindSpeed.IsExactlyZero() && vid.Properties.HasFlag(ObjectProperties.Wind))
         {
             var direction = vid.Properties.HasFlag(ObjectProperties.Homing) && HasGoal
-                ? Angle.FromOffset((GoalPosition - Position).AsVector2()) : Direction;
-            next = Displace(next, direction, Speed, elapsed);
+                ? DirectionTo(Goal!) : Direction;
+            float distance = elapsed * Speed;
+            next = next with
+            {
+                X = direction.Vector.X * distance + next.X,
+                Y = direction.Vector.Y * distance + next.Y
+            };
 
             if (vid.Properties.HasFlag(ObjectProperties.Wind))
             {
-                next = Displace(next, Map.Session.Graphics.WindDirection, Map.Session.Graphics.WindSpeed, elapsed);
+                float windDistance = elapsed * Map.Session.Graphics.WindSpeed;
+                next = next with
+                {
+                    X = Map.Session.Graphics.WindDirection.Vector.X * windDistance + next.X,
+                    Y = Map.Session.Graphics.WindDirection.Vector.Y * windDistance + next.Y
+                };
             }
         }
 
@@ -214,46 +252,11 @@ public partial class Sprite
 
         if (HasGoal)
         {
-            UpdateReach(Position, next, GoalPosition.AsVector2());
+            var goal = GoalPosition.AsVector2();
+            HasReachedX |= Math.Min(Position.X, next.X) - ReachTolerance <= goal.X && goal.X <= Math.Max(Position.X, next.X) + ReachTolerance;
+            HasReachedY |= Math.Min(Position.Y, next.Y) - ReachTolerance <= goal.Y && goal.Y <= Math.Max(Position.Y, next.Y) + ReachTolerance;
         }
 
         return next;
-    }
-
-    private static float Accelerate(Vid vid, float speed, float maxSpeed, bool moving, int elapsed)
-    {
-
-        if (!moving)
-        {
-            if (speed <= 0)
-                return speed;
-
-            if (vid.Deceleration.IsExactly(Vid.Unlimited))
-                return 0;
-
-            float slowed = speed - elapsed * vid.Deceleration;
-
-            return slowed < 0 ? 0 : slowed;
-        }
-
-        if (speed >= maxSpeed)
-            return speed;
-
-        if (vid.Acceleration.IsExactly(Vid.Unlimited))
-            return maxSpeed;
-
-        float faster = elapsed * vid.Acceleration + speed;
-
-        return faster < maxSpeed ? faster : maxSpeed;
-    }
-
-    private static Vector3 Displace(Vector3 position, Angle direction, float speed, int elapsed)
-    {
-        float distance = elapsed * speed;
-        return position with
-        {
-            X = direction.Vector.X * distance + position.X,
-            Y = direction.Vector.Y * distance + position.Y
-        };
     }
 }

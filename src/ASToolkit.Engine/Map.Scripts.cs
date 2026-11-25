@@ -67,19 +67,4 @@ public partial class Map
         CreateSprite(vid, new Vector3(Size.ToVector2() * HalfShare, 0), default);
         Session.Error.Log("Create Empty Hardware Ground"u8);
     }
-
-    private ScriptInput GetInputState()
-    {
-        var flags = Input.Flags;
-        var state = ScriptInput.None;
-        foreach (var (raw, script) in InputStateBits)
-        {
-            if ((flags & raw) != 0)
-            {
-                state |= script;
-            }
-        }
-
-        return state;
-    }
 }

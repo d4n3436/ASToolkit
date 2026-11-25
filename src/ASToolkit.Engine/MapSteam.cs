@@ -23,7 +23,6 @@ public sealed class MapSteam : Map
     private const int SingleStepKey = 'P';
     private const int StepKey = 'p';
 
-    private readonly MouseTips _mouseTips;
     private StepFlags _debug;
     private uint _presentationShownAt;
 
@@ -37,7 +36,14 @@ public sealed class MapSteam : Map
     public MapSteam(string gameFolder, ObjectTable objects, IGameFileSystem fileSystem, GameSession? session = null)
         : base(gameFolder, objects, fileSystem, session)
     {
-        _mouseTips = new MouseTips(this);
+    }
+
+    [EngineRoutine(0x00405130)]
+    private protected override void Destruct()
+    {
+        _mouseTips.Clear();
+        Release();
+        base.Destruct();
     }
 
     [EngineRoutine(0x00405160)]
@@ -118,7 +124,7 @@ public sealed class MapSteam : Map
         }
 
         SetGammaOverrides(false);
-        Session.Graphics.UpdateScreen(this, draw);
+        Session.Graphics.Tact(this, draw);
         SetGammaOverrides(true);
 
         bool isPaused = _flags.HasFlag(MapFlags.Paused);
@@ -288,7 +294,7 @@ public sealed class MapSteam : Map
 
         var hovered = _players[ControlledPlayer].Hovered;
 
-        if (hovered is null || Constant.HoveredGamma == 0 && Constant.HoveredEnemyGamma == 0 || !clear && !_flags.HasFlag(MapFlags.MouseTips))
+        if (hovered is null || Constant is { HoveredGamma: 0, HoveredEnemyGamma: 0 } || !clear && !_flags.HasFlag(MapFlags.MouseTips))
             return;
 
         OverrideGamma(hovered, clear ? default : Gamma.FromScript(hovered.Army == Army.Monsters ? Constant.HoveredEnemyGamma : Constant.HoveredGamma));

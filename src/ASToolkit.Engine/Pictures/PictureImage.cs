@@ -1,6 +1,7 @@
 using System.Drawing;
 using System.Globalization;
 using System.Runtime.InteropServices;
+using System.Text;
 using ASToolkit.Engine.IO;
 using ASToolkit.Formats;
 
@@ -166,9 +167,9 @@ public class PictureImage : IDisposable
             return false;
         }
 
-        char[] lower = name.ToCharArray();
+        byte[] lower = Encoding.ASCII.GetBytes(name);
         CRuntime.ToLowerInPlace(lower);
-        Name = new string(lower);
+        Name = Encoding.ASCII.GetString(lower);
         Input = OpenFile(name);
         if (Input is null)
         {

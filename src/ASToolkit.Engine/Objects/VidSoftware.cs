@@ -32,21 +32,6 @@ public partial class VidSoftware : Vid
     private int _bufferSize;
     private byte[] _buffer = [];
 
-    /// <summary>
-    /// Initializes a new instance of the <see cref="VidSoftware"/> class.
-    /// </summary>
-    /// <param name="id">The object ID.</param>
-    /// <param name="gameObject">The object record.</param>
-    /// <param name="weapons">The weapon table.</param>
-    /// <param name="file">The sprite file.</param>
-    /// <param name="totalFrames">The frame count of the sprite file.</param>
-    /// <param name="format">The channel layout of the 16-bit back buffer.</param>
-    public VidSoftware(KnownObject id, in GameObject gameObject, AlienShooterWeaponRecord[] weapons, in VidResource file, int totalFrames, HighColorFormat format)
-        : base(id, gameObject, weapons, file, totalFrames)
-    {
-        Format = format;
-    }
-
     [EngineRoutine(0x00415280)]
     private protected VidSoftware(VidSoftware source)
         : base(source)
@@ -56,6 +41,22 @@ public partial class VidSoftware : Vid
         _bufferSize = source._bufferSize;
         _buffer = source._buffer;
         CopyHeights(source);
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="VidSoftware"/> class.
+    /// </summary>
+    /// <param name="id">The object ID.</param>
+    /// <param name="gameObject">The object record.</param>
+    /// <param name="weapons">The weapon table.</param>
+    /// <param name="file">The sprite file.</param>
+    /// <param name="totalFrames">The frame count of the sprite file.</param>
+    /// <param name="format">The channel layout of the 16-bit back buffer.</param>
+    [EngineRoutine(0x00415410)]
+    public VidSoftware(KnownObject id, in GameObject gameObject, AlienShooterWeaponRecord[] weapons, in VidResource file, int totalFrames, HighColorFormat format)
+        : base(id, gameObject, weapons, file, totalFrames)
+    {
+        Format = format;
     }
 
     /// <summary>
@@ -138,18 +139,36 @@ public partial class VidSoftware : Vid
         var coder = FileType.HasFlag(VidType.RangeCoded) ? new RangeCoder(1) : null;
         bool hasPalette = FileType.HasFlag(VidType.Palette);
         Span<uint> colors = stackalloc uint[PaletteEntries];
+        if (hasPalette && resource.GoNext("PAL "u8) != Resource.Found)
+        {
+            Report(session.Error, LogError.Load, 0, "PAL "u8);
+            throw new InvalidDataException($"There is no palette in '{Path}'.");
+        }
+
         if (hasPalette)
         {
-            if (resource.GoNext("PAL "u8) == Resource.Found)
+            Span<byte> record = stackalloc byte[TrueColorPaletteSize];
+            resource.Read(record[..(FileType.HasFlag(VidType.CurrentVersion) ? TrueColorPaletteSize : PackedPaletteSize)]);
+            if (FileType.HasFlag(VidType.CurrentVersion))
             {
-                Span<byte> record = stackalloc byte[TrueColorPaletteSize];
-                resource.Read(record[..(FileType.HasFlag(VidType.CurrentVersion) ? TrueColorPaletteSize : PackedPaletteSize)]);
-                ReadPalette(record, colors);
+                MemoryMarshal.Cast<byte, uint>(record[..TrueColorPaletteSize]).CopyTo(colors);
             }
             else
             {
-                Report(session.Error, LogError.Load, 0, "PAL "u8);
-                throw new InvalidDataException($"There is no palette in '{Path}'.");
+                var packed = MemoryMarshal.Cast<byte, VidPackedColor>(record);
+                for (int i = 0; i < PaletteEntries; i++)
+                {
+                    colors[i] = Graphics.PackColor(packed[i].Red, packed[i].Green, packed[i].Blue);
+                }
+            }
+
+            var gamma = ObjectGamma;
+            if (gamma.Negative != 0 || gamma.Positive != 0)
+            {
+                for (int i = 0; i < PaletteEntries; i++)
+                {
+                    colors[i] = gamma.Apply(colors[i]);
+                }
             }
         }
 
@@ -170,11 +189,73 @@ public partial class VidSoftware : Vid
         int position = 0;
         if (hasPalette)
         {
-            StorePalette(colors, paletteSize);
+            if (paletteSize == TrueColorPaletteSize)
+            {
+                MemoryMarshal.Cast<uint, byte>(colors).CopyTo(_buffer);
+            }
+            else
+            {
+                var pixels = MemoryMarshal.Cast<byte, ushort>(_buffer.AsSpan(0, paletteSize));
+                for (int i = 0; i < PaletteEntries; i++)
+                {
+                    pixels[i] = Format.Pack(colors[i]);
+                }
+            }
+
+            _buffer.AsSpan(0, paletteSize).CopyTo(_buffer.AsSpan(paletteSize));
             position = paletteSize * 2;
         }
 
-        LoadFrameRecords(ref resource, coder, position, session.Error);
+        var error = session.Error;
+
+        bool isConverted = !FileType.HasFlag(VidType.Palette) && Format.IsRgb555 && IsHighColor && !FileType.HasFlag(VidType.Blended);
+        int length = 0;
+        for (int frame = 0; frame < FileFrameCount; frame++)
+        {
+            resource.Read(MemoryMarshal.AsBytes(new Span<int>(ref length)));
+            int missing = 0;
+            if (length != 0)
+            {
+                int count = coder is null ? (int)Math.Min((uint)length, (uint)resource.Remaining) : length;
+                if (count < 0 || position < 0 || count > _buffer.Length - position)
+                    throw new InvalidDataException($"Frame {frame} of '{Path}' does not fit in its frame buffer.");
+
+                var destination = _buffer.AsSpan(position, count);
+                missing = coder is null ? length - count + resource.Read(destination) : resource.ReadPacked(destination, coder);
+            }
+
+            if (missing != 0)
+            {
+                Report(error, LogError.Load, length - missing, "Can't decode software"u8);
+            }
+
+            if (length == AliasBody)
+            {
+                int target = position >= 0 && position <= _buffer.Length - sizeof(short) ? MemoryMarshal.Read<short>(_buffer.AsSpan(position)) : 0;
+                // TODO: Port the unchecked alias read
+                FrameOffsets[frame] = target >= 0 && target < FileFrameCount ? FrameOffsets[target] : 0;
+            }
+            else
+            {
+                if (isConverted)
+                {
+                    var runs = new RunWalker(_buffer, FrameRows.Read(_buffer, position), sizeof(ushort));
+                    while (runs.MoveNext())
+                    {
+                        var pixels = MemoryMarshal.Cast<byte, ushort>(_buffer.AsSpan(runs.Pixels, runs.Length * sizeof(ushort)));
+                        for (int pixel = 0; pixel < pixels.Length; pixel++)
+                        {
+                            pixels[pixel] = (ushort)(pixels[pixel] >> 1 & HighColorGreenMask | pixels[pixel] & HighColorBlueMask);
+                        }
+                    }
+                }
+
+                FrameOffsets[frame] = position;
+                position += length;
+            }
+
+            resource.GoNextSub("DATA"u8);
+        }
         session.VidMemoryInUse += _bufferSize;
         if (!Properties.HasFlag(ObjectProperties.BuildVidZToGridZ) || !FileType.HasFlag(VidType.Palette) || !FileType.HasFlag(VidType.Runs8Bit))
             return;
@@ -188,14 +269,54 @@ public partial class VidSoftware : Vid
             var rows = FrameRows.Read(Frames, FrameOffsets[frame]);
             if (!FileType.HasFlag(VidType.Runs8Bit) || !FileType.HasFlag(VidType.ZBuffer))
             {
-                MarkOpaqueCells(grid, rows);
+                var runs = new RunWalker(Frames, rows, sizeof(byte));
+                while (runs.MoveNext())
+                {
+                    int row = runs.Row;
+                    for (int pixel = runs.Start; pixel < runs.Start + runs.Length; pixel++)
+                    {
+                        if (row is < 0 or >= HeightGridLimit || pixel is < 0 or >= HeightGridLimit)
+                            continue;
+
+                        grid[(row >> HeightCellShift) * HeightGridSide + (pixel >> HeightCellShift)] = 0;
+                    }
+                }
             }
             else
             {
-                MarkDepthCells(grid, rows);
+                var runs = new RunWalker(Frames, rows, DepthRunPixelSize);
+                while (runs.MoveNext())
+                {
+                    for (int i = 0; i < runs.Length; i++)
+                    {
+                        int height = (MemoryMarshal.Read<ushort>(Frames[(runs.Pixels + i * DepthSampleSize)..]) >> HeightDepthShift) - HeightDepthBias;
+                        int cellRow = runs.Row + height;
+                        int pixel = runs.Start + i;
+                        if (cellRow is < 0 or >= HeightGridLimit || pixel is < 0 or >= HeightGridLimit)
+                            continue;
+
+                        int cell = (cellRow >> HeightCellShift) * HeightGridSide + (pixel >> HeightCellShift);
+                        if (grid[cell] < height)
+                        {
+                            grid[cell] = (short)height;
+                        }
+                    }
+                }
             }
 
-            AddHeightPoints(grid);
+            int halfWidth = FrameSize.Width / 2;
+            int halfHeight = FrameSize.Height / 2;
+            for (int cellRow = FrameSize.Height / HeightCellSize - 1; cellRow >= 0; cellRow--)
+            {
+                for (int column = 0; column < FrameSize.Width / HeightCellSize; column++)
+                {
+                    short height = grid[cellRow * HeightGridSide + column];
+                    if (height == EmptyHeight)
+                        continue;
+
+                    HeightPoints.Add(new Vector3(column * (float)HeightCellSize - halfWidth, cellRow * (float)HeightCellSize - halfHeight, height));
+                }
+            }
         }
 
         SetHeightFrameStarts(starts);
@@ -240,7 +361,25 @@ public partial class VidSoftware : Vid
         Gammas[army] = gamma;
         if (!FileType.HasFlag(VidType.PaletteVariants))
         {
-            SplitPalettes(size, session);
+            _bufferSize += size * 3;
+            session.VidMemoryInUse += size * 3;
+            byte[] split = new byte[_bufferSize];
+            _buffer.AsSpan(size).CopyTo(split.AsSpan(size * ArmyPalettes));
+            split.AsSpan(size * ArmyPalettes, size).CopyTo(split.AsSpan(0, size));
+            split.AsSpan(size * ArmyPalettes, size).CopyTo(split.AsSpan(size, size));
+            split.AsSpan(0, size * 2).CopyTo(split.AsSpan(size * 2, size * 2));
+            _buffer = split;
+            for (int frame = 0; frame < FrameOffsets.Length; frame++)
+            {
+                FrameOffsets[frame] += size * 3;
+            }
+
+            FileType |= VidType.PaletteVariants;
+            for (var mirror = NextMirror; mirror != this; mirror = mirror.NextMirror)
+            {
+                mirror.FileType |= VidType.PaletteVariants;
+                ((VidSoftware)mirror)._buffer = _buffer;
+            }
         }
 
         var slot = _buffer.AsSpan(size * army, size);
@@ -264,183 +403,5 @@ public partial class VidSoftware : Vid
             return ObjectLayer.SoftwareAlpha;
 
         return !Properties.HasFlag(ObjectProperties.BuildSizeToGridZ) && !Properties.HasFlag(ObjectProperties.BuildVidZToGridZ) ? ObjectLayer.Software : ObjectLayer.SoftwareGrid;
-    }
-
-    private static void ConvertRowsToRgb555(Span<byte> buffer, int record)
-    {
-        var runs = new RunWalker(buffer, FrameRows.Read(buffer, record), sizeof(ushort));
-        while (runs.MoveNext())
-        {
-            var pixels = MemoryMarshal.Cast<byte, ushort>(buffer.Slice(runs.Pixels, runs.Length * sizeof(ushort)));
-            for (int pixel = 0; pixel < pixels.Length; pixel++)
-            {
-                pixels[pixel] = (ushort)(pixels[pixel] >> 1 & HighColorGreenMask | pixels[pixel] & HighColorBlueMask);
-            }
-        }
-    }
-
-    private void SplitPalettes(int size, GameSession session)
-    {
-        _bufferSize += size * 3;
-        session.VidMemoryInUse += size * 3;
-        byte[] split = new byte[_bufferSize];
-        _buffer.AsSpan(size).CopyTo(split.AsSpan(size * ArmyPalettes));
-        split.AsSpan(size * ArmyPalettes, size).CopyTo(split.AsSpan(0, size));
-        split.AsSpan(size * ArmyPalettes, size).CopyTo(split.AsSpan(size, size));
-        split.AsSpan(0, size * 2).CopyTo(split.AsSpan(size * 2, size * 2));
-        _buffer = split;
-        for (int frame = 0; frame < FrameOffsets.Length; frame++)
-        {
-            FrameOffsets[frame] += size * 3;
-        }
-
-        FileType |= VidType.PaletteVariants;
-        for (var mirror = NextMirror; mirror != this; mirror = mirror.NextMirror)
-        {
-            mirror.FileType |= VidType.PaletteVariants;
-            ((VidSoftware)mirror)._buffer = _buffer;
-        }
-    }
-
-    private void ReadPalette(ReadOnlySpan<byte> record, Span<uint> colors)
-    {
-        if (FileType.HasFlag(VidType.CurrentVersion))
-        {
-            MemoryMarshal.Cast<byte, uint>(record[..TrueColorPaletteSize]).CopyTo(colors);
-        }
-        else
-        {
-            var packed = MemoryMarshal.Cast<byte, VidPackedColor>(record);
-            for (int i = 0; i < PaletteEntries; i++)
-            {
-                colors[i] = Gamma.OpaqueAlpha | (uint)packed[i].Red << (2 * Gamma.ChannelBits) | (uint)packed[i].Green << Gamma.ChannelBits | packed[i].Blue;
-            }
-        }
-
-        var gamma = ObjectGamma;
-        if (gamma.Negative != 0 || gamma.Positive != 0)
-        {
-            for (int i = 0; i < PaletteEntries; i++)
-            {
-                colors[i] = gamma.Apply(colors[i]);
-            }
-        }
-    }
-
-    private void StorePalette(ReadOnlySpan<uint> colors, int paletteSize)
-    {
-        if (paletteSize == TrueColorPaletteSize)
-        {
-            MemoryMarshal.Cast<uint, byte>(colors).CopyTo(_buffer);
-        }
-        else
-        {
-            var pixels = MemoryMarshal.Cast<byte, ushort>(_buffer.AsSpan(0, paletteSize));
-            for (int i = 0; i < PaletteEntries; i++)
-            {
-                pixels[i] = Format.Pack(colors[i]);
-            }
-        }
-
-        _buffer.AsSpan(0, paletteSize).CopyTo(_buffer.AsSpan(paletteSize));
-    }
-
-    private void LoadFrameRecords(ref Resource resource, RangeCoder? coder, int position, MyError? error)
-    {
-        bool isConverted = !FileType.HasFlag(VidType.Palette) && Format.IsRgb555 && IsHighColor && !FileType.HasFlag(VidType.Blended);
-        int length = 0;
-        for (int frame = 0; frame < FileFrameCount; frame++)
-        {
-            resource.Read(MemoryMarshal.AsBytes(new Span<int>(ref length)));
-            int missing = 0;
-            if (length != 0)
-            {
-                int count = coder is null ? (int)Math.Min((uint)length, (uint)resource.Remaining) : length;
-                if (count < 0 || position < 0 || count > _buffer.Length - position)
-                    throw new InvalidDataException($"Frame {frame} of '{Path}' does not fit in its frame buffer.");
-
-                var destination = _buffer.AsSpan(position, count);
-                missing = coder is null ? length - count + resource.Read(destination) : resource.ReadPacked(destination, coder);
-            }
-
-            if (missing != 0)
-            {
-                Report(error, LogError.Load, length - missing, "Can't decode software"u8);
-            }
-
-            if (length == AliasBody)
-            {
-                int target = position >= 0 && position <= _buffer.Length - sizeof(short) ? MemoryMarshal.Read<short>(_buffer.AsSpan(position)) : 0;
-                // TODO: Port the unchecked alias read
-                FrameOffsets[frame] = target >= 0 && target < FileFrameCount ? FrameOffsets[target] : 0;
-            }
-            else
-            {
-                if (isConverted)
-                {
-                    ConvertRowsToRgb555(_buffer, position);
-                }
-
-                FrameOffsets[frame] = position;
-                position += length;
-            }
-
-            resource.GoNextSub("DATA"u8);
-        }
-    }
-
-    private void MarkOpaqueCells(Span<short> grid, FrameRows rows)
-    {
-        var runs = new RunWalker(Frames, rows, sizeof(byte));
-        while (runs.MoveNext())
-        {
-            int row = runs.Row;
-            for (int pixel = runs.Start; pixel < runs.Start + runs.Length; pixel++)
-            {
-                if (row is >= 0 and < HeightGridLimit && pixel is >= 0 and < HeightGridLimit)
-                {
-                    grid[(row >> HeightCellShift) * HeightGridSide + (pixel >> HeightCellShift)] = 0;
-                }
-            }
-        }
-    }
-
-    private void MarkDepthCells(Span<short> grid, FrameRows rows)
-    {
-        var runs = new RunWalker(Frames, rows, DepthRunPixelSize);
-        while (runs.MoveNext())
-        {
-            for (int i = 0; i < runs.Length; i++)
-            {
-                int height = (MemoryMarshal.Read<ushort>(Frames[(runs.Pixels + i * DepthSampleSize)..]) >> HeightDepthShift) - HeightDepthBias;
-                int cellRow = runs.Row + height;
-                int pixel = runs.Start + i;
-                if (cellRow is >= 0 and < HeightGridLimit && pixel is >= 0 and < HeightGridLimit)
-                {
-                    int cell = (cellRow >> HeightCellShift) * HeightGridSide + (pixel >> HeightCellShift);
-                    if (grid[cell] < height)
-                    {
-                        grid[cell] = (short)height;
-                    }
-                }
-            }
-        }
-    }
-
-    private void AddHeightPoints(ReadOnlySpan<short> grid)
-    {
-        int halfWidth = FrameSize.Width / 2;
-        int halfHeight = FrameSize.Height / 2;
-        for (int cellRow = FrameSize.Height / HeightCellSize - 1; cellRow >= 0; cellRow--)
-        {
-            for (int column = 0; column < FrameSize.Width / HeightCellSize; column++)
-            {
-                short height = grid[cellRow * HeightGridSide + column];
-                if (height != EmptyHeight)
-                {
-                    HeightPoints.Add(new Vector3(column * (float)HeightCellSize - halfWidth, cellRow * (float)HeightCellSize - halfHeight, height));
-                }
-            }
-        }
     }
 }

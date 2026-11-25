@@ -40,7 +40,19 @@ public partial class Map
             if (!_playedDemo.Value.TryReadFrame(ref _playedOffset, out var frame) || Input.Key != 0 ||
                 Input.Flags.HasFlag(InputFlags.LeftClick) || Input.Flags.HasFlag(InputFlags.RightClick))
             {
-                EndDemoPlayback();
+                var mapName = _playedDemo.Value.MapName;
+
+                if (mapName.IsEmpty)
+                {
+                    Input.PostMessage(WindowMessageId.Close, 0, 0);
+                }
+                else
+                {
+                    _playedDemo = null;
+                    _flags &= ~MapFlags.PlayingDemo;
+                    Mouse.Enable(FileSystem);
+                    RequestLoad(mapName);
+                }
 
                 return false;
             }
@@ -124,15 +136,6 @@ public partial class Map
         where T : unmanaged =>
         stream.Write(MemoryMarshal.AsBytes(new ReadOnlySpan<T>(in value)));
 
-    private void StartDemoRecording(ReadOnlySpan<byte> mapName, int seed)
-    {
-        _recordedDemo = new MemoryStream();
-        _flags |= MapFlags.RecordingDemo;
-        _recordedDemo.Write(mapName);
-        _recordedDemo.WriteByte(0);
-        WriteDemo(_recordedDemo, new DemoHeader(seed, CurrentTime));
-    }
-
     private void CloseDemoFile()
     {
         if (_demoFile is null)
@@ -141,23 +144,6 @@ public partial class Map
         _demoFile.Dispose();
         _demoFile = null;
         _demoName = "Not opened"u8.ToArray();
-    }
-
-    private void EndDemoPlayback()
-    {
-        var mapName = _playedDemo!.Value.MapName;
-
-        if (mapName.IsEmpty)
-        {
-            Input.PostMessage(WindowMessageId.Close, 0, 0);
-
-            return;
-        }
-
-        _playedDemo = null;
-        _flags &= ~MapFlags.PlayingDemo;
-        Mouse.Enable(FileSystem);
-        RequestLoad(mapName);
     }
 
     private void EndDemoRecording()

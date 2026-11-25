@@ -65,7 +65,7 @@ public sealed partial class Graphics
         int pitch = lightTexture.Size.Width;
         var texture = lightTexture.Texels;
         var format = lightTexture.Format;
-        var colors = EnsureBuffers().ColorTable;
+        ushort[] colors = EnsureBuffers().ColorTable;
         bool isPalette = format == VidPixelFormat.P8;
         int originX = (int)x;
         int originY = (int)y;

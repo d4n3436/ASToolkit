@@ -20,9 +20,6 @@ public sealed class FlcImage : PictureImage
     private const int SixBitShift = 2;
     private const uint MaxChannel = 0xff;
     private const int PaletteSize = 256;
-    private const uint OpaqueAlpha = 0xff000000;
-    private const int RedShift = 16;
-    private const int GreenShift = 8;
     private const int SkipLastPixel = 0x8000;
     private const int SkipLines = 0xc000;
     private const int PacketTypeMask = 0xc000;
@@ -124,19 +121,191 @@ public sealed class FlcImage : PictureImage
                 {
                     case FlcChunkType.Color256:
                     case FlcChunkType.Color64:
-                        ReadColors(data, chunk.Type == FlcChunkType.Color64);
+                        bool isSixBit = chunk.Type == FlcChunkType.Color64;
+                        int packets = MemoryMarshal.Read<short>(data);
+                        int position = sizeof(short);
+                        int index = 0;
+                        for (; packets > 0; packets--)
+                        {
+                            index += data[position];
+                            int count = data[position + 1];
+                            if (count == 0)
+                            {
+                                count = PaletteSize;
+                            }
+
+                            position += 2;
+                            for (int entry = index; entry < index + count; entry++)
+                            {
+                                uint red = data[position];
+                                uint green = data[position + 1];
+                                uint blue = data[position + 2];
+                                if (isSixBit)
+                                {
+                                    red = Math.Min(red << SixBitShift, MaxChannel);
+                                    green = Math.Min(green << SixBitShift, MaxChannel);
+                                    blue = Math.Min(blue << SixBitShift, MaxChannel);
+                                }
+
+                                Palette[entry] = Graphics.PackColor((int)red, (int)green, (int)blue);
+                                position += 3;
+                            }
+
+                            index += count;
+                        }
+
                         break;
                     case FlcChunkType.DeltaFlc:
-                        ReadDeltaFlc(data);
+                        int deltaLines = MemoryMarshal.Read<ushort>(data);
+                        int deltaPosition = sizeof(ushort);
+                        int deltaOffset = 0;
+                        int deltaLine = 0;
+                        if (deltaLines == 0)
+                            break;
+
+                        do
+                        {
+                            int word;
+                            while (true)
+                            {
+                                word = MemoryMarshal.Read<short>(data[deltaPosition..]);
+                                deltaPosition += sizeof(short);
+                                if ((word & PacketTypeMask) == SkipLines)
+                                {
+                                    deltaLine -= word;
+                                    deltaOffset -= Size.Width * word;
+                                    deltaLines -= word;
+                                    continue;
+                                }
+
+                                if ((word & PacketTypeMask) == SkipLastPixel)
+                                {
+                                    Pixels[Size.Width + deltaOffset - 1] = (byte)word;
+                                    continue;
+                                }
+
+                                break;
+                            }
+
+                            if ((word & PacketTypeMask) == 0 && word >= 1)
+                            {
+                                int destination = deltaOffset;
+                                for (int packet = word; packet > 0; packet--)
+                                {
+                                    destination += data[deltaPosition];
+                                    int count = (sbyte)data[deltaPosition + 1];
+                                    deltaPosition += 2;
+                                    if (count < 0)
+                                    {
+                                        for (int run = -count; run > 0; run--)
+                                        {
+                                            data.Slice(deltaPosition, sizeof(ushort)).CopyTo(Pixels[destination..]);
+                                            destination += sizeof(ushort);
+                                        }
+
+                                        deltaPosition += sizeof(ushort);
+                                        continue;
+                                    }
+
+                                    int bytes = count * sizeof(ushort);
+                                    data.Slice(deltaPosition, bytes).CopyTo(Pixels[destination..]);
+                                    deltaPosition += bytes;
+                                    destination += bytes;
+                                }
+                            }
+
+                            deltaOffset += Size.Width;
+                            deltaLine++;
+                        }
+                        while (deltaLine < deltaLines);
                         break;
                     case FlcChunkType.DeltaFli:
-                        ReadDeltaFli(data);
+                        int line = MemoryMarshal.Read<ushort>(data);
+                        int end = line + MemoryMarshal.Read<ushort>(data[sizeof(ushort)..]);
+                        int linePosition = 2 * sizeof(ushort);
+                        for (; line < end; line++)
+                        {
+                            int x = 0;
+                            for (int linePackets = data[linePosition++]; linePackets > 0; linePackets--)
+                            {
+                                x += data[linePosition];
+                                int count = (sbyte)data[linePosition + 1];
+                                linePosition += 2;
+                                var destination = Pixels[(Size.Width * line + x)..];
+                                if (count < 0)
+                                {
+                                    count = -count;
+                                    destination[..count].Fill(data[linePosition]);
+                                    linePosition++;
+                                }
+                                else
+                                {
+                                    data.Slice(linePosition, count).CopyTo(destination);
+                                    linePosition += count;
+                                }
+
+                                x += count;
+                            }
+                        }
+
                         break;
                     case FlcChunkType.Black:
                         Pixels.Clear();
                         break;
                     case FlcChunkType.ByteRun:
-                        ReadByteRun(data);
+                        int runPosition = 0;
+                        if (_magic == FlcMagic.Fli)
+                        {
+                            for (int row = 0; row < Size.Height; row++)
+                            {
+                                int x = 0;
+                                for (int runPackets = data[runPosition++]; runPackets > 0; runPackets--)
+                                {
+                                    int count = (sbyte)data[runPosition];
+                                    var destination = Pixels[(row * Size.Width + x)..];
+                                    if (count < 0)
+                                    {
+                                        count = -count;
+                                        data.Slice(runPosition + 1, count).CopyTo(destination);
+                                        runPosition += 1 + count;
+                                    }
+                                    else
+                                    {
+                                        destination[..count].Fill(data[runPosition + 1]);
+                                        runPosition += 2;
+                                    }
+
+                                    x += count;
+                                }
+                            }
+
+                            break;
+                        }
+
+                        int runOffset = 0;
+                        for (int row = 0; row < Size.Height; row++)
+                        {
+                            runPosition++;
+                            for (int x = 0; x < Size.Width;)
+                            {
+                                int count = (sbyte)data[runPosition];
+                                if (count < 0)
+                                {
+                                    count = -count;
+                                    data.Slice(runPosition + 1, count).CopyTo(Pixels[runOffset..]);
+                                    runPosition += 1 + count;
+                                }
+                                else
+                                {
+                                    Pixels.Slice(runOffset, count).Fill(data[runPosition + 1]);
+                                    runPosition += 2;
+                                }
+
+                                runOffset += count;
+                                x += count;
+                            }
+                        }
+
                         break;
                     case FlcChunkType.Copy:
                         data[..Pixels.Length].CopyTo(Pixels);
@@ -147,199 +316,6 @@ public sealed class FlcImage : PictureImage
         finally
         {
             ArrayPool<byte>.Shared.Return(buffer);
-        }
-    }
-
-    private void ReadColors(ReadOnlySpan<byte> data, bool isSixBit)
-    {
-        int packets = MemoryMarshal.Read<short>(data);
-        int position = sizeof(short);
-        int index = 0;
-        for (; packets > 0; packets--)
-        {
-            index += data[position];
-            int count = data[position + 1];
-            if (count == 0)
-            {
-                count = PaletteSize;
-            }
-
-            position += 2;
-            for (int entry = index; entry < index + count; entry++)
-            {
-                uint red = data[position];
-                uint green = data[position + 1];
-                uint blue = data[position + 2];
-                if (isSixBit)
-                {
-                    red = Math.Min(red << SixBitShift, MaxChannel);
-                    green = Math.Min(green << SixBitShift, MaxChannel);
-                    blue = Math.Min(blue << SixBitShift, MaxChannel);
-                }
-
-                Palette[entry] = OpaqueAlpha | red << RedShift | green << GreenShift | blue;
-                position += 3;
-            }
-
-            index += count;
-        }
-    }
-
-    private void ReadDeltaFlc(ReadOnlySpan<byte> data)
-    {
-        int lines = MemoryMarshal.Read<ushort>(data);
-        int position = sizeof(ushort);
-        int offset = 0;
-        int line = 0;
-        if (lines == 0)
-            return;
-
-        do
-        {
-            int word;
-            while (true)
-            {
-                word = MemoryMarshal.Read<short>(data[position..]);
-                position += sizeof(short);
-                if ((word & PacketTypeMask) == SkipLines)
-                {
-                    line -= word;
-                    offset -= Size.Width * word;
-                    lines -= word;
-                }
-                else if ((word & PacketTypeMask) == SkipLastPixel)
-                {
-                    Pixels[Size.Width + offset - 1] = (byte)word;
-                }
-                else
-                {
-                    break;
-                }
-            }
-
-            if ((word & PacketTypeMask) == 0 && word >= 1)
-            {
-                ReadDeltaFlcLine(data, ref position, offset, word);
-            }
-
-            offset += Size.Width;
-            line++;
-        }
-        while (line < lines);
-    }
-
-    private void ReadDeltaFlcLine(ReadOnlySpan<byte> data, ref int position, int offset, int packets)
-    {
-        int destination = offset;
-        for (int packet = packets; packet > 0; packet--)
-        {
-            destination += data[position];
-            int count = (sbyte)data[position + 1];
-            position += 2;
-            if (count < 0)
-            {
-                for (int run = -count; run > 0; run--)
-                {
-                    data.Slice(position, sizeof(ushort)).CopyTo(Pixels[destination..]);
-                    destination += sizeof(ushort);
-                }
-
-                position += sizeof(ushort);
-            }
-            else
-            {
-                int bytes = count * sizeof(ushort);
-                data.Slice(position, bytes).CopyTo(Pixels[destination..]);
-                position += bytes;
-                destination += bytes;
-            }
-        }
-    }
-
-    private void ReadDeltaFli(ReadOnlySpan<byte> data)
-    {
-        int line = MemoryMarshal.Read<ushort>(data);
-        int end = line + MemoryMarshal.Read<ushort>(data[sizeof(ushort)..]);
-        int position = 2 * sizeof(ushort);
-        for (; line < end; line++)
-        {
-            int x = 0;
-            for (int packets = data[position++]; packets > 0; packets--)
-            {
-                x += data[position];
-                int count = (sbyte)data[position + 1];
-                position += 2;
-                var destination = Pixels[(Size.Width * line + x)..];
-                if (count < 0)
-                {
-                    count = -count;
-                    destination[..count].Fill(data[position]);
-                    position++;
-                }
-                else
-                {
-                    data.Slice(position, count).CopyTo(destination);
-                    position += count;
-                }
-
-                x += count;
-            }
-        }
-    }
-
-    private void ReadByteRun(ReadOnlySpan<byte> data)
-    {
-        int position = 0;
-        if (_magic == FlcMagic.Fli)
-        {
-            for (int line = 0; line < Size.Height; line++)
-            {
-                int x = 0;
-                for (int packets = data[position++]; packets > 0; packets--)
-                {
-                    int count = (sbyte)data[position];
-                    var destination = Pixels[(line * Size.Width + x)..];
-                    if (count < 0)
-                    {
-                        count = -count;
-                        data.Slice(position + 1, count).CopyTo(destination);
-                        position += 1 + count;
-                    }
-                    else
-                    {
-                        destination[..count].Fill(data[position + 1]);
-                        position += 2;
-                    }
-
-                    x += count;
-                }
-            }
-
-            return;
-        }
-
-        int offset = 0;
-        for (int line = 0; line < Size.Height; line++)
-        {
-            position++;
-            for (int x = 0; x < Size.Width;)
-            {
-                int count = (sbyte)data[position];
-                if (count < 0)
-                {
-                    count = -count;
-                    data.Slice(position + 1, count).CopyTo(Pixels[offset..]);
-                    position += 1 + count;
-                }
-                else
-                {
-                    Pixels.Slice(offset, count).Fill(data[position + 1]);
-                    position += 2;
-                }
-
-                offset += count;
-                x += count;
-            }
         }
     }
 }

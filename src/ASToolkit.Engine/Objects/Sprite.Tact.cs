@@ -60,7 +60,7 @@ public partial class Sprite
             LastTickTime = lastTickTime;
         }
 
-        Map.RaiseHeights(Vid, this);
+        Vid.SetGridZ(this);
 
         int emitSlot = (int)Animation;
         var emitChild = Vid.ChildVids[emitSlot];

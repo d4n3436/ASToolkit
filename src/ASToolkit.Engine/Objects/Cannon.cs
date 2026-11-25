@@ -135,10 +135,70 @@ public sealed class Cannon : Sprite
         }
         else
         {
-            HitGround(vid, ground, current, ref next);
+            next.Z = Position.Z;
+
+            if (Animation >= SpriteAnimation.Death)
+            {
+                Stop();
+
+                if (ground > current)
+                {
+                    CreateChildFor(SpriteAnimation.Load);
+                }
+            }
+            else if (!vid.Properties.HasFlag(ObjectProperties.Bouncing))
+            {
+                Stop();
+                next.Z = current;
+                CreateChildFor(ground <= current ? SpriteAnimation.Unload : SpriteAnimation.Load);
+                ChangeAnimation(SpriteAnimation.Death);
+            }
+            else if (ground <= current && VerticalSpeed is >= -MinimumBounceSpeed and <= MinimumLift)
+            {
+                VerticalSpeed = 0;
+                ChangeAnimation(SpriteAnimation.Death);
+            }
+            else if (ground <= current && -MinimumBounceSpeed <= VerticalSpeed)
+            {
+                VerticalSpeed *= BounceRetention;
+                Speed *= BounceRetention;
+                ChangeDirection(Direction.Opposite);
+            }
+            else if (ground <= current)
+            {
+                ChangeAnimation(SpriteAnimation.Unload);
+                VerticalSpeed *= -BounceRetention;
+            }
+            else
+            {
+                ChangeAnimation(SpriteAnimation.Load);
+                ChangeDirection(Direction.Opposite);
+            }
+
+            next = next with { X = Position.X, Y = Position.Y };
         }
 
-        MoveCannon(vid, next);
+        if (next.AsVector2() != Position.AsVector2())
+        {
+            if (CanPlaceWithCrush(next) is not null)
+            {
+                if (Animation < SpriteAnimation.Death)
+                {
+                    ChangeAnimation(SpriteAnimation.Death);
+                }
+            }
+            else
+            {
+                ChangeCoor(next);
+
+                if (Animation < SpriteAnimation.Death && !vid.Properties.HasFlag(ObjectProperties.Gravity) &&
+                    (Position.X < -ExitMargin.X || Position.Y < -ExitMargin.Y ||
+                     Position.X > Map.Size.Width + ExitMargin.X || Position.Y > Map.Size.Height + ExitMargin.Y))
+                {
+                    ChangeAnimation(SpriteAnimation.Death);
+                }
+            }
+        }
         if (!Position.Z.IsExactly(next.Z))
         {
             ChangeCoor(Position with { Z = next.Z });
@@ -154,90 +214,6 @@ public sealed class Cannon : Sprite
             return;
         }
 
-        SteerToGoal(vid, previousHeight, elapsed);
-    }
-
-    private void HitGround(Vid vid, float ground, float current, ref Vector3 next)
-    {
-        next.Z = Position.Z;
-
-        if (Animation < SpriteAnimation.Death)
-        {
-            if (!vid.Properties.HasFlag(ObjectProperties.Bouncing))
-            {
-                Stop();
-                next.Z = current;
-                CreateChildFor(ground <= current ? SpriteAnimation.Unload : SpriteAnimation.Load);
-                ChangeAnimation(SpriteAnimation.Death);
-            }
-            else if (ground <= current)
-            {
-                if (-MinimumBounceSpeed <= VerticalSpeed)
-                {
-                    if (VerticalSpeed <= MinimumLift)
-                    {
-                        VerticalSpeed = 0;
-                        ChangeAnimation(SpriteAnimation.Death);
-                    }
-                    else
-                    {
-                        VerticalSpeed *= BounceRetention;
-                        Speed *= BounceRetention;
-                        ChangeDirection(Direction.Opposite);
-                    }
-                }
-                else
-                {
-                    ChangeAnimation(SpriteAnimation.Unload);
-                    VerticalSpeed *= -BounceRetention;
-                }
-            }
-            else
-            {
-                ChangeAnimation(SpriteAnimation.Load);
-                ChangeDirection(Direction.Opposite);
-            }
-        }
-        else
-        {
-            Stop();
-
-            if (ground > current)
-            {
-                CreateChildFor(SpriteAnimation.Load);
-            }
-        }
-
-        next = next with { X = Position.X, Y = Position.Y };
-    }
-
-    private void MoveCannon(Vid vid, Vector3 next)
-    {
-        if (next.AsVector2() == Position.AsVector2())
-            return;
-
-        if (CanPlaceWithCrush(next) is not null)
-        {
-            if (Animation < SpriteAnimation.Death)
-            {
-                ChangeAnimation(SpriteAnimation.Death);
-            }
-        }
-        else
-        {
-            ChangeCoor(next);
-
-            if (Animation < SpriteAnimation.Death && !vid.Properties.HasFlag(ObjectProperties.Gravity) &&
-                (Position.X < -ExitMargin.X || Position.Y < -ExitMargin.Y ||
-                 Position.X > Map.Size.Width + ExitMargin.X || Position.Y > Map.Size.Height + ExitMargin.Y))
-            {
-                ChangeAnimation(SpriteAnimation.Death);
-            }
-        }
-    }
-
-    private void SteerToGoal(Vid vid, float previousHeight, int elapsed)
-    {
         var goal = GoalPosition;
         var target = Goal!;
         float distance = Position.AsVector2().NearLength(goal.AsVector2());

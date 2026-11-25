@@ -29,10 +29,24 @@ public sealed class Texture
     internal Texture(ReadOnlySpan<byte> source, Size size, VidPixelFormat format, ReadOnlySpan<uint> palette, TextureFlags flags, GameSession session)
     {
         Create(size, format, flags, session);
-        Palette = Format == VidPixelFormat.P8 ? palette.ToArray() : [];
+        if (Format == VidPixelFormat.P8)
+        {
+            SetPalette(palette, session);
+        }
+
         uint colorKey = Flags.HasFlag(TextureFlags.AlphaPalette) ? 0 : Direct3DTexture.OpaqueKey;
         var area = new Rectangle(Point.Empty, size);
-        View.LoadTexels(area, source, format, GetSourcePitch(format, size.Width), size, area, 1, colorKey, palette);
+        int sourcePitch = format switch
+        {
+            VidPixelFormat.R8G8B8 => 24 * size.Width >> 3,
+            VidPixelFormat.A8R8G8B8 or VidPixelFormat.X8R8G8B8 => 32 * size.Width >> 3,
+            VidPixelFormat.R5G6B5 or VidPixelFormat.X1R5G5B5 or VidPixelFormat.A1R5G5B5 or VidPixelFormat.A4R4G4B4 => 16 * size.Width >> 3,
+            VidPixelFormat.P8 => 8 * size.Width >> 3,
+            VidPixelFormat.Dxt1 => 4 * size.Width >> 1,
+            VidPixelFormat.Dxt2 or VidPixelFormat.Dxt3 or VidPixelFormat.Dxt4 or VidPixelFormat.Dxt5 => 8 * size.Width >> 1,
+            _ => 0
+        };
+        View.LoadTexels(area, source, format, sourcePitch, size, area, 1, colorKey, palette);
     }
 
     /// <summary>
@@ -46,6 +60,11 @@ public sealed class Texture
     public Size Size { get; private set; }
 
     /// <summary>
+    /// Gets the number the device gave the palette of a P8 texture.
+    /// </summary>
+    public int PaletteNumber { get; private set; }
+
+    /// <summary>
     /// Gets the flags the texture was created with.
     /// </summary>
     public TextureFlags Flags { get; private set; }
@@ -53,7 +72,7 @@ public sealed class Texture
     /// <summary>
     /// Gets the colors a P8 texture indexes, packed as 0xAARRGGBB, or an empty array.
     /// </summary>
-    public uint[] Palette { get; internal set; } = [];
+    public uint[] Palette { get; private set; } = [];
 
     /// <summary>
     /// Gets the texels, where a texel of a 32-bit layout takes two elements and the blocks of a compressed layout are packed.
@@ -178,19 +197,67 @@ public sealed class Texture
             flags &= ~TextureFlags.Dynamic;
         }
 
-        if (!TryFitSize(size, session, out var fitted))
-            return;
+        int width = size.Width;
+        int height = size.Height;
+        if (session.IsTextureSquareRequired)
+        {
+            width = Math.Max(width, height);
+            height = width;
+        }
 
-        Size = fitted;
-        int width = fitted.Width;
-        int height = fitted.Height;
+        if (session.IsTexturePowerOfTwoRequired)
+        {
+            width = (int)BitOperations.RoundUpToPowerOf2((uint)Math.Max(width, 1));
+            height = (int)BitOperations.RoundUpToPowerOf2((uint)Math.Max(height, 1));
+        }
+
+        if (width > session.TextureMaxSize.Width || width < 1)
+        {
+            session.Error.Error(TextureLogTag, LogError.Invalid, width, "initial sizeX"u8);
+
+            return;
+        }
+
+        if (height > session.TextureMaxSize.Height || height < 1)
+        {
+            session.Error.Error(TextureLogTag, LogError.Invalid, height, "initial sizeY"u8);
+
+            return;
+        }
+
+        Size = new Size(width, height);
         Flags = flags;
         if (format is VidPixelFormat.A8R8G8B8 or VidPixelFormat.A4R4G4B4 or VidPixelFormat.A1R5G5B5 or VidPixelFormat.Dxt3 or VidPixelFormat.Dxt5)
         {
             Flags |= TextureFlags.AlphaPalette;
         }
 
-        format = ChooseFormat(format, flags, Flags, session);
+        if (format == VidPixelFormat.P8 && Flags.HasFlag(TextureFlags.AlphaPalette) && !session.IsTextureAlphaPaletteSupported)
+        {
+            format = VidPixelFormat.A8R8G8B8;
+        }
+
+        if (!flags.HasFlag(TextureFlags.HasAlpha))
+        {
+            format = ReplacePalette(format, session);
+        }
+        else if (format == VidPixelFormat.P8)
+        {
+            format = Flags.HasFlag(TextureFlags.AlphaPalette) ? ReplacePalette(format, session) : VidPixelFormat.A1R5G5B5;
+        }
+        else if (format == VidPixelFormat.R5G6B5)
+        {
+            format = VidPixelFormat.A1R5G5B5;
+        }
+        else if (format == VidPixelFormat.R8G8B8)
+        {
+            format = VidPixelFormat.A8R8G8B8;
+        }
+        else
+        {
+            format = ReplacePalette(format, session);
+        }
+
         if (flags.HasFlag(TextureFlags.SystemMemory) && format == VidPixelFormat.D16)
         {
             Format = format;
@@ -198,9 +265,21 @@ public sealed class Texture
             return;
         }
 
-        while (!IsSupported(format))
+        while (!Graphics.DeviceTextureFormats.Contains(format))
         {
-            if (!TryGetFallbackFormat(format, Flags, out var fallback))
+            var fallback = format switch
+            {
+                VidPixelFormat.P8 => Flags.HasFlag(TextureFlags.AlphaPalette) ? VidPixelFormat.A8R8G8B8 : VidPixelFormat.R5G6B5,
+                VidPixelFormat.Dxt1 => VidPixelFormat.R5G6B5,
+                VidPixelFormat.Dxt3 => VidPixelFormat.A4R4G4B4,
+                VidPixelFormat.R5G6B5 => VidPixelFormat.X1R5G5B5,
+                VidPixelFormat.X1R5G5B5 => VidPixelFormat.A1R5G5B5,
+                VidPixelFormat.R8G8B8 => VidPixelFormat.X8R8G8B8,
+                VidPixelFormat.X8R8G8B8 => VidPixelFormat.A8R8G8B8,
+                _ => VidPixelFormat.None
+            };
+
+            if (fallback == VidPixelFormat.None)
             {
                 Format = format;
                 session.Error.Error(TextureLogTag, LogError.Create, Direct3DTexture.InvalidCall);
@@ -213,7 +292,7 @@ public sealed class Texture
         Format = format;
         session.TextureMemoryInUse += GetTexelBytes(format) * width * height;
         _deviceTexels = Direct3DTexture.IsDxt(format)
-            ? new ushort[GetCompressedPitch(format, width) * ((height + BlockSize - 1) / BlockSize) / sizeof(ushort)]
+            ? new ushort[(width + BlockSize - 1) / BlockSize * (format == VidPixelFormat.Dxt1 ? 8 : 16) * ((height + BlockSize - 1) / BlockSize) / sizeof(ushort)]
             : new ushort[width * height * (Direct3DTexture.Is32Bit(format) ? 2 : 1)];
     }
 
@@ -272,95 +351,26 @@ public sealed class Texture
     public void DrawQuad(Screen screen, Rectangle destination, Rectangle source, Gamma gamma, QuadBlend blend, bool isDoubled = false, float topDepth = 0, float bottomDepth = 0) =>
         View.DrawQuad(screen, destination, source, gamma, blend, isDoubled, topDepth, bottomDepth);
 
-    private static int GetSourcePitch(VidPixelFormat format, int width) => format switch
+    [EngineRoutine(0x004040c0)]
+    internal void SetPalette(ReadOnlySpan<uint> colors, GameSession session)
     {
-        VidPixelFormat.R8G8B8 => 24 * width >> 3,
-        VidPixelFormat.A8R8G8B8 or VidPixelFormat.X8R8G8B8 => 32 * width >> 3,
-        VidPixelFormat.R5G6B5 or VidPixelFormat.X1R5G5B5 or VidPixelFormat.A1R5G5B5 or VidPixelFormat.A4R4G4B4 => 16 * width >> 3,
-        VidPixelFormat.P8 => 8 * width >> 3,
-        VidPixelFormat.Dxt1 => 4 * width >> 1,
-        VidPixelFormat.Dxt2 or VidPixelFormat.Dxt3 or VidPixelFormat.Dxt4 or VidPixelFormat.Dxt5 => 8 * width >> 1,
-        _ => 0
-    };
+        if (_deviceTexels.Length == 0)
+        {
+            session.Error.Error(TextureLogTag, LogError.Set, 0, "palette for non initialized texture"u8);
+            return;
+        }
 
-    private static int GetCompressedPitch(VidPixelFormat format, int width) => (width + BlockSize - 1) / BlockSize * (format == VidPixelFormat.Dxt1 ? 8 : 16);
+        if (Format != VidPixelFormat.P8)
+        {
+            session.Error.Error(TextureLogTag, LogError.Set, 0, "palette for non palette texture"u8);
+            return;
+        }
+
+        Palette = colors.ToArray();
+        PaletteNumber = session.TexturePaletteCount++;
+    }
 
     private static int GetTexelBytes(VidPixelFormat format) => format == VidPixelFormat.P8 ? PaletteTexelBytes : ColorTexelBytes;
 
     private static VidPixelFormat ReplacePalette(VidPixelFormat format, GameSession session) => format == VidPixelFormat.P8 && !session.IsTexturePaletteSupported ? VidPixelFormat.R5G6B5 : format;
-
-    private static bool IsSupported(VidPixelFormat format) => Graphics.DeviceTextureFormats.Contains(format);
-
-    private static bool TryFitSize(Size size, GameSession session, out Size fitted)
-    {
-        int width = size.Width;
-        int height = size.Height;
-        if (session.IsTextureSquareRequired)
-        {
-            width = Math.Max(width, height);
-            height = width;
-        }
-
-        if (session.IsTexturePowerOfTwoRequired)
-        {
-            width = (int)BitOperations.RoundUpToPowerOf2((uint)Math.Max(width, 1));
-            height = (int)BitOperations.RoundUpToPowerOf2((uint)Math.Max(height, 1));
-        }
-
-        fitted = new Size(width, height);
-        if (width > session.TextureMaxSize.Width || width < 1)
-        {
-            session.Error.Error(TextureLogTag, LogError.Invalid, width, "initial sizeX"u8);
-
-            return false;
-        }
-
-        if (height > session.TextureMaxSize.Height || height < 1)
-        {
-            session.Error.Error(TextureLogTag, LogError.Invalid, height, "initial sizeY"u8);
-
-            return false;
-        }
-
-        return true;
-    }
-
-    private static VidPixelFormat ChooseFormat(VidPixelFormat format, TextureFlags flags, TextureFlags stored, GameSession session)
-    {
-        if (format == VidPixelFormat.P8 && stored.HasFlag(TextureFlags.AlphaPalette) && !session.IsTextureAlphaPaletteSupported)
-        {
-            format = VidPixelFormat.A8R8G8B8;
-        }
-
-        if (!flags.HasFlag(TextureFlags.HasAlpha))
-            return ReplacePalette(format, session);
-
-        if (format == VidPixelFormat.P8)
-            return stored.HasFlag(TextureFlags.AlphaPalette) ? ReplacePalette(format, session) : VidPixelFormat.A1R5G5B5;
-
-        if (format == VidPixelFormat.R5G6B5)
-            return VidPixelFormat.A1R5G5B5;
-
-        if (format == VidPixelFormat.R8G8B8)
-            return VidPixelFormat.A8R8G8B8;
-
-        return ReplacePalette(format, session);
-    }
-
-    private static bool TryGetFallbackFormat(VidPixelFormat format, TextureFlags stored, out VidPixelFormat fallback)
-    {
-        fallback = format switch
-        {
-            VidPixelFormat.P8 => stored.HasFlag(TextureFlags.AlphaPalette) ? VidPixelFormat.A8R8G8B8 : VidPixelFormat.R5G6B5,
-            VidPixelFormat.Dxt1 => VidPixelFormat.R5G6B5,
-            VidPixelFormat.Dxt3 => VidPixelFormat.A4R4G4B4,
-            VidPixelFormat.R5G6B5 => VidPixelFormat.X1R5G5B5,
-            VidPixelFormat.X1R5G5B5 => VidPixelFormat.A1R5G5B5,
-            VidPixelFormat.R8G8B8 => VidPixelFormat.X8R8G8B8,
-            VidPixelFormat.X8R8G8B8 => VidPixelFormat.A8R8G8B8,
-            _ => VidPixelFormat.None
-        };
-
-        return fallback != VidPixelFormat.None;
-    }
 }

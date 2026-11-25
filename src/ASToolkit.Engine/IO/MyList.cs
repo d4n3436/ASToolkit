@@ -49,10 +49,7 @@ public class MyList<T> : IReadOnlyList<T>
     [EngineRoutine(0x00424e60)]
     public void Insert(T item)
     {
-        if (Count >= _items.Length)
-        {
-            Grow(_items.Length * 2 + GrowthStep);
-        }
+        ExpandForInsert();
 
         _items[Count++] = item;
     }
@@ -64,10 +61,7 @@ public class MyList<T> : IReadOnlyList<T>
     [EngineRoutine(0x00405ef0)]
     public void InsertFirst(T item)
     {
-        if (Count >= _items.Length)
-        {
-            Grow(_items.Length * 2 + GrowthStep);
-        }
+        ExpandForInsert();
 
         Array.Copy(_items, 0, _items, 1, Count++);
         _items[0] = item;
@@ -81,10 +75,7 @@ public class MyList<T> : IReadOnlyList<T>
     [EngineRoutine(0x00446a10)]
     public void InsertBefore(int index, T item)
     {
-        if (Count >= _items.Length)
-        {
-            Grow(_items.Length * 2 + GrowthStep);
-        }
+        ExpandForInsert();
 
         int count = Count++;
 
@@ -98,6 +89,38 @@ public class MyList<T> : IReadOnlyList<T>
         }
 
         _items[index] = item;
+    }
+
+    /// <summary>
+    /// Returns the last entry and stores its index, to walk the list from its end.
+    /// </summary>
+    /// <param name="index">The index of the returned entry; unchanged if the list is empty.</param>
+    /// <returns>The last entry, or the default value if the list is empty.</returns>
+    [EngineRoutine(0x00412e60)]
+    public T? BeginIterate(ref int index)
+    {
+        if (Count == 0)
+            return default;
+
+        index = Count - 1;
+        return _items[index];
+    }
+
+    /// <summary>
+    /// Steps a walk from the list's end to the previous entry.
+    /// </summary>
+    /// <param name="index">The index of the current entry, set to the index of the returned one.</param>
+    /// <returns>The previous entry, or the default value once the walk passes the first entry.</returns>
+    [EngineRoutine(0x00412e80)]
+    public T? NextIterate(ref int index)
+    {
+        if (index > Count)
+        {
+            index = Count;
+        }
+
+        index--;
+        return index >= 0 ? _items[index] : default;
     }
 
     /// <summary>
@@ -162,6 +185,14 @@ public class MyList<T> : IReadOnlyList<T>
     {
         _items = [];
         Count = 0;
+    }
+
+    private void ExpandForInsert()
+    {
+        if (Count >= _items.Length)
+        {
+            Grow(_items.Length * 2 + GrowthStep);
+        }
     }
 
     private void Grow(int capacity)

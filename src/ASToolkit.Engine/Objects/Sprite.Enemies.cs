@@ -10,7 +10,7 @@ public partial class Sprite
     private const int ForwardCone = 0x1f;
 
     [EngineRoutine(0x00444a80)]
-    internal Sprite? SeekEnemy(Sprite? flagman)
+    internal Sprite? SeekEnemy()
     {
         var seeker = this;
 
@@ -27,15 +27,55 @@ public partial class Sprite
         Sprite? best = null;
         float bestDistance = vid.Weapon.DetectRange + 1;
 
-        if (seeker.Army == Army.Monsters)
-            return flagman is not null && seeker.TryTake(flagman, ref best, ref bestDistance) ? flagman : best;
+        bool isMonster = seeker.Army == Army.Monsters;
+        var listed = Map.Sprites.ListedSprites;
+        int index = 0;
 
-        var listed = Map.Sprites.Listed;
-
-        for (int i = listed.Length - 1; i >= 0; i--)
+        for (var candidate = isMonster ? Map.Flagman(0) : listed.BeginIterate(ref index); candidate is not null; candidate = isMonster ? null : listed.NextIterate(ref index))
         {
-            if (seeker.TryTake(listed[i], ref best, ref bestDistance))
-                return listed[i];
+
+            if ((vid.Weapon.Targets & candidate.Vid.SpriteType) == 0 || candidate.Vid.MaxHp == 0 || !((candidate.Army != seeker.Army || seeker.Vid.Weapon.Flags.HasFlag(WeaponFlags.TargetsOwnArmy)) && !candidate.Vid.Properties.HasFlag(ObjectProperties.InvisibleForEnemy) &&
+                (candidate.Army != Army.Neutral || seeker.Vid.Weapon.Flags.HasFlag(WeaponFlags.TargetsOwnArmy) ||
+                    (Map.CanMonstersAttackNeutralTrains && seeker.Army == Army.Monsters && candidate.Vid.Class == SpriteClass.Engine))) ||
+                (candidate.Vid.SpriteType.HasFlag(OldSpriteType.Avia) && candidate.Owner is not null))
+                continue;
+
+            if (vid.HasForwardTargets &&
+                seeker.Direction.MeasureTurnTo(seeker.DirectionTo(candidate)) > ForwardCone)
+                continue;
+
+            float distance = seeker.Position.AsVector2().NearLength(candidate.Position.AsVector2());
+
+            if (distance > vid.Weapon.DetectRange || distance < vid.Weapon.MinRange)
+                continue;
+
+            bool isAccepted;
+
+            if (vid.SpriteType.HasFlag(OldSpriteType.Avia) && seeker.Shooter is null)
+            {
+                isAccepted = distance < bestDistance;
+            }
+            else if (candidate.Vid.Id == KnownObject.PistolMuzzleFlash)
+            {
+                isAccepted = false;
+            }
+            else if (bestDistance <= vid.Weapon.BattleRange)
+            {
+                isAccepted = distance <= vid.Weapon.BattleRange && seeker.IsBetter(distance, bestDistance, candidate, best);
+            }
+            else
+            {
+                isAccepted = distance <= vid.Weapon.BattleRange || seeker.IsBetter(distance, bestDistance, candidate, best);
+            }
+
+            if (!isAccepted || (seeker.Army == Army.Player && candidate.Vid.Class == SpriteClass.Engine && HasCarOfArmy(candidate, Army.Player)))
+                continue;
+
+            best = candidate;
+            bestDistance = distance;
+
+            if (vid.Weapon.Flags.HasFlag(WeaponFlags.RandomTarget) && Map.Random.Next() % RepeatTargetOdds == 0)
+                return candidate;
         }
 
         return best;
@@ -84,59 +124,5 @@ public partial class Sprite
         int bestRank = (best.ArmedLink?.Vid ?? best.Vid).Weapon.Rank;
 
         return bestRank < candidateRank || bestRank <= candidateRank && distance < bestDistance;
-    }
-
-    private bool TryTake(Sprite candidate, ref Sprite? best, ref float bestDistance)
-    {
-        var vid = Vid;
-
-        if ((vid.Weapon.Targets & candidate.Vid.SpriteType) == 0 || candidate.Vid.MaxHp == 0 || !IsEnemy(candidate) ||
-            (candidate.Vid.SpriteType.HasFlag(OldSpriteType.Avia) && candidate.Owner is not null))
-            return false;
-
-        if (vid.HasForwardTargets &&
-            Direction.MeasureTurnTo(DirectionTo(candidate)) > ForwardCone)
-            return false;
-
-        float distance = Position.AsVector2().NearLength(candidate.Position.AsVector2());
-
-        if (distance > vid.Weapon.DetectRange || distance < vid.Weapon.MinRange)
-            return false;
-
-        bool isAccepted;
-
-        if (vid.SpriteType.HasFlag(OldSpriteType.Avia) && Shooter is null)
-        {
-            isAccepted = distance < bestDistance;
-        }
-        else if (candidate.Vid.Id == KnownObject.PistolMuzzleFlash)
-        {
-            isAccepted = false;
-        }
-        else if (bestDistance <= vid.Weapon.BattleRange)
-        {
-            isAccepted = distance <= vid.Weapon.BattleRange && IsBetter(distance, bestDistance, candidate, best);
-        }
-        else
-        {
-            isAccepted = distance <= vid.Weapon.BattleRange || IsBetter(distance, bestDistance, candidate, best);
-        }
-
-        if (!isAccepted || (Army == Army.Player && candidate.Vid.Class == SpriteClass.Engine && HasCarOfArmy(candidate, Army.Player)))
-            return false;
-
-        best = candidate;
-        bestDistance = distance;
-
-        return vid.Weapon.Flags.HasFlag(WeaponFlags.RandomTarget) && Map.Random.Next() % RepeatTargetOdds == 0;
-    }
-
-    private bool IsEnemy(Sprite target)
-    {
-        bool ownArmy = Vid.Weapon.Flags.HasFlag(WeaponFlags.TargetsOwnArmy);
-
-        return (target.Army != Army || ownArmy) && !target.Vid.Properties.HasFlag(ObjectProperties.InvisibleForEnemy) &&
-            (target.Army != Army.Neutral || ownArmy ||
-                (Map.CanMonstersAttackNeutralTrains && Army == Army.Monsters && target.Vid.Class == SpriteClass.Engine));
     }
 }

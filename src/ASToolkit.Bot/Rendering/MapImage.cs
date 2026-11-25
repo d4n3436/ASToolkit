@@ -78,7 +78,7 @@ public sealed class MapImage : IDisposable
                     continue;
 
                 var camera = new Vector2(left, top);
-                Graphics.Clear(screen, Black);
+                Graphics.ClearScreen(screen, Black);
                 for (var layer = ObjectLayer.Ground; layer < ObjectLayer.Menu; layer++)
                 {
                     map.DrawLayer(screen, camera, layer);

@@ -68,7 +68,7 @@ public sealed class Input
     /// Clears the input that lasts one frame.
     /// </summary>
     [EngineRoutine(0x00426d40)]
-    public void ResetFrame()
+    public void Tact()
     {
         var flags = Flags;
         Flags = flags & ~FrameFlags;
@@ -141,7 +141,35 @@ public sealed class Input
                 Flags &= ~LostFocusFlags;
                 break;
             case WindowMessageId.HitTest:
-                return MoveCursor(lParam, windowOrigin, view, shift, cursorSprite);
+                WindowOrigin = windowOrigin;
+                var point = new Vector2((lParam & 0xFFFF) - windowOrigin.X, ((lParam >> 16) & 0xFFFF) - windowOrigin.Y);
+                ScreenCursor = point;
+                var clamped = point;
+
+                if (clamped.X < view.Left)
+                {
+                    clamped.X = view.Left;
+                }
+
+                if (view.Right <= clamped.X)
+                {
+                    clamped.X = view.Right - 1;
+                }
+
+                if (clamped.Y < view.Top)
+                {
+                    clamped.Y = view.Top;
+                }
+
+                if (view.Bottom <= clamped.Y)
+                {
+                    clamped.Y = view.Bottom - 1;
+                }
+
+                Cursor = clamped + shift;
+                cursorSprite.ChangeCoor(new Vector3(Cursor, cursorSprite.Position.Z));
+
+                return view.Left <= point.X && point.X < view.Right && view.Top <= point.Y && point.Y < view.Bottom;
             case WindowMessageId.KeyDown:
                 Key = wParam << KeyShift;
                 VirtualKey = (VirtualKey)wParam;
@@ -166,10 +194,39 @@ public sealed class Input
                 Key = wParam & CharacterMask;
                 break;
             case WindowMessageId.LeftButtonDown or WindowMessageId.RightButtonDown:
-                PressButton(message == WindowMessageId.LeftButtonDown ? VirtualKey.LeftButton : VirtualKey.RightButton);
+                var pressedButton = message == WindowMessageId.LeftButtonDown ? VirtualKey.LeftButton : VirtualKey.RightButton;
+                var pressedFlags = Flags;
+                var pressed = pressedButton == VirtualKey.LeftButton ? InputFlags.LeftClick | InputFlags.LeftDown : InputFlags.RightClick | InputFlags.RightDown;
+                Flags = pressedFlags | pressed;
+
+                if (_settings.First.Primary == pressedButton)
+                {
+                    Flags = pressedFlags | pressed | InputFlags.First;
+                }
+
+                if (_settings.Second.Primary == pressedButton)
+                {
+                    Flags |= InputFlags.Second;
+                }
+
                 break;
             case WindowMessageId.LeftButtonUp or WindowMessageId.RightButtonUp:
-                ReleaseButton(message == WindowMessageId.LeftButtonUp ? VirtualKey.LeftButton : VirtualKey.RightButton);
+                var releasedButton = message == WindowMessageId.LeftButtonUp ? VirtualKey.LeftButton : VirtualKey.RightButton;
+                var releasedFlags = Flags;
+                var down = releasedButton == VirtualKey.LeftButton ? InputFlags.LeftDown : InputFlags.RightDown;
+                var released = releasedButton == VirtualKey.LeftButton ? InputFlags.LeftClickRelease : InputFlags.RightClickRelease;
+                Flags = (releasedFlags & ~down) | released;
+
+                if (_settings.First.Primary == releasedButton && _settings.IsFirstRepeatedWhileHeld)
+                {
+                    Flags = (releasedFlags & ~(down | InputFlags.First)) | released;
+                }
+
+                if (_settings.Second.Primary == releasedButton && _settings.IsSecondRepeatedWhileHeld)
+                {
+                    Flags &= ~InputFlags.Second;
+                }
+
                 break;
             case WindowMessageId.MiddleButtonDown:
                 Flags |= InputFlags.MiddleClick;
@@ -227,74 +284,6 @@ public sealed class Input
         }
 
         if (_settings.Second.Primary == button)
-        {
-            Flags &= ~InputFlags.Second;
-        }
-    }
-
-    private bool MoveCursor(int lParam, Point windowOrigin, RectangleF view, Vector2 shift, Mouse cursorSprite)
-    {
-        WindowOrigin = windowOrigin;
-        var point = new Vector2((lParam & 0xFFFF) - windowOrigin.X, ((lParam >> 16) & 0xFFFF) - windowOrigin.Y);
-        ScreenCursor = point;
-        var clamped = point;
-
-        if (clamped.X < view.Left)
-        {
-            clamped.X = view.Left;
-        }
-
-        if (view.Right <= clamped.X)
-        {
-            clamped.X = view.Right - 1;
-        }
-
-        if (clamped.Y < view.Top)
-        {
-            clamped.Y = view.Top;
-        }
-
-        if (view.Bottom <= clamped.Y)
-        {
-            clamped.Y = view.Bottom - 1;
-        }
-
-        Cursor = clamped + shift;
-        cursorSprite.ChangeCoor(new Vector3(Cursor, cursorSprite.Position.Z));
-
-        return view.Left <= point.X && point.X < view.Right && view.Top <= point.Y && point.Y < view.Bottom;
-    }
-
-    private void PressButton(VirtualKey button)
-    {
-        var flags = Flags;
-        var pressed = button == VirtualKey.LeftButton ? InputFlags.LeftClick | InputFlags.LeftDown : InputFlags.RightClick | InputFlags.RightDown;
-        Flags = flags | pressed;
-
-        if (_settings.First.Primary == button)
-        {
-            Flags = flags | pressed | InputFlags.First;
-        }
-
-        if (_settings.Second.Primary == button)
-        {
-            Flags |= InputFlags.Second;
-        }
-    }
-
-    private void ReleaseButton(VirtualKey button)
-    {
-        var flags = Flags;
-        var down = button == VirtualKey.LeftButton ? InputFlags.LeftDown : InputFlags.RightDown;
-        var released = button == VirtualKey.LeftButton ? InputFlags.LeftClickRelease : InputFlags.RightClickRelease;
-        Flags = (flags & ~down) | released;
-
-        if (_settings.First.Primary == button && _settings.IsFirstRepeatedWhileHeld)
-        {
-            Flags = (flags & ~(down | InputFlags.First)) | released;
-        }
-
-        if (_settings.Second.Primary == button && _settings.IsSecondRepeatedWhileHeld)
         {
             Flags &= ~InputFlags.Second;
         }

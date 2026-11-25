@@ -129,7 +129,7 @@ public partial class Sprite
             CreateChildFor(SpriteAnimation.Birth);
         }
 
-        Map.RaiseHeights(vid, this);
+        vid.SetGridZ(this);
     }
 
     /// <summary>
@@ -492,12 +492,6 @@ public partial class Sprite
     /// <returns>The index, or -1 when the sprite does not hold the item.</returns>
     public int GetItemNumber(int item) => ExtraData?.Items.Location(item) ?? -1;
 
-    /// <summary>
-    /// Removes the item at an index by moving the last item into its place.
-    /// </summary>
-    /// <param name="index">The index.</param>
-    /// <returns><see langword="true"/> if the index named an item; otherwise, <see langword="false"/>.</returns>
-    public bool RemoveItemAt(int index) => ExtraData is not null && ExtraData.Items.DeleteNumber(index) == 0;
 
     /// <summary>
     /// Returns the health of this sprite, or of its armed link, scaled from 0 to 255 of the maximum.
@@ -582,46 +576,10 @@ public partial class Sprite
     /// </summary>
     /// <param name="gamma">The gamma.</param>
     [EngineRoutine(0x00443070)]
-    public void SetGammaOverride(Gamma gamma)
+    public void SetGamma(Gamma gamma)
     {
         EnsureExtraData();
         ExtraData!.GammaOverride = gamma;
-    }
-
-    /// <summary>
-    /// Changes the sprite's object ID, moving the sprite from the old object ID's count to the new one's, and resets the sprite to the first frame of the standing state with its direction up.
-    /// </summary>
-    /// <param name="vid">The shared data and frames of the new object ID.</param>
-    public void ChangeVid(Vid vid)
-    {
-        int army = (int)Army & Vid.ArmyMask;
-        if (Vid.Counts[army] != 0)
-        {
-            Vid.Counts[army]--;
-        }
-
-        vid.LastCreatedAt = Map.RealCurrentTime;
-        vid.Counts[army]++;
-
-        Vid = vid;
-
-        if (vid.HasTimers)
-        {
-            if (ExtraData is not null)
-            {
-                ExtraData.Lifetime = vid.Lifetime;
-            }
-            else
-            {
-                CreateExtraData();
-            }
-        }
-
-        Animation = SpriteAnimation.Stand;
-        _direction = default;
-        FirstFrame = 0;
-        Frame = 0;
-        LastFrame = vid.GetFramesPerDirection(SpriteAnimation.Stand) - 1;
     }
 
     /// <summary>
@@ -744,28 +702,6 @@ public partial class Sprite
         }
 
         _direction = direction;
-    }
-
-    /// <summary>
-    /// Records whether a step passed the goal on either axis.
-    /// </summary>
-    /// <param name="from">The position before the step.</param>
-    /// <param name="next">The position after the step.</param>
-    /// <param name="goal">The goal point.</param>
-    public void UpdateReach(Vector3 from, Vector3 next, Vector2 goal)
-    {
-        HasReachedX |= Math.Min(from.X, next.X) - ReachTolerance <= goal.X && goal.X <= Math.Max(from.X, next.X) + ReachTolerance;
-        HasReachedY |= Math.Min(from.Y, next.Y) - ReachTolerance <= goal.Y && goal.Y <= Math.Max(from.Y, next.Y) + ReachTolerance;
-    }
-
-    /// <summary>
-    /// Stops the sprite's move toward its goal.
-    /// </summary>
-    public void ClearMove()
-    {
-        IsMoving = false;
-        HasReachedX = false;
-        HasReachedY = false;
     }
 
     /// <summary>
@@ -922,17 +858,29 @@ public partial class Sprite
     internal void ChangeCoor(Vector3 position)
     {
         var delta = position - Position;
-        Map.LowerHeights(Vid, this);
-        Shift(delta);
-        Map.RaiseHeights(Vid, this);
-
-        foreach (var link in EnumerateLinks())
+        for (var sprite = this; sprite is not null; sprite = sprite.Link)
         {
-            Map.LowerHeights(link.Vid, this);
-            link.Shift(delta);
-            Map.RaiseHeights(link.Vid, this);
+            sprite.Vid.ResetGridZ(this);
+
+            if (SpriteCollector.IsHashed(sprite.Vid))
+            {
+                Map.Sprites.ChangeCoor(sprite, sprite.Position.AsVector2() + delta.AsVector2());
+            }
+
+            uint realTime = Map.RealCurrentTime;
+
+            if (sprite.ExtraData is not null && sprite.ExtraData.PreviousPositionRealTime != realTime)
+            {
+                sprite.ExtraData.PreviousPositionRealTime = realTime;
+                sprite.ExtraData.PreviousPosition = sprite.Position;
+            }
+
+            sprite.Position += delta;
+            sprite.Vid.SetGridZ(this);
         }
     }
+
+    internal void ChangeZCoor(float z) => ChangeCoor(Position with { Z = z });
 
     [EngineRoutine(0x004460b0)]
     internal AttackResult AttackTact(int elapsed)
@@ -1046,7 +994,7 @@ public partial class Sprite
     internal virtual void Destruct()
     {
         Map.RunDestroyHandler(this);
-        Map.LowerHeights(Vid, this);
+        Vid.ResetGridZ(this);
 
         bool isEmpty = Vid == Map.EmptyVid;
 
@@ -1184,14 +1132,14 @@ public partial class Sprite
         float y = view.Top;
         var position = Position;
         int ammo = Map.Action(this, ActionCode.GetAmmo);
-        graphics.DrawFormattedText(new Vector2(view.Left + InfoTextLeft, y), $"Ref={ReferenceCount,-3} cmd={(int)Command,1} ani={(int)Animation,-2} hp={Hp,-3} AT={(int)AttackResult} goal={GetVidId(Goal),-3} spd={(int)(Speed * SpeedScale),-3},{(int)(VerticalSpeed * SpeedScale),-3} timer={Timer} ammo={ammo} mvE={(HasReachedX ? 1 : 0),1}{(HasReachedY ? 1 : 0),1} {(int)position.X},{(int)position.Y},{(int)position.Z}");
+        graphics.DrawFormattedText(new Vector2(view.Left + InfoTextLeft, y), $"Ref={ReferenceCount,-3} cmd={(int)Command,1} ani={(int)Animation,-2} hp={Hp,-3} AT={(int)AttackResult} goal={(Goal is null ? 0 : (int)Goal.Vid.Id),-3} spd={(int)(Speed * SpeedScale),-3},{(int)(VerticalSpeed * SpeedScale),-3} timer={Timer} ammo={ammo} mvE={(HasReachedX ? 1 : 0),1}{(HasReachedY ? 1 : 0),1} {(int)position.X},{(int)position.Y},{(int)position.Z}");
 
         var link = Link;
         if (link is not null && link.Vid == Vid.LinkVid)
         {
             y += InfoLineHeight;
             int linkAmmo = Map.Action(link, ActionCode.GetAmmo);
-            graphics.DrawFormattedText(new Vector2(view.Left + InfoTextLeft, y), $"Ref={link.ReferenceCount,-3} cmd={(int)link.Command,1} ani={(int)link.Animation,-2} hp={link.Hp,-3} AT={(int)link.AttackResult} goal={GetVidId(link.Goal),-3} timer={link.Timer} ammo={linkAmmo}");
+            graphics.DrawFormattedText(new Vector2(view.Left + InfoTextLeft, y), $"Ref={link.ReferenceCount,-3} cmd={(int)link.Command,1} ani={(int)link.Animation,-2} hp={link.Hp,-3} AT={(int)link.AttackResult} goal={(link.Goal is null ? 0 : (int)link.Goal.Vid.Id),-3} timer={link.Timer} ammo={linkAmmo}");
         }
 
         if (ActionStack.Count != 0)
@@ -1277,8 +1225,6 @@ public partial class Sprite
         Link = null;
     }
 
-    private static int GetVidId(Sprite? sprite) => sprite is null ? 0 : (int)sprite.Vid.Id;
-
     [EngineRoutine(0x004449c0)]
     internal void AddLinkToLast(Sprite link)
     {
@@ -1293,24 +1239,6 @@ public partial class Sprite
 
         last.Link = link;
         link.Owner = last;
-    }
-
-    private void Shift(Vector3 delta)
-    {
-        if (SpriteCollector.IsHashed(Vid))
-        {
-            Map.Sprites.ChangeCoor(this, Position.AsVector2() + delta.AsVector2());
-        }
-
-        uint realTime = Map.RealCurrentTime;
-
-        if (ExtraData is not null && ExtraData.PreviousPositionRealTime != realTime)
-        {
-            ExtraData.PreviousPositionRealTime = realTime;
-            ExtraData.PreviousPosition = Position;
-        }
-
-        Position += delta;
     }
 
     private Angle GetShownDirection(Angle direction)
@@ -1441,7 +1369,55 @@ public partial class Sprite
 
         for (; i < count; i++)
         {
-            var shift = GetChildShift(vid,slot,i,offsetDirection,out var lateral);
+            float childX = vid.ChildX[slot];
+            float childY = vid.ChildY[slot];
+            Vector2 shift;
+            Vector2 lateral;
+
+            if (vid.Children[slot] < 0 && vid.Class == SpriteClass.Region && childX.IsExactlyZero() && childY.IsExactlyZero())
+            {
+                lateral = Vector2.Zero;
+
+                var region = this as Region;
+                if (region is null || !region.Flags.HasFlag(RegionFlags.CoversMap))
+                {
+                    var regionSize = region?.Size ?? Vector2.Zero;
+                    float regionSpreadX = regionSize.X * 0.5f - Map.Random.Next() * regionSize.X * GameRandom.UnitScale;
+                    float regionSpreadY = regionSize.Y * 0.5f - Map.Random.Next() * regionSize.Y * GameRandom.UnitScale + Position.Z;
+                    shift = new Vector2(regionSpreadX, regionSpreadY);
+                }
+                else
+                {
+                    float mapX = Map.Random.Next() * Map.Size.Width * GameRandom.UnitScale - Position.X;
+                    float mapY = Map.Random.Next() * Map.Size.Height * GameRandom.UnitScale - Position.Y + Position.Z;
+                    shift = new Vector2(mapX, mapY);
+                }
+            }
+            else if (vid.Children[slot] < 0)
+            {
+                float spreadX = childX + childX;
+                spreadX = childX - Map.Random.Next() * spreadX * GameRandom.UnitScale;
+                float spreadY = childY + childY;
+                spreadY = childY - Map.Random.Next() * spreadY * GameRandom.UnitScale;
+                lateral = new Vector2(-(offsetDirection.Cosine * spreadX), -(offsetDirection.ProjectedSine * spreadX));
+                shift = new Vector2(offsetDirection.Sine * spreadY + lateral.X, lateral.Y - offsetDirection.ProjectedCosine * spreadY);
+            }
+            else if (i == 1)
+            {
+                lateral = new Vector2(-(offsetDirection.Cosine * childX), -(offsetDirection.ProjectedSine * childX));
+                shift = new Vector2(offsetDirection.Sine * childY + lateral.X, lateral.Y - offsetDirection.ProjectedCosine * childY);
+            }
+            else if (i == 2)
+            {
+                lateral = Vector2.Zero;
+                shift = new Vector2(offsetDirection.Sine * childY, offsetDirection.ProjectedCosine * childY);
+            }
+            else
+            {
+                lateral = new Vector2(offsetDirection.Cosine * childX, offsetDirection.ProjectedSine * childX);
+                shift = new Vector2(offsetDirection.Sine * childY + lateral.X, lateral.Y - offsetDirection.ProjectedCosine * childY);
+            }
+
             var childPosition = new Vector3(shift.X + Position.X, shift.Y + Position.Y, vid.ChildZ[slot] + Position.Z);
 
             if (child.Class == SpriteClass.Unit && Map.Sprites.CanPlace(child, childPosition) is not null || state == SpriteAnimation.Fight && Goal is null)
@@ -1455,7 +1431,29 @@ public partial class Sprite
             if (created is null || goal is null || state != SpriteAnimation.Fight)
                 continue;
 
-            created.LaunchChild(goal,vid,lateral);
+            if (vid.Weapon.Flags.HasFlag(WeaponFlags.NoSpread) && goal.Vid != Map.EmptyVid)
+            {
+                created.Attack(goal);
+                created.StartMove();
+            }
+            else
+            {
+                var aimPoint = goal.Position;
+
+                for (int attempt = 0; attempt < AimAttempts; attempt++)
+                {
+                    float pointX = vid.Weapon.Aim + goal.Position.X + lateral.X - Map.Random.Next() * vid.Weapon.Aim * AimRandomScale;
+                    float pointY = vid.Weapon.Aim + goal.Position.Y + lateral.Y - Map.Random.Next() * vid.Weapon.Aim * AimRandomScale;
+                    aimPoint = new Vector3(pointX, pointY, goal.Position.Z);
+
+                    if (Map.GetGroundZ(new Vector2(pointX, pointY)) < goal.Position.Z && Map.GetGroundZ((goal.Position.AsVector2() + aimPoint.AsVector2()) * 0.5f) < goal.Position.Z)
+                        break;
+                }
+
+                var aimed = Map.ConstructGoal(aimPoint);
+                created.Attack(aimed);
+                created.StartMove();
+            }
         }
 
         if (state == SpriteAnimation.Fight && !IsAwaitingSecondPulse && Command is Command.OneAttack or Command.DistAttack &&
@@ -1475,82 +1473,6 @@ public partial class Sprite
 
             SetCommand(Command.None);
         }
-    }
-
-    private Vector2 GetChildShift(Vid vid, int slot, int index, Angle offsetDirection, out Vector2 lateral)
-    {
-        float childX = vid.ChildX[slot];
-        float childY = vid.ChildY[slot];
-
-        if (vid.Children[slot] < 0 && vid.Class == SpriteClass.Region && childX.IsExactlyZero() && childY.IsExactlyZero())
-        {
-            lateral = Vector2.Zero;
-
-            var region = this as Region;
-            if (region is null || !region.Flags.HasFlag(RegionFlags.CoversMap))
-            {
-                var regionSize = region?.Size ?? Vector2.Zero;
-                float spreadX = regionSize.X * 0.5f - Map.Random.Next() * regionSize.X * GameRandom.UnitScale;
-                float spreadY = regionSize.Y * 0.5f - Map.Random.Next() * regionSize.Y * GameRandom.UnitScale + Position.Z;
-                return new Vector2(spreadX, spreadY);
-            }
-
-            float mapX = Map.Random.Next() * Map.Size.Width * GameRandom.UnitScale - Position.X;
-            float mapY = Map.Random.Next() * Map.Size.Height * GameRandom.UnitScale - Position.Y + Position.Z;
-            return new Vector2(mapX, mapY);
-        }
-
-        if (vid.Children[slot] < 0)
-        {
-            float spreadX = childX + childX;
-            spreadX = childX - Map.Random.Next() * spreadX * GameRandom.UnitScale;
-            float spreadY = childY + childY;
-            spreadY = childY - Map.Random.Next() * spreadY * GameRandom.UnitScale;
-            lateral = new Vector2(-(offsetDirection.Cosine * spreadX), -(offsetDirection.ProjectedSine * spreadX));
-            return new Vector2(offsetDirection.Sine * spreadY + lateral.X, lateral.Y - offsetDirection.ProjectedCosine * spreadY);
-        }
-
-        if (index == 1)
-        {
-            lateral = new Vector2(-(offsetDirection.Cosine * childX), -(offsetDirection.ProjectedSine * childX));
-            return new Vector2(offsetDirection.Sine * childY + lateral.X, lateral.Y - offsetDirection.ProjectedCosine * childY);
-        }
-
-        if (index == 2)
-        {
-            lateral = Vector2.Zero;
-            return new Vector2(offsetDirection.Sine * childY, offsetDirection.ProjectedCosine * childY);
-        }
-
-        lateral = new Vector2(offsetDirection.Cosine * childX, offsetDirection.ProjectedSine * childX);
-        return new Vector2(offsetDirection.Sine * childY + lateral.X, lateral.Y - offsetDirection.ProjectedCosine * childY);
-    }
-
-    private void LaunchChild(Sprite goal, Vid vid, Vector2 lateral)
-    {
-        if (vid.Weapon.Flags.HasFlag(WeaponFlags.NoSpread) && goal.Vid != Map.EmptyVid)
-        {
-            Attack(goal);
-            StartMove();
-
-            return;
-        }
-
-        var point = goal.Position;
-
-        for (int attempt = 0; attempt < AimAttempts; attempt++)
-        {
-            float pointX = vid.Weapon.Aim + goal.Position.X + lateral.X - Map.Random.Next() * vid.Weapon.Aim * AimRandomScale;
-            float pointY = vid.Weapon.Aim + goal.Position.Y + lateral.Y - Map.Random.Next() * vid.Weapon.Aim * AimRandomScale;
-            point = new Vector3(pointX, pointY, goal.Position.Z);
-
-            if (Map.GetGroundZ(new Vector2(pointX, pointY)) < goal.Position.Z && Map.GetGroundZ((goal.Position.AsVector2() + point.AsVector2()) * 0.5f) < goal.Position.Z)
-                break;
-        }
-
-        var aimed = Map.ConstructGoal(point);
-        Attack(aimed);
-        StartMove();
     }
 
     internal void CreateChildAs(SpriteAnimation state)
@@ -1818,7 +1740,7 @@ public partial class Sprite
     }
 
     [EngineRoutine(0x00445b10)]
-    internal void AddCommand(int act, int var1, int var2, int var3)
+    internal void AddActionAfterStop(int act, int var1, int var2, int var3)
     {
         var order = Map.CreateAct(act, var1, var2, var3);
         var orders = ActionStack.Items;

@@ -58,7 +58,9 @@ public partial class Sprite
             {
                 next.Y = start.Y;
             }
-            else if (isGround || !IsInsideIgnoringLayers(start, other))
+            else if (isGround || !(other.Animation < SpriteAnimation.Death && Math.Abs(other.Position.X - start.X) < other.Vid.Half.X + Vid.Half.X &&
+                Math.Abs(other.Position.Y - start.Y) < other.Vid.Half.Y + Vid.Half.Y &&
+                start.Z <= other.Vid.Size.Z + other.Position.Z && other.Position.Z <= start.Z + Vid.Size.Z))
             {
                 next = start;
 
@@ -175,15 +177,6 @@ public partial class Sprite
         }
 
         return null;
-    }
-
-    private bool IsInsideIgnoringLayers(Vector3 start, Sprite other)
-    {
-        var offset = Vector2.Abs(other.Position.AsVector2() - start.AsVector2());
-        var reach = other.Vid.Half + Vid.Half;
-
-        return other.Animation < SpriteAnimation.Death && offset.X < reach.X && offset.Y < reach.Y &&
-            start.Z <= other.Vid.Size.Z + other.Position.Z && other.Position.Z <= start.Z + Vid.Size.Z;
     }
 
     private bool FindCollision(Vector3 position, [NotNullWhen(true)] out Sprite? collision)

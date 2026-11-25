@@ -27,7 +27,6 @@ public sealed partial class Graphics
     private const int GammaChannels = 4;
     private const int CaptureTileSize = 256;
 
-
     /// <summary>
     /// Gets the copy of the screen that an alpha appearance fades from, or <see langword="null"/> until one has started.
     /// </summary>
@@ -97,8 +96,11 @@ public sealed partial class Graphics
         return (int)(unchecked(map.RealCurrentTime * 100 - EffectStartTimes[effect] * 100) / (uint)EffectDurations[effect]);
     }
 
+    [EngineRoutine(0x00414fd0)]
+    internal static uint PackColor(int red, int green, int blue) => PackColor(byte.MaxValue, red, green, blue);
+
     [EngineRoutine(0x00431b60)]
-    private static uint PackColor(int alpha, int red, int green, int blue) =>
+    internal static uint PackColor(int alpha, int red, int green, int blue) =>
         (uint)((((Math.Clamp(alpha, 0, byte.MaxValue) << 8 | Math.Clamp(red, 0, byte.MaxValue)) << 8 | Math.Clamp(green, 0, byte.MaxValue)) << 8) | Math.Clamp(blue, 0, byte.MaxValue));
 
     [EngineRoutine(0x004311a0)]
@@ -109,17 +111,54 @@ public sealed partial class Graphics
 
         if (TryAdvanceEffect(ScreenEffect.AlphaAppear, realTime, isShown, out uint appeared, out uint appearLength) && Capture is not null)
         {
-            DrawAlphaAppear(Capture, appeared, appearLength);
+            var gamma = new Gamma(~PackColor((int)((appeared << 8) / appearLength), byte.MaxValue, byte.MaxValue, byte.MaxValue), Gamma.OpaqueAlpha);
+            var texture = HighTexture;
+            var viewport = Screen!.Viewport;
+            SetAlphaBlend(BlendFactor.InverseSourceAlpha, BlendFactor.SourceAlpha);
+            for (float top = viewport.Top; top < viewport.Bottom; top += CaptureTileSize)
+            {
+                for (float left = viewport.Left; left < viewport.Right; left += CaptureTileSize)
+                {
+                    float width = left + CaptureTileSize < viewport.Right ? CaptureTileSize : viewport.Right - left;
+                    float height = top + CaptureTileSize < viewport.Bottom ? CaptureTileSize : viewport.Bottom - top;
+                    var area = Rectangle.FromLTRB((int)(left - viewport.Left), (int)(top - viewport.Top), (int)(left + width - viewport.Left), (int)(height + top - viewport.Top));
+                    if (texture.CopyFromSurface(Capture, area, Point.Empty, _session.Error) == 0)
+                    {
+                        texture.DrawFlatQuad(Screen, area, new Rectangle(0, 0, (int)width, (int)height), gamma, Blend, true);
+                    }
+                }
+            }
         }
 
         if (EffectStartTimes[(int)ScreenEffect.Scroll] != 0)
         {
-            UpdateScroll(map, realTime);
+            uint scrolled = realTime - EffectStartTimes[(int)ScreenEffect.Scroll];
+            int duration = EffectDurations[(int)ScreenEffect.Scroll];
+            if ((uint)duration < scrolled)
+            {
+                map.SetShiftCoordinates(new Vector2(EffectFirst[(int)ScreenEffect.Scroll], EffectSecond[(int)ScreenEffect.Scroll]), ShiftMove.None);
+                EffectStartTimes[(int)ScreenEffect.Scroll] = 0;
+            }
+            else
+            {
+                var position = new Vector2((EffectFirst[(int)ScreenEffect.Scroll] - ScrollFrom.X) * (int)scrolled / duration + ScrollFrom.X,
+                    (EffectSecond[(int)ScreenEffect.Scroll] - ScrollFrom.Y) * (int)scrolled / duration + ScrollFrom.Y);
+                map.SetShiftCoordinates(position, ShiftMove.None);
+            }
         }
 
         if (TryAdvanceEffect(ScreenEffect.Nuke, realTime, isShown, out uint elapsed, out uint length))
         {
-            DrawNukeFlash(elapsed, length);
+            uint rise = length / FlashRiseParts;
+            uint strength = elapsed < rise ? elapsed * FlashRiseParts * FlashFullStrength / length : (length - elapsed) * FlashFullStrength / (length - rise);
+            int color = EffectFirst[(int)ScreenEffect.Nuke];
+            int green = (color & GreenByte) * (int)strength >> 8 & GreenByte;
+            int red = color * (int)strength >> 8 & RedByte;
+            int blue = (color & BlueByte) * (int)strength >> 8;
+            uint flash = (uint)(green + blue + red);
+            DrawFlash(Screen!, flash);
+            DrawFlash(Screen!, flash);
+            DrawFlash(Screen!, flash);
         }
 
         if (TryAdvanceEffect(ScreenEffect.Fade, realTime, isShown, out elapsed, out length))
@@ -156,7 +195,35 @@ public sealed partial class Graphics
 
         if (EffectStartTimes[(int)ScreenEffect.ShiftGamma] != 0)
         {
-            UpdateGammaShift(map, realTime, draw);
+            uint shifted = realTime - EffectStartTimes[(int)ScreenEffect.ShiftGamma];
+            var target = Gamma.FromScript((uint)EffectFirst[(int)ScreenEffect.ShiftGamma]);
+            if (shifted >= (uint)EffectDurations[(int)ScreenEffect.ShiftGamma])
+            {
+                SetGamma(target, map);
+                EffectStartTimes[(int)ScreenEffect.ShiftGamma] = 0;
+                return;
+            }
+
+            if (!draw)
+                return;
+
+            float share = (float)shifted / EffectDurations[(int)ScreenEffect.ShiftGamma];
+            uint negative = 0, positive = 0;
+            for (int channel = Gamma.ChannelBits * (GammaChannels - 1); channel >= 0; channel -= Gamma.ChannelBits)
+            {
+                int from = GammaFrom.GetChannel(channel);
+                int value = Math.Clamp((int)((target.GetChannel(channel) - from) * share + from), -byte.MaxValue, byte.MaxValue);
+                if (value < 0)
+                {
+                    negative |= (uint)-value << channel;
+                }
+                else
+                {
+                    positive |= (uint)value << channel;
+                }
+            }
+
+            SetGamma(new Gamma(negative, positive), map);
         }
     }
 
@@ -196,91 +263,6 @@ public sealed partial class Graphics
         return start != 0 && isShown;
     }
 
-    private void DrawAlphaAppear(Screen capture, uint appeared, uint length)
-    {
-        var gamma = new Gamma(~PackColor((int)((appeared << 8) / length), byte.MaxValue, byte.MaxValue, byte.MaxValue), Gamma.OpaqueAlpha);
-        var texture = HighTexture;
-        var viewport = Screen!.Viewport;
-        SetAlphaBlend(BlendFactor.InverseSourceAlpha, BlendFactor.SourceAlpha);
-        for (float top = viewport.Top; top < viewport.Bottom; top += CaptureTileSize)
-        {
-            for (float left = viewport.Left; left < viewport.Right; left += CaptureTileSize)
-            {
-                float width = left + CaptureTileSize < viewport.Right ? CaptureTileSize : viewport.Right - left;
-                float height = top + CaptureTileSize < viewport.Bottom ? CaptureTileSize : viewport.Bottom - top;
-                var area = Rectangle.FromLTRB((int)(left - viewport.Left), (int)(top - viewport.Top), (int)(left + width - viewport.Left), (int)(height + top - viewport.Top));
-                if (texture.CopyFromSurface(capture, area, Point.Empty, _session.Error) == 0)
-                {
-                    texture.DrawFlatQuad(Screen, area, new Rectangle(0, 0, (int)width, (int)height), gamma, Blend, true);
-                }
-            }
-        }
-    }
-
-    private void UpdateScroll(Map map, uint realTime)
-    {
-        uint scrolled = realTime - EffectStartTimes[(int)ScreenEffect.Scroll];
-        int duration = EffectDurations[(int)ScreenEffect.Scroll];
-        if ((uint)duration < scrolled)
-        {
-            map.SetShiftCoordinates(new Vector2(EffectFirst[(int)ScreenEffect.Scroll], EffectSecond[(int)ScreenEffect.Scroll]), ShiftMove.None);
-            EffectStartTimes[(int)ScreenEffect.Scroll] = 0;
-        }
-        else
-        {
-            var position = new Vector2((EffectFirst[(int)ScreenEffect.Scroll] - ScrollFrom.X) * (int)scrolled / duration + ScrollFrom.X,
-                (EffectSecond[(int)ScreenEffect.Scroll] - ScrollFrom.Y) * (int)scrolled / duration + ScrollFrom.Y);
-            map.SetShiftCoordinates(position, ShiftMove.None);
-        }
-    }
-
-    private void DrawNukeFlash(uint elapsed, uint length)
-    {
-        uint rise = length / FlashRiseParts;
-        uint strength = elapsed < rise ? elapsed * FlashRiseParts * FlashFullStrength / length : (length - elapsed) * FlashFullStrength / (length - rise);
-        int color = EffectFirst[(int)ScreenEffect.Nuke];
-        int green = (color & GreenByte) * (int)strength >> 8 & GreenByte;
-        int red = color * (int)strength >> 8 & RedByte;
-        int blue = (color & BlueByte) * (int)strength >> 8;
-        uint flash = (uint)(green + blue + red);
-        DrawFlash(Screen!, flash);
-        DrawFlash(Screen!, flash);
-        DrawFlash(Screen!, flash);
-    }
-
     private void DrawGrayFade(uint strength) => DrawFade(Screen!, (strength << 8 | strength) << 8 | strength);
-
-    private void UpdateGammaShift(Map map, uint realTime, bool draw)
-    {
-        uint shifted = realTime - EffectStartTimes[(int)ScreenEffect.ShiftGamma];
-        var target = Gamma.FromScript((uint)EffectFirst[(int)ScreenEffect.ShiftGamma]);
-        if (shifted >= (uint)EffectDurations[(int)ScreenEffect.ShiftGamma])
-        {
-            SetGamma(target, map);
-            EffectStartTimes[(int)ScreenEffect.ShiftGamma] = 0;
-            return;
-        }
-
-        if (!draw)
-            return;
-
-        float share = (float)shifted / EffectDurations[(int)ScreenEffect.ShiftGamma];
-        uint negative = 0, positive = 0;
-        for (int channel = Gamma.ChannelBits * (GammaChannels - 1); channel >= 0; channel -= Gamma.ChannelBits)
-        {
-            int from = GammaFrom.GetChannel(channel);
-            int value = Math.Clamp((int)((target.GetChannel(channel) - from) * share + from), -byte.MaxValue, byte.MaxValue);
-            if (value < 0)
-            {
-                negative |= (uint)-value << channel;
-            }
-            else
-            {
-                positive |= (uint)value << channel;
-            }
-        }
-
-        SetGamma(new Gamma(negative, positive), map);
-    }
 
 }

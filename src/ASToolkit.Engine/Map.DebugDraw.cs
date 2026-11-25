@@ -43,7 +43,32 @@ public partial class Map
 
         if (_flags.HasFlag(MapFlags.DrawGridZ))
         {
-            DrawGridZ(screen);
+            short[] scenery = _sceneryHeights;
+            short[] objects = _objectHeights;
+            int columns = _gridColumns;
+            int rows = _gridRows;
+            var viewport = screen.Viewport;
+
+            for (int row = 1; row < rows; row++)
+            {
+                int x = GridFirstColumnX;
+
+                for (int column = 1; column < columns; column++, x += GridZCellSize)
+                {
+                    int index = row * columns + column;
+                    short height = Math.Max(scenery[index], objects[index]);
+                    short previousHeight = Math.Max(scenery[index - 1], objects[index - 1]);
+                    int top = row * GridZCellSize;
+                    var start = new Vector2(x - Shift.X, top - height + GridCellCenter - Shift.Y);
+                    var end = new Vector2(x - GridZCellSize - Shift.X, top - previousHeight + GridCellCenter - Shift.Y);
+
+                    if (!IsInViewport(viewport, start) && !IsInViewport(viewport, end))
+                        continue;
+
+                    Session.Graphics.WuLine(this, start, end, Gray);
+                }
+            }
+
         }
 
         if (_flags.HasFlag(MapFlags.DrawSpriteBoxes))
@@ -71,45 +96,12 @@ public partial class Map
 
         if (_flags.HasFlag(MapFlags.DrawGroups))
         {
-            DrawGroups();
-        }
-    }
-
-    private void DrawGridZ(Screen screen)
-    {
-        short[] scenery = _sceneryHeights;
-        short[] objects = _objectHeights;
-        int columns = _gridColumns;
-        int rows = _gridRows;
-        var viewport = screen.Viewport;
-
-        for (int row = 1; row < rows; row++)
-        {
-            int x = GridFirstColumnX;
-
-            for (int column = 1; column < columns; column++, x += GridZCellSize)
+            int index = 0;
+            foreach (var group in Groups)
             {
-                int index = row * columns + column;
-                short height = Math.Max(scenery[index], objects[index]);
-                short previousHeight = Math.Max(scenery[index - 1], objects[index - 1]);
-                int top = row * GridZCellSize;
-                var start = new Vector2(x - Shift.X, top - height + GridCellCenter - Shift.Y);
-                var end = new Vector2(x - GridZCellSize - Shift.X, top - previousHeight + GridCellCenter - Shift.Y);
-
-                if (!IsInViewport(viewport, start) && !IsInViewport(viewport, end))
-                    continue;
-
-                Session.Graphics.WuLine(this, start, end, Gray);
+                DrawGroup(group, index++);
             }
-        }
-    }
 
-    private void DrawGroups()
-    {
-        int index = 0;
-        foreach (var group in Groups)
-        {
-            DrawGroup(group, index++);
         }
     }
 
@@ -121,5 +113,4 @@ public partial class Map
             Session.Graphics.DrawFormattedText(GetScreenPoint(member), $"{index}");
         }
     }
-
 }

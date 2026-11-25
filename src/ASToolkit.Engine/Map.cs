@@ -83,6 +83,7 @@ public partial class Map : IDisposable
     private AlienShooterWeaponRecord[]? _weapons;
     private int _vidCount;
     private readonly Vid?[] _vids = new Vid?[VidTableSize];
+    private protected readonly MouseTips _mouseTips;
 
     private protected readonly GameRandom _rng;
     private readonly Dictionary<int, ScriptFile> _scriptFiles = [];
@@ -109,6 +110,7 @@ public partial class Map : IDisposable
     [EngineRoutine(0x00408ff0)]
     protected Map(string gameFolder, ObjectTable objects, IGameFileSystem fileSystem, GameSession? session = null)
     {
+        _mouseTips = new MouseTips(this);
         Menu = new Menu(this);
         Session = session ?? new GameSession();
         Session.RealCurrentTime = Session.TimeGetTime();
@@ -364,16 +366,304 @@ public partial class Map : IDisposable
         LoadVid(ref reader);
         if (reader.GoBegin("GRPH"u8) != Resource.Found)
         {
-            if (!LoadOldTypeMap(ref reader))
+            if (reader.GoBegin(HeadTag) != Resource.Found)
+            {
+                LogMissingSection(HeadTag);
                 return;
+            }
+
+            int width = 0;
+            reader.ReadInto(ref width);
+            int height = 0;
+            reader.ReadInto(ref height);
+            Size = new SizeF(width, height);
+            short scrollX = 0;
+            reader.ReadInto(ref scrollX);
+            short scrollY = 0;
+            reader.ReadInto(ref scrollY);
+            int time = CurrentTime;
+            reader.ReadInto(ref time);
+            _levelStartTime = time;
+            Session.PreviousCurrentTime = time;
+            Session.CurrentTime = time;
+            int version = 0;
+            reader.ReadInto(ref version);
+            Session.Graphics.OldLoadParameters(ref reader, this);
+            Sprites = new SpriteCollector(Size, Vids, this);
+            ResetGroundZ();
+            LoadGridZ(ref reader, (int)(Size.Height + OldGridRounding) / GridZCellSize * ((int)(Size.Width + OldGridRounding) / GridZCellSize) * sizeof(short));
+            if (!FindSection(ref reader, SpriteTag))
+                return;
+
+            while (TryLoadOldSprite(ref reader, out _))
+            {
+            }
+
+            if (!FindSection(ref reader, SpriteDataTag))
+                return;
+
+            while (TryReadPointer(ref reader, out var sprite))
+            {
+                sprite?.Action(ActionCode.RestoreOld, ref reader, version);
+
+                reader.GoNextSub(SpriteDataTag);
+            }
         }
-        else if (!LoadNewTypeMap(ref reader, name, seed))
-            return;
+        else
+        {
+            ShowLoadingStep("Load graph parameters"u8);
+            Session.Graphics.Load(ref reader, this);
+            if (!FindSection(ref reader, HeadTag))
+                return;
+
+            float width = Size.Width;
+            reader.ReadInto(ref width);
+            float height = Size.Height;
+            reader.ReadInto(ref height);
+            Size = new SizeF(width, height);
+            float scrollX = 0;
+            reader.ReadInto(ref scrollX);
+            float scrollY = 0;
+            reader.ReadInto(ref scrollY);
+            var scroll = new Vector2(scrollX, scrollY);
+            int savedTime = CurrentTime;
+            reader.ReadInto(ref savedTime);
+            Session.PreviousCurrentTime = LevelStartPreviousTime;
+            Session.CurrentTime = LevelStartTime;
+            if (!IsPlayingDemo && _demoFile is not null)
+            {
+                _recordedDemo = new MemoryStream();
+                _flags |= MapFlags.RecordingDemo;
+                _recordedDemo.Write(name);
+                _recordedDemo.WriteByte(0);
+                WriteDemo(_recordedDemo, new DemoHeader(seed, CurrentTime));
+            }
+
+            if (IsPlayingDemo)
+            {
+                SetTime(_playedDemo!.Value.StartTime);
+            }
+
+            _levelStartTime = CurrentTime;
+            int version = 0;
+            reader.ReadInto(ref version);
+            if (version < MapHeader.FloatVersion)
+            {
+                Size = new SizeF(BitConverter.SingleToInt32Bits(Size.Width), BitConverter.SingleToInt32Bits(Size.Height));
+                scroll = new Vector2(BitConverter.SingleToInt32Bits(scroll.X), BitConverter.SingleToInt32Bits(scroll.Y));
+            }
+
+            Session.Error.Log($"CurrentTime   ={(uint)CurrentTime,-15}   sizeof(SPRITE)={SpriteRecordSize,-8} Map version   ={version}");
+            ShowLoadingStep("Create new hash table"u8);
+            Sprites = new SpriteCollector(Size, Vids, this);
+            SetShiftCoordinates(Session.Graphics.ScreenSize.ToVector2() * HalfShare + scroll, ShiftMove.None);
+            ShowLoadingStep("Load gridZ"u8);
+            ResetGroundZ();
+            LoadGridZ(ref reader, _gridColumns * _gridRows * sizeof(short));
+            if (!FindSection(ref reader, SpriteTag))
+                return;
+
+            ShowLoadingStep("Load hardware terrain"u8);
+            var shownLayer = ObjectLayer.Ground;
+            while (TryLoadSprite(ref reader, version, out var loadedSprite))
+            {
+                if (Constant.IsDebugMode && loadedSprite!.Vid.Layer != shownLayer)
+                {
+                    shownLayer = loadedSprite.Vid.Layer;
+                    Session.Graphics.SetLoadingText(shownLayer switch
+                    {
+                        ObjectLayer.Ground => "Load hardware terrain"u8,
+                        ObjectLayer.Built => "Build sprites in terrain"u8,
+                        ObjectLayer.BuiltAlpha => "Build sprites with alpha in terrain"u8,
+                        _ => "Load sprites"u8
+                    });
+                }
+
+                Session.Graphics.DrawLoadBar(this, _vids[0]);
+            }
+            // TODO: Port the trains; the loader builds the rail map (0x43c510) after the terrain and the sprite records, and the Engine links (0x454530) after the sprites
+            ShowLoadingStep("Load data for sprite"u8);
+            if (!FindSection(ref reader, SpriteDataTag))
+                return;
+
+            while (TryReadPointer(ref reader, out var dataSprite))
+            {
+                Session.Graphics.DrawLoadBar(this, _vids[0]);
+                dataSprite?.Action(ActionCode.Restore, ref reader, version);
+
+                reader.GoNextSub(SpriteDataTag);
+            }
+            ShowLoadingStep("Load players info"u8);
+            if (!FindSection(ref reader, "PLAY"u8))
+                return;
+
+            foreach (var player in _players)
+            {
+                player.Load(ref reader);
+            }
+
+            ShowLoadingStep("Load groups info"u8);
+            if (!FindSection(ref reader, "GROU"u8))
+                return;
+
+            LoadGroups(ref reader);
+        }
 
         _flags &= ~MapFlags.Loading;
         Relation.Release();
         Session.Error.Log($"Vid    release {Session.TextureMemoryInUse} {Session.VidMemoryInUse}");
-        LoadScript(name);
+
+        ShowLoadingStep("Load script file"u8);
+        string stem = GameTextEncoding.Cyrillic.GetString(GetBeforeLast(name, "."u8));
+        string scriptPath = stem + ScriptExtension;
+        if (!FileSystem.TryRead(scriptPath, out _))
+        {
+            string compiledPath = stem + CompiledScriptExtension;
+            if (FileSystem.TryRead(compiledPath, out _))
+            {
+                scriptPath = compiledPath;
+            }
+        }
+
+        Script.Load(FileSystem, scriptPath);
+        ShowLoadingStep("Connect script function with VID"u8);
+        var objects = Script.Objects;
+        for (int i = 0; i < objects.Count; i++)
+        {
+            ref readonly var entry = ref objects[i];
+
+            if (entry.Kind != ScriptObjectKind.Function)
+                continue;
+
+            var functionName = objects.Name(i).Span;
+            int eventFunction = Encoding.ASCII.GetString(functionName) switch
+            {
+                "main" => 0,
+                "TrainNotAmmo" => 1,
+                "TrainNotPower" => 2,
+                "TrainDamage" => 3,
+                "TrainCreated" => 4,
+                "TrainSplit" => 5,
+                "TrainDestroy" => 6,
+                "TrainDestroyPower" => 7,
+                "TrainArrive" => 8,
+                "???TrainNotArrive" => 9,
+                "TrainAttacked" => 10,
+                "DepoDestroy" => 11,
+                "DepoBirth" => 12,
+                "DepoAttacked" => 13,
+                "DepoFree" => 14,
+                "BuildingCapture" => 15,
+                "MasterDestroy" => 16,
+                "???" => 17,
+                "???SuperWeaponWounded" => 18,
+                "MineBlast" => 19,
+                "MineRemove" => 20,
+                "EnemyLinked" => 21,
+                "TrainClash" => 22,
+                "UnitCreated" => 23,
+                "UnitDestroy" => 24,
+                _ => -1
+            };
+
+            if (eventFunction >= 0)
+            {
+                _eventFunctionNumbers[eventFunction] = i;
+            }
+
+            bool hasShortId = functionName.Length >= IdDigits + 2 && functionName[0] == FunctionPrefix;
+            if (hasShortId)
+            {
+                foreach (byte digit in functionName.Slice(1, IdDigits))
+                {
+                    if (!CRuntime.IsDigit(digit))
+                    {
+                        hasShortId = false;
+                        break;
+                    }
+                }
+            }
+
+            if (!hasShortId)
+                continue;
+
+            if (functionName[IdDigits + 1] == NameSeparator)
+            {
+                var rest = functionName[(IdDigits + 2)..];
+                var vid = FindVid((KnownObject)CRuntime.ParseInteger(functionName.Slice(1, IdDigits)));
+
+                if (rest.StartsWith("DAMAGE"u8))
+                {
+                    if (entry.Count == DamageParameters && vid is not null)
+                    {
+                        vid.DamageHandler = i;
+                    }
+
+                    continue;
+                }
+
+                if (rest.StartsWith("DESTROY"u8))
+                {
+                    if (entry.Count == DestroyParameters && vid is not null)
+                    {
+                        vid.DestroyHandler = i;
+                    }
+
+                    continue;
+                }
+
+                if (rest.StartsWith("COLLISION"u8))
+                {
+                    if (entry.Count == CollisionParameters && vid is not null)
+                    {
+                        vid.CollisionHandler = i;
+                    }
+
+                    continue;
+                }
+
+                if (!rest.IsEmpty && entry.Count == StateHandlerParameters && vid is not null)
+                {
+                    int state = rest.Length == 1 ? rest[0] - '0' : (rest[0] - '0') * 10 + rest[1] - '0';
+
+                    if (state is >= 0 and < ASToolkit.Engine.Vid.StateCount)
+                    {
+                        vid.StateHandlers[state] = i;
+                    }
+                }
+
+                continue;
+            }
+
+            if (functionName.Length <= LongIdDigits + 1)
+                continue;
+
+            bool hasLongId = true;
+            foreach (byte digit in functionName.Slice(1, LongIdDigits))
+            {
+                if (!CRuntime.IsDigit(digit))
+                {
+                    hasLongId = false;
+                    break;
+                }
+            }
+
+            if (!hasLongId || functionName[LongIdDigits + 1] != NameSeparator)
+                continue;
+
+            var longVid = FindVid((KnownObject)CRuntime.ParseInteger(functionName.Slice(1, LongIdDigits)));
+            var longState = functionName[(LongIdDigits + 2)..];
+            if (!longState.IsEmpty && entry.Count == StateHandlerParameters && longVid is not null)
+            {
+                int state = longState.Length == 1 ? longState[0] - '0' : (longState[0] - '0') * 10 + longState[1] - '0';
+
+                if (state is >= 0 and < ASToolkit.Engine.Vid.StateCount)
+                {
+                    longVid.StateHandlers[state] = i;
+                }
+            }
+        }
+
         if (IsPlayingDemo)
         {
             _playedOffset = Script.LoadVar(_playedDemo!.Value.Body);
@@ -387,7 +677,20 @@ public partial class Map : IDisposable
         ShowLoadingStep("Run scripts for create sprites"u8);
         if (!_flags.HasFlag(MapFlags.AppMenu))
         {
-            RunCreationHandlers();
+            for (int layer = 0; layer < LayerCount; layer++)
+            {
+                var list = _layers[layer];
+                for (int i = list.Count - 1; i >= 0; i--)
+                {
+                    var sprite = list[i];
+
+                    if (sprite is not null)
+                    {
+                        RunCreationHandler(sprite);
+                    }
+                }
+            }
+
         }
 
         if (!IsPlayingDemo)
@@ -477,7 +780,7 @@ public partial class Map : IDisposable
             _framesThisSecond = 0;
         }
 
-        Input.ResetFrame();
+        Input.Tact();
         if ((CurrentTime & CompactionPeriodMask) == 0)
         {
             foreach (var list in _layers)
@@ -513,7 +816,25 @@ public partial class Map : IDisposable
             if (message.Id == WindowMessageId.Quit)
                 return true;
 
-            if (!_hasWindow || !TranslateAccelerator(message))
+            bool isTranslated = false;
+            if (_hasWindow && message.Id is (WindowMessageId.KeyDown or WindowMessageId.SysKeyDown))
+            {
+                foreach (var accelerator in Accelerators)
+                {
+                    if (!accelerator.Flags.HasFlag(AcceleratorFlags.VirtualKey) || accelerator.Key != (VirtualKey)message.WParam ||
+                        accelerator.Flags.HasFlag(AcceleratorFlags.Shift) != Input.IsKeyHeld(VirtualKey.Shift) ||
+                        accelerator.Flags.HasFlag(AcceleratorFlags.Control) != Input.IsKeyHeld(VirtualKey.Control) ||
+                        accelerator.Flags.HasFlag(AcceleratorFlags.Alt) != Input.IsKeyHeld(VirtualKey.Alt))
+                        continue;
+
+                    DispatchMessage(new WindowMessage(WindowMessageId.Command, (int)accelerator.Command | AcceleratorSource, 0));
+                    isTranslated = true;
+
+                    break;
+                }
+            }
+
+            if (!isTranslated)
             {
                 DispatchMessage(message);
             }
@@ -530,12 +851,13 @@ public partial class Map : IDisposable
     public virtual bool Tact() => false;
 
     /// <summary>
-    /// Releases the loaded level.
+    /// Releases the map, its level and its object IDs.
     /// </summary>
+    public void Dispose() => Destruct();
+
     [EngineRoutine(0x0040b180)]
-    public void Dispose()
+    private protected virtual void Destruct()
     {
-        Release();
         for (int i = _vidCount - 1; i >= 0; i--)
         {
             if (_vids[i] is not null)
@@ -547,6 +869,7 @@ public partial class Map : IDisposable
 
         _vidCount = 0;
         Session.Error.Log($"Vid    release {Session.TextureMemoryInUse} {Session.VidMemoryInUse}");
+        _mouseTips.Clear();
         CloseDemoFile();
     }
 
@@ -559,47 +882,25 @@ public partial class Map : IDisposable
 
     internal void SetMonstersAttackNeutralTrains(bool attack) => SetFlag(MapFlags.MonstersAttackNeutralTrains, attack);
 
-    [EngineRoutine(0x004145b0)]
-    internal void RaiseHeights(Vid vid, Sprite sprite)
-    {
-        if (sprite == Mouse || vid.HeightPoints.Count == 0)
-            return;
-
-        bool permanent = !_flags.HasFlag(MapFlags.AppMenu) && vid.Class == SpriteClass.BuiltTerrain;
-
-        foreach (var point in vid.GetHeightPoints(sprite.Frame))
-        {
-            var cell = new Vector3(sprite.Position.X + point.X, sprite.Position.Y + point.Y, sprite.Position.Z + point.Z);
-
-            if (permanent)
-            {
-                SetGroundZ(cell);
-            }
-            else
-            {
-                SetTempGroundZ(cell);
-            }
-        }
-    }
-
-    [EngineRoutine(0x004146b0)]
-    internal void LowerHeights(Vid vid, Sprite sprite)
-    {
-        if (sprite == Mouse || vid.HeightPoints.Count == 0 || !_flags.HasFlag(MapFlags.AppMenu) && vid.Class == SpriteClass.BuiltTerrain)
-            return;
-
-        foreach (var point in vid.GetHeightPoints(sprite.Frame))
-        {
-            ClearTempGroundZ(new Vector3(sprite.Position.X + point.X, sprite.Position.Y + point.Y, sprite.Position.Z + point.Z));
-        }
-    }
-
     internal bool IsFree(Vid vid, Vector3 position) => Sprites.CanPlace(vid, position) is null;
 
     [EngineRoutine(0x0040c570)]
     internal virtual void Release()
     {
-        LogCounts();
+        for (int i = 0; i < _vidCount; i++)
+        {
+            var vid = _vids[i];
+
+            if (vid is null)
+                continue;
+
+            var counts = vid.Counts;
+            if (counts[0] + counts[1] + counts[2] + counts[3] == 0)
+                continue;
+
+            Session.Error.Log($"NoVid[{i,3}]={counts[0]} {counts[1]} {counts[2]} {counts[3]} {vid.Name} Layer={(int)vid.Layer} {vid.Path}");
+        }
+
         Relation.Release();
         _speed = NormalSpeed;
         _framesPerSecond = 0;
@@ -633,6 +934,7 @@ public partial class Map : IDisposable
         }
 
         DeleteAll();
+
         Session.Error.Log("Menu   release"u8);
         if (Menu.Count != 0)
         {
@@ -649,10 +951,15 @@ public partial class Map : IDisposable
         }
 
         _scriptFiles.Clear();
-        Script.Reset();
+        Script.Release();
         _stepCount = 0;
         DeleteExtraVid();
-        ResetVidLevelState();
+
+        foreach (var vid in Vids)
+        {
+            vid?.ResetSprites();
+        }
+
         for (int i = 0; i < _eventFunctionNumbers.Length; i++)
         {
             _eventFunctionNumbers[i] = i + NoEventFunctionBase;
@@ -665,176 +972,6 @@ public partial class Map : IDisposable
         int index = text.LastIndexOf(delimiter);
 
         return index < 0 ? text : text[..index];
-    }
-
-    private static int GetEventFunctionIndex(ReadOnlySpan<byte> name) => Encoding.ASCII.GetString(name) switch
-    {
-        "main" => 0,
-        "TrainNotAmmo" => 1,
-        "TrainNotPower" => 2,
-        "TrainDamage" => 3,
-        "TrainCreated" => 4,
-        "TrainSplit" => 5,
-        "TrainDestroy" => 6,
-        "TrainDestroyPower" => 7,
-        "TrainArrive" => 8,
-        "???TrainNotArrive" => 9,
-        "TrainAttacked" => 10,
-        "DepoDestroy" => 11,
-        "DepoBirth" => 12,
-        "DepoAttacked" => 13,
-        "DepoFree" => 14,
-        "BuildingCapture" => 15,
-        "MasterDestroy" => 16,
-        "???" => 17,
-        "???SuperWeaponWounded" => 18,
-        "MineBlast" => 19,
-        "MineRemove" => 20,
-        "EnemyLinked" => 21,
-        "TrainClash" => 22,
-        "UnitCreated" => 23,
-        "UnitDestroy" => 24,
-        _ => -1
-    };
-
-    private protected static void OverrideGamma(Sprite sprite, Gamma gamma)
-    {
-        sprite.SetGammaOverride(gamma);
-        var link = sprite.Link;
-
-        if (link is not null && link.Vid == sprite.Vid.LinkVid)
-        {
-            link.SetGammaOverride(gamma);
-        }
-    }
-
-    private bool LoadOldTypeMap(ref Resource reader)
-    {
-        if (reader.GoBegin(HeadTag) != Resource.Found)
-        {
-            LogMissingSection(HeadTag);
-            return false;
-        }
-
-        int width = 0;
-        reader.ReadInto(ref width);
-        int height = 0;
-        reader.ReadInto(ref height);
-        Size = new SizeF(width, height);
-        short scrollX = 0;
-        reader.ReadInto(ref scrollX);
-        short scrollY = 0;
-        reader.ReadInto(ref scrollY);
-        int time = CurrentTime;
-        reader.ReadInto(ref time);
-        _levelStartTime = time;
-        Session.PreviousCurrentTime = time;
-        Session.CurrentTime = time;
-        int version = 0;
-        reader.ReadInto(ref version);
-        Session.Graphics.OldLoadParameters(ref reader, this);
-        Sprites = new SpriteCollector(Size, Vids, this);
-        ResetGroundZ();
-        LoadGridZ(ref reader, (int)(Size.Height + OldGridRounding) / GridZCellSize * ((int)(Size.Width + OldGridRounding) / GridZCellSize) * sizeof(short));
-        if (!FindSection(ref reader, SpriteTag))
-            return false;
-
-        while (TryLoadOldSprite(ref reader, out _))
-        {
-        }
-
-        if (!FindSection(ref reader, SpriteDataTag))
-            return false;
-
-        while (TryReadPointer(ref reader, out var sprite))
-        {
-            sprite?.Action(ActionCode.RestoreOld, ref reader, version);
-
-            reader.GoNextSub(SpriteDataTag);
-        }
-
-        return true;
-    }
-
-    private bool LoadNewTypeMap(ref Resource reader, ReadOnlySpan<byte> name, int seed)
-    {
-        ShowLoadingStep("Load graph parameters"u8);
-        Session.Graphics.Load(ref reader, this);
-        if (!FindSection(ref reader, HeadTag))
-            return false;
-
-        int version = LoadHead(ref reader, name, seed, out var scroll);
-        Session.Error.Log($"CurrentTime   ={(uint)CurrentTime,-15}   sizeof(SPRITE)={SpriteRecordSize,-8} Map version   ={version}");
-        ShowLoadingStep("Create new hash table"u8);
-        Sprites = new SpriteCollector(Size, Vids, this);
-        SetShiftCoordinates(Session.Graphics.ScreenSize.ToVector2() * HalfShare + scroll, ShiftMove.None);
-        ShowLoadingStep("Load gridZ"u8);
-        ResetGroundZ();
-        LoadGridZ(ref reader, _gridColumns * _gridRows * sizeof(short));
-        if (!FindSection(ref reader, SpriteTag))
-            return false;
-
-        ShowLoadingStep("Load hardware terrain"u8);
-        LoadSprites(ref reader, version);
-        // TODO: Port the trains; the loader builds the rail map (0x43c510) after the terrain and the sprite records, and the Engine links (0x454530) after the sprites
-        ShowLoadingStep("Load data for sprite"u8);
-        if (!FindSection(ref reader, SpriteDataTag))
-            return false;
-
-        LoadSpriteData(ref reader, version);
-        ShowLoadingStep("Load players info"u8);
-        if (!FindSection(ref reader, "PLAY"u8))
-            return false;
-
-        foreach (var player in _players)
-        {
-            player.Load(ref reader);
-        }
-
-        ShowLoadingStep("Load groups info"u8);
-        if (!FindSection(ref reader, "GROU"u8))
-            return false;
-
-        LoadGroups(ref reader);
-        return true;
-    }
-
-    private int LoadHead(ref Resource reader, ReadOnlySpan<byte> name, int seed, out Vector2 scroll)
-    {
-        float width = Size.Width;
-        reader.ReadInto(ref width);
-        float height = Size.Height;
-        reader.ReadInto(ref height);
-        Size = new SizeF(width, height);
-        float scrollX = 0;
-        reader.ReadInto(ref scrollX);
-        float scrollY = 0;
-        reader.ReadInto(ref scrollY);
-        scroll = new Vector2(scrollX, scrollY);
-        int savedTime = CurrentTime;
-        reader.ReadInto(ref savedTime);
-        Session.PreviousCurrentTime = LevelStartPreviousTime;
-        Session.CurrentTime = LevelStartTime;
-        if (!IsPlayingDemo && _demoFile is not null)
-        {
-            StartDemoRecording(name, seed);
-        }
-
-        if (IsPlayingDemo)
-        {
-            SetTime(_playedDemo!.Value.StartTime);
-        }
-
-        _levelStartTime = CurrentTime;
-        int version = 0;
-        reader.ReadInto(ref version);
-        if (version < MapHeader.FloatVersion)
-        {
-            Size = new SizeF(BitConverter.SingleToInt32Bits(Size.Width), BitConverter.SingleToInt32Bits(Size.Height));
-            scroll = new Vector2(BitConverter.SingleToInt32Bits(scroll.X), BitConverter.SingleToInt32Bits(scroll.Y));
-        }
-
-        return version;
     }
 
     private void LoadGridZ(ref Resource reader, int expectedSize)
@@ -855,38 +992,6 @@ public partial class Map : IDisposable
         }
     }
 
-    private void LoadSprites(ref Resource reader, int version)
-    {
-        var shownLayer = ObjectLayer.Ground;
-        while (TryLoadSprite(ref reader, version, out var sprite))
-        {
-            if (Constant.IsDebugMode && sprite!.Vid.Layer != shownLayer)
-            {
-                shownLayer = sprite.Vid.Layer;
-                Session.Graphics.SetLoadingText(shownLayer switch
-                {
-                    ObjectLayer.Ground => "Load hardware terrain"u8,
-                    ObjectLayer.Built => "Build sprites in terrain"u8,
-                    ObjectLayer.BuiltAlpha => "Build sprites with alpha in terrain"u8,
-                    _ => "Load sprites"u8
-                });
-            }
-
-            Session.Graphics.DrawLoadBar(this, _vids[0]);
-        }
-    }
-
-    private void LoadSpriteData(ref Resource reader, int version)
-    {
-        while (TryReadPointer(ref reader, out var sprite))
-        {
-            Session.Graphics.DrawLoadBar(this, _vids[0]);
-            sprite?.Action(ActionCode.Restore, ref reader, version);
-
-            reader.GoNextSub(SpriteDataTag);
-        }
-    }
-
     private bool FindSection(ref Resource reader, ReadOnlySpan<byte> tag)
     {
         if (reader.GoNext(tag) == Resource.Found)
@@ -894,58 +999,6 @@ public partial class Map : IDisposable
 
         LogMissingSection(tag);
         return false;
-    }
-
-    private void LoadScript(ReadOnlySpan<byte> name)
-    {
-        ShowLoadingStep("Load script file"u8);
-        string stem = GameTextEncoding.Cyrillic.GetString(GetBeforeLast(name, "."u8));
-        string scriptPath = stem + ScriptExtension;
-        if (!FileSystem.TryRead(scriptPath, out _))
-        {
-            string compiledPath = stem + CompiledScriptExtension;
-            if (FileSystem.TryRead(compiledPath, out _))
-            {
-                scriptPath = compiledPath;
-            }
-        }
-
-        Script.Load(FileSystem, scriptPath);
-        ShowLoadingStep("Connect script function with VID"u8);
-        var objects = Script.Objects;
-        for (int i = 0; i < objects.Count; i++)
-        {
-            ref readonly var entry = ref objects[i];
-
-            if (entry.Kind == ScriptObjectKind.Function)
-            {
-                int eventFunction = GetEventFunctionIndex(objects.Name(i).Span);
-
-                if (eventFunction >= 0)
-                {
-                    _eventFunctionNumbers[eventFunction] = i;
-                }
-
-                ProcessScriptFunctions(objects.Name(i).Span, i, entry.Count);
-            }
-        }
-    }
-
-    private void RunCreationHandlers()
-    {
-        for (int layer = 0; layer < LayerCount; layer++)
-        {
-            var list = _layers[layer];
-            for (int i = list.Count - 1; i >= 0; i--)
-            {
-                var sprite = list[i];
-
-                if (sprite is not null)
-                {
-                    RunCreationHandler(sprite);
-                }
-            }
-        }
     }
 
     internal static int OpenObjects(IGameFileSystem fileSystem, MyError? error, ref Resource resource)
@@ -958,6 +1011,17 @@ public partial class Map : IDisposable
     }
 
     private void LogMissingSection(ReadOnlySpan<byte> tag) => Session.Error.Error(MapLogTag, LogError.Section, 0, tag);
+
+    private protected static void OverrideGamma(Sprite sprite, Gamma gamma)
+    {
+        sprite.SetGamma(gamma);
+        var link = sprite.Link;
+
+        if (link is not null && link.Vid == sprite.Vid.LinkVid)
+        {
+            link.SetGamma(gamma);
+        }
+    }
 
     [EngineRoutine(0x00411440)]
     private void DeleteExtraVid()
@@ -1160,7 +1224,7 @@ public partial class Map : IDisposable
     }
 
     [EngineRoutine(0x0040f9e0)]
-    internal void Pause()
+    internal void PauseOn()
     {
         if (!IsPaused)
         {
@@ -1171,7 +1235,7 @@ public partial class Map : IDisposable
     }
 
     [EngineRoutine(0x0040fa00)]
-    private void Resume()
+    private void PauseOff()
     {
         if (!IsPaused)
             return;
@@ -1187,43 +1251,6 @@ public partial class Map : IDisposable
         Session.CurrentTime = _pausedAt;
         Session.PreviousCurrentTime = _pausedAt - ResumeFrameTime;
         _flags &= ~MapFlags.Paused;
-    }
-
-    private void DeleteAll()
-    {
-        for (int layer = 0; layer < LayerCount; layer++)
-        {
-            var list = _layers[layer];
-            for (int i = list.Count - 1; i >= 0; i--)
-            {
-                var sprite = list[i];
-
-                if (sprite is not null)
-                {
-                    DeleteSprite(sprite);
-                }
-            }
-        }
-
-        for (int layer = 0; layer < LayerCount; layer++)
-        {
-            var list = _layers[layer];
-            int top = list.Count - 1;
-            while (top >= 0 && list[top] is null)
-            {
-                top--;
-            }
-
-            if (top >= 0)
-            {
-                Session.Error.Error($"SPRITE {(int)list[top]!.Vid.Id}", LogError.Text, top, "Sprite exist after delete"u8);
-            }
-        }
-
-        if (_groupHead.Next != _groupHead)
-        {
-            Session.Error.Error(MapLogTag, LogError.Text, 0, "Incorrect delete groups in DeleteAll()"u8);
-        }
     }
 
     [EngineRoutine(0x0040b4b0)]
@@ -1266,6 +1293,43 @@ public partial class Map : IDisposable
 
                 sprite?.DeletePointerToSprite(removed);
             }
+        }
+    }
+
+    private void DeleteAll()
+    {
+        for (int layer = 0; layer < LayerCount; layer++)
+        {
+            var list = _layers[layer];
+            for (int i = list.Count - 1; i >= 0; i--)
+            {
+                var sprite = list[i];
+
+                if (sprite is not null)
+                {
+                    DeleteSprite(sprite);
+                }
+            }
+        }
+
+        for (int layer = 0; layer < LayerCount; layer++)
+        {
+            var list = _layers[layer];
+            int top = list.Count - 1;
+            while (top >= 0 && list[top] is null)
+            {
+                top--;
+            }
+
+            if (top >= 0)
+            {
+                Session.Error.Error($"SPRITE {(int)list[top]!.Vid.Id}", LogError.Text, top, "Sprite exist after delete"u8);
+            }
+        }
+
+        if (_groupHead.Next != _groupHead)
+        {
+            Session.Error.Error(MapLogTag, LogError.Text, 0, "Incorrect delete groups in DeleteAll()"u8);
         }
     }
 }

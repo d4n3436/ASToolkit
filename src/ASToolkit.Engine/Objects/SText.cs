@@ -86,7 +86,7 @@ public sealed class SText : Frame
         if ((TextBehavior & TextBehavior.LoadFrom) == TextBehavior.ScriptUpdated)
         {
             Shown = map.Script.GetVariableString(Description.Span);
-            LayOutText();
+            CalcTextProperty();
         }
 
         var shown = Shown.Span;
@@ -196,37 +196,31 @@ public sealed class SText : Frame
                 }
 
                 int shownCount = VisibleCount++;
-                if (CRuntime.IsSpace(shown[shownCount]))
+                bool isSpace = CRuntime.IsSpace(shown[shownCount]);
+                bool isLineCrossed = false;
+
+                while (isSpace)
                 {
-                    bool isLineCrossed = false;
-                    int next;
-                    do
+                    int next = VisibleCount;
+
+                    if (length <= next)
+                        break;
+
+                    isLineCrossed |= shown[next] == CRuntime.LineFeed;
+                    VisibleCount = next + 1;
+                    isSpace = CRuntime.IsSpace(shown[next]);
+                }
+
+                if (isLineCrossed)
+                {
+                    if (VisibleCount < length)
                     {
-                        next = VisibleCount;
-
-                        if (length <= next)
-                            break;
-
-                        if (shown[next] == CRuntime.LineFeed)
-                        {
-                            isLineCrossed = true;
-                        }
-
-                        VisibleCount = next + 1;
+                        VisibleCount--;
                     }
-                    while (CRuntime.IsSpace(shown[next]));
 
-                    if (isLineCrossed)
-                    {
-                        if (VisibleCount < length)
-                        {
-                            VisibleCount--;
-                        }
-
-                        Timer = LineWait;
-                        ChangeAnimation((SpriteAnimation)MenuAnimation.SelectDown);
-                        return 0;
-                    }
+                    Timer = LineWait;
+                    ChangeAnimation((SpriteAnimation)MenuAnimation.SelectDown);
+                    return 0;
                 }
 
                 ChangeAnimation((SpriteAnimation)MenuAnimation.StandUp);
@@ -264,11 +258,11 @@ public sealed class SText : Frame
             TextBehavior.ScriptStrings => ReadMenuString(Map.Script.GetVariableString(description.Span).Span),
             _ => Map.Script.GetVariableString(description.Span)
         };
-        LayOutText();
+        CalcTextProperty();
     }
 
     [EngineRoutine(0x004495d0)]
-    internal void LayOutText()
+    internal void CalcTextProperty()
     {
         var shown = Shown.Span;
         LineCount = 1;

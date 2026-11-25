@@ -20,72 +20,8 @@ public sealed partial class Graphics
 
     private static readonly Size SetupFontSize = new(7, 8);
 
-    private static void AddCap(List<byte> caps, bool isSet, ReadOnlySpan<byte> name)
-    {
-        if (isSet)
-        {
-            caps.AddRange(name);
-        }
-    }
-
-    private static void FillColorTable(DeviceBuffers textures)
-    {
-        var highColor = textures.High!.Format == VidPixelFormat.R5G6B5 ? HighColorFormat.Rgb565 : HighColorFormat.Rgb555;
-        int index = 0;
-        for (int top = ColorTableGroup; top <= byte.MaxValue + 1; top += ColorTableGroup)
-        {
-            for (int i = 0; i < ColorTableGroup; i++)
-            {
-                int red = Math.Clamp(top + ColorTableOffsets[i * 3], 0, byte.MaxValue);
-                int green = Math.Clamp(top + ColorTableOffsets[i * 3 + 1], 0, byte.MaxValue);
-                int blue = Math.Clamp(top + ColorTableOffsets[i * 3 + 2], 0, byte.MaxValue);
-                textures.ColorTable[index++] = highColor.Pack((uint)(red << 16 | green << 8 | blue));
-            }
-        }
-    }
-
     [EngineRoutine(0x0042f4b0)]
     internal int Init(Size desktop, Rectangle windowRect, Rectangle clientRect)
-    {
-        ApplyDisplaySettings(desktop);
-        int result = SetUpDevice(ScreenSize);
-        if (result != 0)
-            return result;
-
-        if (!Flags.HasFlag(GraphicsFlags.FullScreen) || Flags.HasFlag(GraphicsFlags.WindowViewport))
-        {
-            SetViewport(RectangleF.FromLTRB(clientRect.Left - windowRect.Left, clientRect.Top - windowRect.Top, clientRect.Right - windowRect.Left, clientRect.Bottom - windowRect.Top));
-        }
-        else
-        {
-            SetViewport(RectangleF.FromLTRB(0, 0, ScreenSize.Width, ScreenSize.Height));
-        }
-
-        Error.Log($"SetViewPort ({Viewport.Left:F0},{Viewport.Top:F0}) - ({Viewport.Right:F0},{Viewport.Bottom:F0})");
-        Error.Log(DescribeTextureStage());
-        SetDefaultRenderStates();
-        Error.Log(DescribeTextureStage());
-        Error.Log(Texture.SetDeviceCapabilities(_session));
-        if (!CreateBuffers(Buffers))
-            return 1;
-
-        if (Screen is not null)
-        {
-            Clear(Screen, 0xff000000);
-        }
-
-        CreateDeviceFont(SetupFont, SetupFontSize, Map.DefaultMaxTextureSize);
-        FillColorTable(Buffers);
-        LogCaps();
-        int bytesPerPixel = Flags.HasFlag(GraphicsFlags.Color32) ? sizeof(uint) : sizeof(ushort);
-        int lockPitch = (int)ScreenSize.Width * bytesPerPixel;
-        int pitch = lockPitch / bytesPerPixel;
-        Error.Log($"Pitch={bytesPerPixel * pitch} zPitch={DepthWidth * sizeof(ushort)}");
-        ReloadPalettes();
-        return 0;
-    }
-
-    private void ApplyDisplaySettings(Size desktop)
     {
         _session.Registry.SetNumber(ScreenWidthValue, (int)ScreenSize.Width);
         _session.Registry.SetNumber(ScreenHeightValue, (int)ScreenSize.Height);
@@ -125,16 +61,133 @@ public sealed partial class Graphics
             Flags = GetDisplayBits(DesktopFormat) == 32 ? Flags | GraphicsFlags.Color32 : Flags & ~GraphicsFlags.Color32;
         }
 
-        int halfVideoMemory = VideoMemory / 2;
+        const int halfVideoMemory = VideoMemory / 2;
         if (halfVideoMemory <= (ScreenSize.Width * ScreenSize.Height + ScreenSize.Width * ScreenSize.Height) * 3.0f)
         {
             Flags &= ~GraphicsFlags.TripleBuffer;
         }
 
         Flags &= ~GraphicsFlags.TripleBuffer;
+        int result = SetUpDevice(ScreenSize);
+        if (result != 0)
+            return result;
+
+        if (!Flags.HasFlag(GraphicsFlags.FullScreen) || Flags.HasFlag(GraphicsFlags.WindowViewport))
+        {
+            SetViewport(RectangleF.FromLTRB(clientRect.Left - windowRect.Left, clientRect.Top - windowRect.Top, clientRect.Right - windowRect.Left, clientRect.Bottom - windowRect.Top));
+        }
+        else
+        {
+            SetViewport(RectangleF.FromLTRB(0, 0, ScreenSize.Width, ScreenSize.Height));
+        }
+
+        Error.Log($"SetViewPort ({Viewport.Left:F0},{Viewport.Top:F0}) - ({Viewport.Right:F0},{Viewport.Bottom:F0})");
+        Error.Log(DescribeTextureStage());
+        SetDefaultState();
+        Error.Log(DescribeTextureStage());
+        Error.Log(Texture.SetDeviceCapabilities(_session));
+        Buffers.IsCreated = true;
+        Buffers.Light = CreateBufferTexture(VidPixelFormat.P8);
+        if (Buffers.Light.IsEmpty)
+        {
+            Error.Error("GRAPH"u8, LogError.Create, 0, "light buffer"u8);
+            return 1;
+        }
+
+        Buffers.High = CreateBufferTexture(VidPixelFormat.R5G6B5);
+        if (Buffers.High.IsEmpty)
+        {
+            Error.Error("GRAPH"u8, LogError.Create, 0, "hiBuffer"u8);
+            return 1;
+        }
+
+        Buffers.Alpha = CreateBufferTexture(VidPixelFormat.A4R4G4B4);
+        if (Buffers.Alpha.IsEmpty)
+        {
+            Error.Error("GRAPH"u8, LogError.Create, 0, "alphaBuffer"u8);
+            return 1;
+        }
+
+        if (Screen is not null)
+        {
+            ClearScreen(Screen, 0xff000000);
+        }
+
+        CreateDeviceFont(SetupFont, SetupFontSize, Map.DefaultMaxTextureSize);
+        var highColor = Buffers.High!.Format == VidPixelFormat.R5G6B5 ? HighColorFormat.Rgb565 : HighColorFormat.Rgb555;
+        int index = 0;
+        for (int top = ColorTableGroup; top <= byte.MaxValue + 1; top += ColorTableGroup)
+        {
+            for (int i = 0; i < ColorTableGroup; i++)
+            {
+                Buffers.ColorTable[index++] = highColor.Pack(PackColor(top + ColorTableOffsets[i * 3], top + ColorTableOffsets[i * 3 + 1], top + ColorTableOffsets[i * 3 + 2]));
+            }
+        }
+
+        var caps = new List<byte>();
+        if (Flags.HasFlag(GraphicsFlags.AlphaPalette))
+        {
+            caps.AddRange("ALPHAPALETTE "u8);
+        }
+
+        if (Flags.HasFlag(GraphicsFlags.NonGdi))
+        {
+            caps.AddRange("NONGDI "u8);
+        }
+
+        caps.AddRange(Flags.HasFlag(GraphicsFlags.Software) ? "SOFTWARE "u8 : "HARDWARE "u8);
+        if (Flags.HasFlag(GraphicsFlags.LowDetail))
+        {
+            caps.AddRange("LOWDETAIL "u8);
+        }
+
+        if (Flags.HasFlag(GraphicsFlags.Agp))
+        {
+            caps.AddRange("AGP "u8);
+        }
+
+        if (!Flags.HasFlag(GraphicsFlags.FullScreen))
+        {
+            caps.AddRange("WINDOWED "u8);
+        }
+
+        caps.AddRange(Flags.HasFlag(GraphicsFlags.TripleBuffer) ? "TRIPLEBUFFER "u8 : "DOUBLEBUFFER "u8);
+        if (Flags.HasFlag(GraphicsFlags.DotProduct3))
+        {
+            caps.AddRange("DOTPRODUCT3 "u8);
+        }
+
+        if (!Flags.HasFlag(GraphicsFlags.ModulateX2))
+        {
+            caps.AddRange("NOTMODULATE2X "u8);
+        }
+
+        if (!Flags.HasFlag(GraphicsFlags.CanZBlt))
+        {
+            caps.AddRange("CAN'T_Z_BLT "u8);
+        }
+
+        if (Flags.HasFlag(GraphicsFlags.Color32))
+        {
+            caps.AddRange("COLOR32 "u8);
+        }
+
+        if (Flags.HasFlag(GraphicsFlags.VSync))
+        {
+            caps.AddRange("VSYNC "u8);
+        }
+
+        caps.AddRange(Encoding.ASCII.GetBytes($"PIXELSHADER={PixelShaderVersion}"));
+        Error.Log($"caps={MyError.Decode(CollectionsMarshal.AsSpan(caps))}");
+        int bytesPerPixel = Flags.HasFlag(GraphicsFlags.Color32) ? sizeof(uint) : sizeof(ushort);
+        int lockPitch = (int)ScreenSize.Width * bytesPerPixel;
+        int pitch = lockPitch / bytesPerPixel;
+        Error.Log($"Pitch={bytesPerPixel * pitch} zPitch={DepthWidth * sizeof(ushort)}");
+        ReloadPalettes();
+        return 0;
     }
 
-    private void SetDefaultRenderStates()
+    private void SetDefaultState()
     {
         SetTextureStageState(0, TextureStageState.ColorArgument1, (int)TextureArgument.Texture);
         SetTextureStageState(0, TextureStageState.ColorArgument2, (int)TextureArgument.Diffuse);
@@ -152,48 +205,5 @@ public sealed partial class Graphics
         SetRenderState(RenderState.AlphaTestEnable, 0);
         SetRenderState(RenderState.DepthEnable, 1);
         SetRenderState(RenderState.DepthFunction, 7);
-    }
-
-    private bool CreateBuffers(DeviceBuffers textures)
-    {
-        textures.IsCreated = true;
-        textures.Light = CreateBufferTexture(VidPixelFormat.P8);
-        if (!HasBuffer(textures.Light, "light buffer"u8))
-            return false;
-
-        textures.High = CreateBufferTexture(VidPixelFormat.R5G6B5);
-        if (!HasBuffer(textures.High, "hiBuffer"u8))
-            return false;
-
-        textures.Alpha = CreateBufferTexture(VidPixelFormat.A4R4G4B4);
-        return HasBuffer(textures.Alpha, "alphaBuffer"u8);
-    }
-
-    private bool HasBuffer(Texture texture, ReadOnlySpan<byte> name)
-    {
-        if (!texture.IsEmpty)
-            return true;
-
-        Error.Error("GRAPH"u8, LogError.Create, 0, name);
-        return false;
-    }
-
-    private void LogCaps()
-    {
-        var caps = new List<byte>();
-        AddCap(caps, Flags.HasFlag(GraphicsFlags.AlphaPalette), "ALPHAPALETTE "u8);
-        AddCap(caps, Flags.HasFlag(GraphicsFlags.NonGdi), "NONGDI "u8);
-        caps.AddRange(Flags.HasFlag(GraphicsFlags.Software) ? "SOFTWARE "u8 : "HARDWARE "u8);
-        AddCap(caps, Flags.HasFlag(GraphicsFlags.LowDetail), "LOWDETAIL "u8);
-        AddCap(caps, Flags.HasFlag(GraphicsFlags.Agp), "AGP "u8);
-        AddCap(caps, !Flags.HasFlag(GraphicsFlags.FullScreen), "WINDOWED "u8);
-        caps.AddRange(Flags.HasFlag(GraphicsFlags.TripleBuffer) ? "TRIPLEBUFFER "u8 : "DOUBLEBUFFER "u8);
-        AddCap(caps, Flags.HasFlag(GraphicsFlags.DotProduct3), "DOTPRODUCT3 "u8);
-        AddCap(caps, !Flags.HasFlag(GraphicsFlags.ModulateX2), "NOTMODULATE2X "u8);
-        AddCap(caps, !Flags.HasFlag(GraphicsFlags.CanZBlt), "CAN'T_Z_BLT "u8);
-        AddCap(caps, Flags.HasFlag(GraphicsFlags.Color32), "COLOR32 "u8);
-        AddCap(caps, Flags.HasFlag(GraphicsFlags.VSync), "VSYNC "u8);
-        caps.AddRange(Encoding.ASCII.GetBytes($"PIXELSHADER={PixelShaderVersion}"));
-        Error.Log($"caps={MyError.Decode(CollectionsMarshal.AsSpan(caps))}");
     }
 }

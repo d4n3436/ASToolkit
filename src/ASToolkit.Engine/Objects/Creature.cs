@@ -41,7 +41,15 @@ public class Creature : Unit
     {
         if (act == ActionCode.Damage && var1 > 0)
         {
-            AlertCreatures();
+            var center = Position.AsVector2();
+            var reach = new Vector2(CreatureAlertReach);
+            for (var other = Map.Sprites.First(center - reach, center + reach); other is not null; other = Map.Sprites.NextHashInBox())
+            {
+                if (other.Vid.Class == SpriteClass.Creature && center.NearLength(other.Position.AsVector2()) < CreatureAlertReach)
+                {
+                    other.StartMove();
+                }
+            }
         }
 
         if (act != ActionCode.NextCommand)
@@ -82,14 +90,53 @@ public class Creature : Unit
 
         if (Command is Command.Attack or Command.OneAttack || newPeriod)
         {
-            TactCreatureAttack();
+            var result = AttackTact((int)Math.Max((uint)Map.FrameTime, (uint)Vid.GetVisualFrameDuration(Animation)));
+            AttackResult = result;
+
+            if (result == AttackResult.Approach && Speed.IsExactlyZero() && (ArmedLink is { HasGoal: true } || HasGoal))
+            {
+                SetCommand(Command.None);
+            }
+
+            if (result is AttackResult.Pursue or AttackResult.NoTarget && IsAggressive && Command is Command.None or Command.Move)
+            {
+                AttackSeenEnemy(this);
+            }
         }
 
         int frameTime = (byte)Vid.GetVisualFrameDuration(Animation);
 
         if (Command is not (Command.Move or Command.Attack or Command.OneAttack))
         {
-            WanderCreature(frameTime, newPeriod);
+            if (Animation == SpriteAnimation.LRotate && Map.Random.Next() % 3 != 0)
+            {
+                RotateTact(Direction - CreatureTurn, frameTime);
+            }
+
+            if (Animation == SpriteAnimation.RRotate && Map.Random.Next() % 3 != 0)
+            {
+                RotateTact(Direction + CreatureTurn, frameTime);
+            }
+
+            if (newPeriod)
+            {
+                if ((Map.Random.Next() & 3) == 0)
+                {
+                    StartMove();
+                }
+                else if (Speed.IsExactlyZero() && Map.Random.Next() % 3 == 0 && (Vid.FrameCounts[(int)SpriteAnimation.Unload] != 0 || Vid.Children[(int)SpriteAnimation.Unload] != 0 || Vid.Sounds[(int)SpriteAnimation.Unload] != 0))
+                {
+                    ChangeAnimation(SpriteAnimation.Unload);
+                }
+                else if ((Map.Random.Next() & 3) == 0)
+                {
+                    RotateTact(Direction + ((Map.Random.Next() & 1) == 0 ? CreatureTurn : -CreatureTurn), frameTime);
+                }
+                else
+                {
+                    Stop();
+                }
+            }
         }
 
         if (Animation is SpriteAnimation.Wound or SpriteAnimation.Salut)
@@ -144,7 +191,29 @@ public class Creature : Unit
             next.Z = Map.GetGroundZForMoveTo(Vid, next.AsVector2());
         }
 
-        if (CanPlaceWithCrush(next) is null && StaysInRegion(next.AsVector2()))
+        bool isFree = CanPlaceWithCrush(next) is null;
+
+        if (isFree && Region is not null)
+        {
+            var point = next.AsVector2();
+            var half = Region.Size * 0.5f;
+
+            if (!(Region.Position.X - half.X <= point.X && point.X <= half.X + Region.Position.X && Region.Position.Y - half.Y <= point.Y && point.Y <= half.Y + Region.Position.Y))
+            {
+                var other = FindRegion(point);
+
+                if (other is null || Region.Vid != other.Vid)
+                {
+                    isFree = false;
+                }
+                else
+                {
+                    Region = other;
+                }
+            }
+        }
+
+        if (isFree)
         {
             MoveTactMapLimit(next.AsVector2(), elapsed);
             ChangeCoor(next);
@@ -193,87 +262,5 @@ public class Creature : Unit
         }
 
         return null;
-    }
-
-    private bool StaysInRegion(Vector2 point)
-    {
-        if (Region is null)
-            return true;
-
-        var half = Region.Size * 0.5f;
-
-        if (Region.Position.X - half.X <= point.X && point.X <= half.X + Region.Position.X && Region.Position.Y - half.Y <= point.Y && point.Y <= half.Y + Region.Position.Y)
-            return true;
-
-        var other = FindRegion(point);
-
-        if (other is null || Region.Vid != other.Vid)
-            return false;
-
-        Region = other;
-
-        return true;
-    }
-
-    private void AlertCreatures()
-    {
-        var center = Position.AsVector2();
-        var reach = new Vector2(CreatureAlertReach);
-        for (var other = Map.Sprites.First(center - reach, center + reach); other is not null; other = Map.Sprites.NextHashInBox())
-        {
-            if (other.Vid.Class == SpriteClass.Creature && center.NearLength(other.Position.AsVector2()) < CreatureAlertReach)
-            {
-                other.StartMove();
-            }
-        }
-    }
-
-    private void TactCreatureAttack()
-    {
-        var result = AttackTact((int)Math.Max((uint)Map.FrameTime, (uint)Vid.GetVisualFrameDuration(Animation)));
-        AttackResult = result;
-
-        if (result == AttackResult.Approach && Speed.IsExactlyZero() && (ArmedLink is { HasGoal: true } || HasGoal))
-        {
-            SetCommand(Command.None);
-        }
-
-        if (result is AttackResult.Pursue or AttackResult.NoTarget && IsAggressive && Command is Command.None or Command.Move)
-        {
-            AttackSeenEnemy(this);
-        }
-    }
-
-    private void WanderCreature(int frameTime, bool newPeriod)
-    {
-        if (Animation == SpriteAnimation.LRotate && Map.Random.Next() % 3 != 0)
-        {
-            RotateTact(Direction - CreatureTurn, frameTime);
-        }
-
-        if (Animation == SpriteAnimation.RRotate && Map.Random.Next() % 3 != 0)
-        {
-            RotateTact(Direction + CreatureTurn, frameTime);
-        }
-
-        if (!newPeriod)
-            return;
-
-        if ((Map.Random.Next() & 3) == 0)
-        {
-            StartMove();
-        }
-        else if (Speed.IsExactlyZero() && Map.Random.Next() % 3 == 0 && (Vid.FrameCounts[(int)SpriteAnimation.Unload] != 0 || Vid.Children[(int)SpriteAnimation.Unload] != 0 || Vid.Sounds[(int)SpriteAnimation.Unload] != 0))
-        {
-            ChangeAnimation(SpriteAnimation.Unload);
-        }
-        else if ((Map.Random.Next() & 3) == 0)
-        {
-            RotateTact(Direction + ((Map.Random.Next() & 1) == 0 ? CreatureTurn : -CreatureTurn), frameTime);
-        }
-        else
-        {
-            Stop();
-        }
     }
 }

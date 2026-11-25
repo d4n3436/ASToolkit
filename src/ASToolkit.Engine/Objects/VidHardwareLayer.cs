@@ -52,7 +52,20 @@ public sealed class VidHardwareLayer : Vid
             for (int frame = 0; frame < Textures.Length; frame++)
             {
                 var texture = Textures[frame];
-                if (texture is null || texture.IsEmpty || IsRepeatedTexture(frame))
+                if (texture is null || texture.IsEmpty)
+                    continue;
+
+                bool isRepeated = false;
+                for (int earlier = 0; earlier < frame; earlier++)
+                {
+                    if (ReferenceEquals(Textures[earlier], Textures[frame]))
+                    {
+                        isRepeated = true;
+                        break;
+                    }
+                }
+
+                if (isRepeated)
                     continue;
 
                 texture.Destruct(session);
@@ -192,7 +205,16 @@ public sealed class VidHardwareLayer : Vid
             var record = records[frame].Span;
             ref readonly var header = ref MemoryMarshal.AsRef<VidLayerFrameHeader>(record);
             var size = new Size(header.Width & ushort.MaxValue, header.Height & ushort.MaxValue);
-            int length = GetTexelSize(Format) * size.Width * size.Height / ByteBits;
+            int texelSize = Format switch
+            {
+                VidPixelFormat.R8G8B8 => 24,
+                VidPixelFormat.A8R8G8B8 or VidPixelFormat.X8R8G8B8 => 32,
+                VidPixelFormat.R5G6B5 or VidPixelFormat.X1R5G5B5 or VidPixelFormat.A1R5G5B5 or VidPixelFormat.A4R4G4B4 => 16,
+                VidPixelFormat.P8 or VidPixelFormat.Dxt3 or VidPixelFormat.Dxt5 => 8,
+                VidPixelFormat.Dxt1 => 4,
+                _ => 0
+            };
+            int length = texelSize * size.Width * size.Height / ByteBits;
             int position = Unsafe.SizeOf<VidLayerFrameHeader>();
             var texels = records[frame].Slice(position, Math.Min(length, record.Length - position));
             position += texels.Length;
@@ -222,26 +244,5 @@ public sealed class VidHardwareLayer : Vid
             MemoryMarshal.Cast<byte, ushort>(record[position..])[..indexes.Length].CopyTo(indexes);
             Meshes[frame] = new HardwareLayerMesh(vertices, indexes);
         }
-    }
-
-    private static int GetTexelSize(VidPixelFormat format) => format switch
-    {
-        VidPixelFormat.R8G8B8 => 24,
-        VidPixelFormat.A8R8G8B8 or VidPixelFormat.X8R8G8B8 => 32,
-        VidPixelFormat.R5G6B5 or VidPixelFormat.X1R5G5B5 or VidPixelFormat.A1R5G5B5 or VidPixelFormat.A4R4G4B4 => 16,
-        VidPixelFormat.P8 or VidPixelFormat.Dxt3 or VidPixelFormat.Dxt5 => 8,
-        VidPixelFormat.Dxt1 => 4,
-        _ => 0
-    };
-
-    private bool IsRepeatedTexture(int frame)
-    {
-        for (int earlier = 0; earlier < frame; earlier++)
-        {
-            if (ReferenceEquals(Textures[earlier], Textures[frame]))
-                return true;
-        }
-
-        return false;
     }
 }

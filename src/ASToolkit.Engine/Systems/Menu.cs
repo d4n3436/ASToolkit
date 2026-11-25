@@ -143,7 +143,13 @@ internal sealed class Menu : SpriteList
             var position = reader.Read<Vector3>();
             for (int i = 0; i < Count; i++)
             {
-                if (IsElement(this[i], header, id, position))
+                var sprite = this[i];
+                var placed = GetPosition(header, position);
+
+                if ((int)sprite.Vid.Id == id &&
+                    MathF.Abs(sprite.Position.X - placed.X) < MatchTolerance &&
+                    MathF.Abs(sprite.Position.Y - placed.Y) < MatchTolerance &&
+                    MathF.Abs(sprite.Position.Z - position.Z) < MatchTolerance)
                 {
                     DeleteSpriteNumber(i);
                     i--;
@@ -185,15 +191,5 @@ internal sealed class Menu : SpriteList
     {
         return new Vector3(_map.Session.Graphics.ScreenSize.Width * Map.HalfShare + (position.X - header.Origin.X - header.Size.Center.X),
             _map.Session.Graphics.ScreenSize.Height * Map.HalfShare + (position.Y - header.Origin.Y - header.Size.Center.Y), position.Z);
-    }
-
-    private bool IsElement(Sprite sprite, MenuHeader header, int id, Vector3 position)
-    {
-        var placed = GetPosition(header, position);
-
-        return (int)sprite.Vid.Id == id &&
-            MathF.Abs(sprite.Position.X - placed.X) < MatchTolerance &&
-            MathF.Abs(sprite.Position.Y - placed.Y) < MatchTolerance &&
-            MathF.Abs(sprite.Position.Z - position.Z) < MatchTolerance;
     }
 }

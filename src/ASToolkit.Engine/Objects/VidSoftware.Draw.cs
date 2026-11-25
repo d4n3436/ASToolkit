@@ -139,6 +139,7 @@ public partial class VidSoftware
         if (!TryLocateFrame(map, sprite, screen.Viewport, ref origin, out int depth, out var rows))
             return;
 
+        map.Session.Graphics.LockDepth();
         Span<byte> scratch = stackalloc byte[PaletteScratchSize];
         var target = new RunTarget<uint>(screen.TrueColorPixels, screen.Pitch, screen.Depth, screen.DepthWidth, screen.Viewport, screen.Format);
         DrawRuns(target, SelectPalette(map, sprite, scratch), origin, depth, rows);

@@ -43,11 +43,10 @@ internal sealed class Sfx
                         if (count < 0)
                         {
                             sound.Error?.Error("SFX"u8, LogError.Text, count, "decode ogg"u8);
+                            continue;
                         }
-                        else
-                        {
-                            decoded += count;
-                        }
+
+                        decoded += count;
                     }
                 }
             }

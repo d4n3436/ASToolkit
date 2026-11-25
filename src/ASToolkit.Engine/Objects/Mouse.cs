@@ -216,16 +216,11 @@ public sealed class Mouse : Sprite
 
                 return 0;
             case ActionCode.ChangeCoor:
-                MoveSystemCursor(new Point(var1, var2));
+                var screen = new Point(var1, var2) + new Size(Map.Session.Graphics.WindowPosition);
+                Map.Input.PostMessage(WindowMessageId.HitTest, 0, (screen.Y & 0xFFFF) << 16 | (screen.X & 0xFFFF));
                 return 0;
             default:
                 return base.Action(act, var1, var2, var3, target);
         }
-    }
-
-    private void MoveSystemCursor(Point target)
-    {
-        var screen = target + new Size(Map.Session.Graphics.WindowPosition);
-        Map.Input.PostMessage(WindowMessageId.HitTest, 0, (screen.Y & 0xFFFF) << 16 | (screen.X & 0xFFFF));
     }
 }

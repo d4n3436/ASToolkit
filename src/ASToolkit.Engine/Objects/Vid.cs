@@ -137,7 +137,7 @@ public class Vid
             FileFrameCount = file.Value.FrameCount;
         }
 
-        ResetLevelState();
+        ResetSprites();
     }
 
     private protected Vid(Vid source)
@@ -630,6 +630,7 @@ public class Vid
     /// <param name="colorTexture">The color texture of <paramref name="tile"/>.</param>
     /// <param name="depthTexture">The depth texture of <paramref name="tile"/>.</param>
     /// <param name="tileViewport">The area of the textures that is drawn to, in texels.</param>
+    [EngineRoutine(0x004127d0)]
     public virtual void DrawToVid(Map map, Sprite sprite, HardwareTile tile, Texture colorTexture, Texture depthTexture, Rectangle tileViewport)
     {
     }
@@ -663,7 +664,7 @@ public class Vid
     /// Resets the per-army counts and limits and unbinds every script handler for a new level.
     /// </summary>
     [EngineRoutine(0x00413980)]
-    public void ResetLevelState()
+    public void ResetSprites()
     {
         Array.Fill(StateHandlers, NoHandler);
         DestroyHandler = NoHandler;
@@ -823,6 +824,43 @@ public class Vid
     [EngineRoutine(0x0043a320)]
     public bool IsBirthAsSmoke() => Properties.HasFlag(ObjectProperties.BirthAsSmoke);
 
+    [EngineRoutine(0x004145b0)]
+    internal void SetGridZ(Sprite sprite)
+    {
+        var map = sprite.Map;
+        if (sprite == map.Mouse || HeightPoints.Count == 0)
+            return;
+
+        bool permanent = !map.HasFlag(MapFlags.AppMenu) && Class == SpriteClass.BuiltTerrain;
+
+        foreach (var point in GetHeightPoints(sprite.Frame))
+        {
+            var cell = new Vector3(sprite.Position.X + point.X, sprite.Position.Y + point.Y, sprite.Position.Z + point.Z);
+
+            if (permanent)
+            {
+                map.SetGroundZ(cell);
+            }
+            else
+            {
+                map.SetTempGroundZ(cell);
+            }
+        }
+    }
+
+    [EngineRoutine(0x004146b0)]
+    internal void ResetGridZ(Sprite sprite)
+    {
+        var map = sprite.Map;
+        if (sprite == map.Mouse || HeightPoints.Count == 0 || !map.HasFlag(MapFlags.AppMenu) && Class == SpriteClass.BuiltTerrain)
+            return;
+
+        foreach (var point in GetHeightPoints(sprite.Frame))
+        {
+            map.ClearTempGroundZ(new Vector3(sprite.Position.X + point.X, sprite.Position.Y + point.Y, sprite.Position.Z + point.Z));
+        }
+    }
+
     /// <summary>
     /// Hides or shows the sprites of this object ID and of every object ID linked to it.
     /// </summary>
@@ -959,7 +997,19 @@ public class Vid
     internal void LoadParameters(in GameObject record, MyError? error, Sound? sound, bool resetBuiltTerrain)
     {
         CopyRecord(record);
-        ConvertRecord(record.Gamma);
+        ObjectGamma = record.Gamma.Pack();
+        if (FileType.HasFlag(VidType.ZBuffer) && FileType.HasFlag(VidType.Hardware))
+        {
+            Scale = Vector3.One;
+        }
+
+        RotationRate = RotationRate.IsExactly(Unlimited) ? 0 : RotationRate.IsExactlyZero() ? Unlimited : Angle.FullTurn / RotationRate;
+        Speed = ScaleRate(Speed, PerMillisecond);
+        ZSpeed = ScaleRate(ZSpeed, PerMillisecond);
+        Acceleration = ScaleRate(Acceleration, PerMillisecondSquared);
+        Deceleration = ScaleRate(Deceleration, PerMillisecondSquared);
+        NotCreatedAsChild = 0;
+        CanMove = !Speed.IsExactlyZero() || !ZSpeed.IsExactlyZero() || Properties.HasFlag(ObjectProperties.Gravity) || Properties.HasFlag(ObjectProperties.Gravity2) || Properties.HasFlag(ObjectProperties.Wind);
         if (Directions == 0)
         {
             Report(error, LogError.Invalid, 0, "NoDir==0"u8);
@@ -987,8 +1037,81 @@ public class Vid
             Directions = frames;
         }
 
-        TrimFrameCounts(error, frames);
-        AssignFirstFrames(error, sound, frames);
+        int end = 0;
+        for (int state = 0; state < StateCount; state++)
+        {
+            end += _frameCounts[state] * Directions;
+        }
+
+        if (frames < end)
+        {
+            Report(error, LogError.Missing, 0, "noCadr for noAnimCadr and noDir"u8);
+            for (int state = StateCount - 1; state >= 0; state--)
+            {
+                int before = end - Directions * _frameCounts[state];
+
+                if (before <= frames)
+                {
+                    _frameCounts[state] -= (end - frames) / Directions;
+                    break;
+                }
+
+                _frameCounts[state] = 0;
+                end = before;
+            }
+        }
+        int start = 0;
+        int firstPopulated = -1;
+        for (int state = 0; state < StateCount; state++)
+        {
+            if (sound is not null && sound.HasSfx && !sound.IsValid(_sounds[state]) && Id != KnownObject.None)
+            {
+                Report(error, LogError.Invalid, _sounds[state], "sfx"u8);
+                _sounds[state] = 0;
+            }
+
+            if (_frameCounts[state] == 0)
+            {
+                int borrowed = firstPopulated + 1;
+
+                if (Class == SpriteClass.Frame && (state & 1) != 0 && state < (int)SpriteAnimation.Fight && _frameCounts[borrowed] != 0)
+                {
+                    _firstFrames[state] = _firstFrames[borrowed];
+                    _framesPerDirection[state] = _framesPerDirection[borrowed];
+                }
+                else
+                {
+                    _firstFrames[state] = 0;
+                    _framesPerDirection[state] = firstPopulated < 0 ? _firstFrames[StateCount - 1] : _framesPerDirection[firstPopulated];
+                }
+            }
+            else
+            {
+                _firstFrames[state] = start;
+                _framesPerDirection[state] = _frameCounts[state];
+            }
+
+            if (_frameCounts[state] != 0 && firstPopulated < 0)
+            {
+                firstPopulated = state;
+                for (int previous = 0; previous < state; previous++)
+                {
+                    if (_framesPerDirection[previous] == 0)
+                    {
+                        _framesPerDirection[previous] = _frameCounts[state];
+                    }
+                }
+            }
+
+            start += _frameCounts[state] * Directions;
+
+            if (frames < start)
+            {
+                Report(error, LogError.Text, state, "noCadr and noAnimCadr and noDir"u8);
+                _firstFrames[state] = 0;
+                _framesPerDirection[state] = firstPopulated < 0 ? _firstFrames[StateCount - 1] : _framesPerDirection[firstPopulated];
+            }
+        }
         if (Class == SpriteClass.BuiltTerrain)
         {
             IsBuiltTerrainClass = true;
@@ -1001,7 +1124,46 @@ public class Vid
 
         if (Properties.HasFlag(ObjectProperties.BuildSizeToGridZ))
         {
-            BuildHeightPoints();
+            var size = Size;
+            var half = new Vector2(size.X, size.Y) * 0.5f;
+            HeightPoints.Clear();
+            _heightFrameStarts = default;
+            int row = 0;
+            float y = 0;
+
+            while (y < size.Y)
+            {
+                int column = 0;
+                float x = 0;
+
+                while (x < size.X)
+                {
+                    column += 8;
+                    HeightPoints.Add(new Vector3(x - half.X, y - half.Y, size.Z));
+                    x = column;
+                }
+
+                row += 8;
+                HeightPoints.Add(new Vector3(half.X, y - half.Y, size.Z));
+                y = row;
+            }
+
+            int bottom = 0;
+
+            if (0 < size.X)
+            {
+                float x = 0;
+
+                do
+                {
+                    bottom += 8;
+                    HeightPoints.Add(new Vector3(x - half.X, half.Y, size.Z));
+                    x = bottom;
+                }
+                while (x < size.X);
+            }
+
+            HeightPoints.Add(new Vector3(half.X, half.Y, size.Z));
         }
     }
 
@@ -1089,158 +1251,6 @@ public class Vid
         }
 
         Scale = record.Scale;
-    }
-
-    private void ConvertRecord(in VidGamma gamma)
-    {
-        ObjectGamma = gamma.Pack();
-        if (FileType.HasFlag(VidType.ZBuffer) && FileType.HasFlag(VidType.Hardware))
-        {
-            Scale = Vector3.One;
-        }
-
-        RotationRate = RotationRate.IsExactly(Unlimited) ? 0 : RotationRate.IsExactlyZero() ? Unlimited : Angle.FullTurn / RotationRate;
-        Speed = ScaleRate(Speed, PerMillisecond);
-        ZSpeed = ScaleRate(ZSpeed, PerMillisecond);
-        Acceleration = ScaleRate(Acceleration, PerMillisecondSquared);
-        Deceleration = ScaleRate(Deceleration, PerMillisecondSquared);
-        NotCreatedAsChild = 0;
-        CanMove = !Speed.IsExactlyZero() || !ZSpeed.IsExactlyZero() || Properties.HasFlag(ObjectProperties.Gravity) || Properties.HasFlag(ObjectProperties.Gravity2) || Properties.HasFlag(ObjectProperties.Wind);
-    }
-
-    private void TrimFrameCounts(MyError? error, int frames)
-    {
-        int end = 0;
-        for (int state = 0; state < StateCount; state++)
-        {
-            end += _frameCounts[state] * Directions;
-        }
-
-        if (frames < end)
-        {
-            Report(error, LogError.Missing, 0, "noCadr for noAnimCadr and noDir"u8);
-            for (int state = StateCount - 1; state >= 0; state--)
-            {
-                int before = end - Directions * _frameCounts[state];
-
-                if (before <= frames)
-                {
-                    _frameCounts[state] -= (end - frames) / Directions;
-                    break;
-                }
-
-                _frameCounts[state] = 0;
-                end = before;
-            }
-        }
-    }
-
-    private void AssignFirstFrames(MyError? error, Sound? sound, int frames)
-    {
-        int start = 0;
-        int firstPopulated = -1;
-        for (int state = 0; state < StateCount; state++)
-        {
-            if (sound is not null && sound.HasSfx && !sound.IsValid(_sounds[state]) && Id != KnownObject.None)
-            {
-                Report(error, LogError.Invalid, _sounds[state], "sfx"u8);
-                _sounds[state] = 0;
-            }
-
-            if (_frameCounts[state] == 0)
-            {
-                int borrowed = firstPopulated + 1;
-
-                if (Class == SpriteClass.Frame && (state & 1) != 0 && state < (int)SpriteAnimation.Fight && _frameCounts[borrowed] != 0)
-                {
-                    _firstFrames[state] = _firstFrames[borrowed];
-                    _framesPerDirection[state] = _framesPerDirection[borrowed];
-                }
-                else
-                {
-                    _firstFrames[state] = 0;
-                    _framesPerDirection[state] = firstPopulated < 0 ? _firstFrames[StateCount - 1] : _framesPerDirection[firstPopulated];
-                }
-            }
-            else
-            {
-                _firstFrames[state] = start;
-                _framesPerDirection[state] = _frameCounts[state];
-
-                if (firstPopulated < 0)
-                {
-                    firstPopulated = state;
-                    for (int previous = 0; previous < state; previous++)
-                    {
-                        if (_framesPerDirection[previous] == 0)
-                        {
-                            _framesPerDirection[previous] = _frameCounts[state];
-                        }
-                    }
-                }
-            }
-
-            start += _frameCounts[state] * Directions;
-
-            if (frames < start)
-            {
-                Report(error, LogError.Text, state, "noCadr and noAnimCadr and noDir"u8);
-                _firstFrames[state] = 0;
-                _framesPerDirection[state] = firstPopulated < 0 ? _firstFrames[StateCount - 1] : _framesPerDirection[firstPopulated];
-            }
-        }
-    }
-
-    private void BuildHeightPoints()
-    {
-        var size = Size;
-        var half = new Vector2(size.X, size.Y) * 0.5f;
-        HeightPoints.Clear();
-        _heightFrameStarts = default;
-        int row = 0;
-        float y = 0;
-
-        if (0 < size.Y)
-        {
-            do
-            {
-                int column = 0;
-                float x = 0;
-
-                if (0 < size.X)
-                {
-                    do
-                    {
-                        column += 8;
-                        HeightPoints.Add(new Vector3(x - half.X, y - half.Y, size.Z));
-                        x = column;
-                    }
-                    while (x < size.X);
-                }
-
-                row += 8;
-                HeightPoints.Add(new Vector3(half.X, y - half.Y, size.Z));
-                y = row;
-            }
-            while (y < size.Y);
-        }
-
-        int bottom = 0;
-
-        if (0 < size.X)
-        {
-            float x = 0;
-
-            do
-            {
-                bottom += 8;
-                HeightPoints.Add(new Vector3(x - half.X, half.Y, size.Z));
-                x = bottom;
-            }
-            while (x < size.X);
-        }
-
-        HeightPoints.Add(new Vector3(half.X, half.Y, size.Z));
     }
 
     private void SetFlag(VidFlags flag, bool isSet) => _flags = (isSet ? flag : VidFlags.None) | _flags & ~flag;

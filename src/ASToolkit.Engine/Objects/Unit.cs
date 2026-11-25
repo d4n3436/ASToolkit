@@ -113,9 +113,86 @@ public class Unit : Terrain
         switch (act)
         {
             case ActionCode.Damage:
-                return ActionDamage(var1, var2, var3, target);
+                int damageResult = base.Action(ActionCode.Damage, var1, var2, var3, target);
+
+                if (var1 >= 0 && Command == Command.None && !Vid.Speed.IsExactlyZero())
+                {
+                    var wander = Position.AsVector2() + new Angle((byte)Map.Random.Next()).Vector * WanderReach;
+                    var goal = Map.ConstructGoal(new Vector3(wander, Position.Z));
+
+                    if (!SetCommand(Command.Move, goal) && !StartMove())
+                    {
+                        SetCommand(Command.None);
+                    }
+                }
+
+                return damageResult;
             case ActionCode.NextCommand:
-                NextCommandCase();
+                if (Animation >= SpriteAnimation.Death)
+                    return 0;
+
+                if (Speed.IsExactlyZero())
+                {
+                    ChangeAnimation(SpriteAnimation.Stand);
+                }
+                else if (Animation != SpriteAnimation.Go)
+                {
+                    ChangeAnimation(SpriteAnimation.Go);
+                }
+
+                var link = ArmedLink;
+                var result = AttackResult.Pursue;
+
+                if (link is not null && Command is Command.Attack or Command.OneAttack && Goal is not null && link.Goal is null)
+                {
+                    link.SetCommand(Command, Goal);
+                }
+
+                if (link is not null || TurnTicks == 0)
+                {
+                    result = AttackTact((int)Math.Max((uint)Map.FrameTime, (uint)Vid.GetVisualFrameDuration(Animation)));
+
+                    if (result is AttackResult.NoAmmo or AttackResult.GiveUp)
+                    {
+                        SetCommand(Command.None);
+                    }
+                    else if (result == AttackResult.Approach && MaxSpeed.IsExactlyZero() && (link is not null && link.HasGoal || HasGoal))
+                    {
+                        SetCommand(Command.None);
+                    }
+                    else if (result == AttackResult.Approach && !MaxSpeed.IsExactlyZero() && Speed.IsExactlyZero())
+                    {
+                        StartMove();
+                    }
+                    else if (result == AttackResult.Attacked && !Speed.IsExactlyZero() && (link is null || Goal == link.Goal))
+                    {
+                        Stop();
+                    }
+
+                    if (result == AttackResult.Approach && link is not null && Command is Command.Attack or Command.OneAttack &&
+                        IsAggressive && (link.Timer != 0 || Map.Random.Next() % LinkScanOdds == 0))
+                    {
+                        AttackSeenEnemy(link);
+                    }
+                }
+
+                if (result == AttackResult.Pursue && IsActive && Speed.IsExactlyZero())
+                {
+                    StartMove();
+                }
+
+                if (result == AttackResult.NoOrder && this is { IsAggressive: true, IsActive: true } ||
+                    result is AttackResult.Pursue or AttackResult.NoTarget && this is { IsAggressive: true, Command: Command.None or Command.Move or Command.OneAttack } &&
+                    (LastFrame > FirstFrame || Timer != 0 || Map.Random.Next(IdleScanOdds) == 0))
+                {
+                    AttackSeenEnemy(this);
+                }
+
+                if (this is { Command: Command.None, HasGoal: false, Timer: 0 })
+                {
+                    Stop();
+                }
+
                 return 0;
             case ActionCode.Repair:
                 FillAmmo();
@@ -244,107 +321,11 @@ public class Unit : Terrain
 
     private protected void AttackSeenEnemy(Sprite attacker)
     {
-        var enemy = SeekEnemy(Map.Flagman(0));
+        var enemy = SeekEnemy();
 
         if (enemy is not null)
         {
             attacker.SetCommand(Command.OneAttack, enemy);
         }
-    }
-
-    private int ActionDamage(int damage, int var2, int var3, Sprite? target)
-    {
-        int result = base.Action(ActionCode.Damage, damage, var2, var3, target);
-
-        if (damage >= 0 && Command == Command.None && !Vid.Speed.IsExactlyZero())
-        {
-            var wander = Position.AsVector2() + new Angle((byte)Map.Random.Next()).Vector * WanderReach;
-            var goal = Map.ConstructGoal(new Vector3(wander, Position.Z));
-
-            if (!SetCommand(Command.Move, goal) && !StartMove())
-            {
-                SetCommand(Command.None);
-            }
-        }
-
-        return result;
-    }
-
-    private void NextCommandCase()
-    {
-        if (Animation >= SpriteAnimation.Death)
-            return;
-
-        if (Speed.IsExactlyZero())
-        {
-            ChangeAnimation(SpriteAnimation.Stand);
-        }
-        else if (Animation != SpriteAnimation.Go)
-        {
-            ChangeAnimation(SpriteAnimation.Go);
-        }
-
-        var link = ArmedLink;
-        var result = AttackResult.Pursue;
-
-        if (link is not null && Command is Command.Attack or Command.OneAttack && Goal is not null && link.Goal is null)
-        {
-            link.SetCommand(Command, Goal);
-        }
-
-        if (link is not null || TurnTicks == 0)
-        {
-            result = TactUnitAttack(link);
-        }
-
-        if (result == AttackResult.Pursue && IsActive && Speed.IsExactlyZero())
-        {
-            StartMove();
-        }
-
-        if (result == AttackResult.NoOrder && this is { IsAggressive: true, IsActive: true } ||
-            result is AttackResult.Pursue or AttackResult.NoTarget && this is { IsAggressive: true, Command: Command.None or Command.Move or Command.OneAttack } &&
-            (LastFrame > FirstFrame || Timer != 0 || Map.Random.Next(IdleScanOdds) == 0))
-        {
-            AttackSeenEnemy(this);
-        }
-
-        if (this is { Command: Command.None, HasGoal: false, Timer: 0 })
-        {
-            Stop();
-        }
-    }
-
-    private AttackResult TactUnitAttack(Sprite? link)
-    {
-        var vid = Vid;
-        var result = AttackTact((int)Math.Max((uint)Map.FrameTime, (uint)vid.GetVisualFrameDuration(Animation)));
-
-        switch (result)
-        {
-            case AttackResult.NoAmmo or AttackResult.GiveUp:
-                SetCommand(Command.None);
-                break;
-            case AttackResult.Approach when vid.Speed.IsExactlyZero():
-                if (link is not null && link.HasGoal || HasGoal)
-                {
-                    SetCommand(Command.None);
-                }
-                break;
-            case AttackResult.Approach when Speed.IsExactlyZero():
-                StartMove();
-                break;
-            case AttackResult.Attacked when !Speed.IsExactlyZero() && (link is null || Goal == link.Goal):
-                Stop();
-                break;
-        }
-
-        if (result == AttackResult.Approach && link is not null && Command is Command.Attack or Command.OneAttack &&
-            IsAggressive && (link.Timer != 0 || Map.Random.Next() % LinkScanOdds == 0))
-        {
-            AttackSeenEnemy(link);
-        }
-
-        return result;
     }
 }

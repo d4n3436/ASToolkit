@@ -76,7 +76,7 @@ public sealed partial class Graphics
 
         var size = Screen.Size;
         var start = new Point(-(int)map.Shift.X & SnowCellMask, -(int)map.Shift.Y & SnowCellMask);
-        var ramp = EnsureBuffers().ColorTable;
+        ushort[] ramp = EnsureBuffers().ColorTable;
         var light = LightTexture;
         var texture = light.Texels;
         var format = light.Format;

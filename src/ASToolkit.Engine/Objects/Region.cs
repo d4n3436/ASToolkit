@@ -82,46 +82,46 @@ public sealed class Region : Sprite
         int frame = Frame;
         var half = Size * Half;
 
-        if (Vid != map.EmptyVid)
+        bool isShown = Vid != map.EmptyVid;
+        var savedViewport = screen.Viewport;
+
+        if (isShown && !Flags.HasFlag(RegionFlags.CoversMap))
         {
-            var savedViewport = screen.Viewport;
+            float groundY = position.Y - position.Z;
+            screen.Viewport = Rectangle.FromLTRB(
+                (int)(position.X - half.X - shift.X),
+                (int)(groundY - half.Y - shift.Y),
+                (int)(half.X + position.X - shift.X),
+                (int)(half.Y + groundY - shift.Y));
+        }
 
-            if (!Flags.HasFlag(RegionFlags.CoversMap))
+        int tile = 0;
+        var frameSize = isShown ? Vid.FrameSize : default;
+
+        if (frameSize is { Width: > 0, Height: > 0 })
+        {
+            bool isPhased = !Vid.Properties.HasFlag(ObjectProperties.OnePhase);
+
+            for (float top = position.Y - half.Y; top < half.Y + position.Y; top += frameSize.Height)
             {
-                float groundY = position.Y - position.Z;
-                screen.Viewport = Rectangle.FromLTRB(
-                    (int)(position.X - half.X - shift.X),
-                    (int)(groundY - half.Y - shift.Y),
-                    (int)(half.X + position.X - shift.X),
-                    (int)(half.Y + groundY - shift.Y));
-            }
-
-            int tile = 0;
-            var frameSize = Vid.FrameSize;
-
-            if (frameSize is { Width: > 0, Height: > 0 })
-            {
-                for (float top = position.Y - half.Y; top < half.Y + position.Y; top += frameSize.Height)
+                for (float left = position.X - half.X; left < half.X + position.X; left += frameSize.Width)
                 {
-                    for (float left = position.X - half.X; left < half.X + position.X; left += frameSize.Width)
+                    if (isPhased)
                     {
-                        if (!Vid.Properties.HasFlag(ObjectProperties.OnePhase))
-                        {
-                            Frame += tile * FogFrameStep;
-                            tile++;
-                            Frame %= Math.Max(1, (int)Vid.FileFrameCount);
-                        }
-
-                        Position = position with { X = frameSize.Center.X + left, Y = frameSize.Center.Y + top };
-                        Vid.Draw(screen, map, this, shift);
+                        Frame += tile * FogFrameStep;
+                        tile++;
+                        Frame %= Math.Max(1, (int)Vid.FileFrameCount);
                     }
+
+                    Position = position with { X = frameSize.Center.X + left, Y = frameSize.Center.Y + top };
+                    Vid.Draw(screen, map, this, shift);
                 }
             }
+        }
 
-            if (!Flags.HasFlag(RegionFlags.CoversMap))
-            {
-                screen.Viewport = savedViewport;
-            }
+        if (isShown && !Flags.HasFlag(RegionFlags.CoversMap))
+        {
+            screen.Viewport = savedViewport;
         }
 
         Position = position;

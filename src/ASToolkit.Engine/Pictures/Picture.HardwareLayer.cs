@@ -42,11 +42,86 @@ public partial class Picture
                 if (match >= 0)
                 {
                     Append(buffer, ref length, match);
+                    AddFrame(frames, ref savings, buffer.AsSpan(0, length), coder);
+                    Advance();
+                    continue;
+                }
+
+                var bounds = GetBounds(true, true);
+                VidPixelFormat format;
+                if (Flags.HasFlag(PictureFlags.Palette))
+                {
+                    format = VidPixelFormat.P8;
+                }
+                else if (Flags.HasFlag(PictureFlags.Alpha))
+                {
+                    format = VidPixelFormat.A8R8G8B8;
                 }
                 else
                 {
-                    length = ConvertLayer(buffer);
+                    format = VidPixelFormat.A1R5G5B5;
                 }
+
+                MemoryMarshal.Write(buffer, new VidLayerHeader(format, (short)bounds.Width, (short)bounds.Height));
+                length = Unsafe.SizeOf<VidLayerHeader>();
+                for (int y = bounds.Top; y < bounds.Bottom; y++)
+                {
+                    for (int x = bounds.Left; x < bounds.Right; x++)
+                    {
+                        if (Flags.HasFlag(PictureFlags.Palette))
+                        {
+                            buffer[length++] = (byte)GetHighColor(new Point(x, y));
+                            continue;
+                        }
+
+                        if (Flags.HasFlag(PictureFlags.Alpha))
+                        {
+                            Append(buffer, ref length, (int)GetHighColor(new Point(x, y)));
+                            continue;
+                        }
+
+                        Append(buffer, ref length, (short)GetHighColor(new Point(x, y)));
+                    }
+                }
+
+                int meshStart = length;
+                length += Unsafe.SizeOf<VidLayerMeshHeader>();
+                int tileCount = 0;
+                int indexCount = 0;
+                int stride = bounds.Width + TileNeighborhood;
+                short[] grid = new short[stride * (bounds.Height + TileNeighborhood)];
+                for (int y = bounds.Top; y < bounds.Bottom + TileSize; y += TileSize)
+                {
+                    for (int x = bounds.Left; x < bounds.Right + TileSize; x += TileSize)
+                    {
+                        var area = new Rectangle(x - TileSize, y - TileSize, TileNeighborhood, TileNeighborhood);
+                        if (!HasOpaque(area))
+                            continue;
+
+                        short depth = GetRegionDepth(area);
+                        Append(buffer, ref length, new VidLayerVertex((short)x, (short)y, depth, (short)(x - bounds.Left), (short)(y - bounds.Top)));
+                        grid[(y - bounds.Top) * stride - bounds.Left + x] = (short)tileCount;
+                        tileCount++;
+                    }
+                }
+
+                for (int y = bounds.Top; y < bounds.Bottom + TileSize; y += TileSize)
+                {
+                    for (int x = bounds.Left; x < bounds.Right + TileSize; x += TileSize)
+                    {
+                        if (!HasOpaque(new Rectangle(x, y, TileSize, TileSize)))
+                            continue;
+
+                        int upper = (y - bounds.Top) * stride - bounds.Left + x;
+                        int lower = (y - bounds.Top + TileSize) * stride - bounds.Left + x;
+                        ReadOnlySpan<short> corners = [grid[upper], grid[upper + TileSize], grid[lower], grid[lower + TileSize], grid[upper + TileSize], grid[lower]];
+                        MemoryMarshal.AsBytes(corners).CopyTo(buffer.AsSpan(length));
+                        length += corners.Length * sizeof(short);
+                        indexCount += corners.Length;
+                    }
+                }
+
+                MemoryMarshal.Write(buffer.AsSpan(meshStart), new VidLayerMeshHeader(tileCount, indexCount));
 
                 AddFrame(frames, ref savings, buffer.AsSpan(0, length), coder);
                 Advance();
@@ -61,89 +136,5 @@ public partial class Picture
         {
             ArrayPool<byte>.Shared.Return(buffer);
         }
-    }
-
-    private int ConvertLayer(byte[] buffer)
-    {
-        var bounds = GetBounds(true, true);
-        VidPixelFormat format;
-        if (Flags.HasFlag(PictureFlags.Palette))
-        {
-            format = VidPixelFormat.P8;
-        }
-        else if (Flags.HasFlag(PictureFlags.Alpha))
-        {
-            format = VidPixelFormat.A8R8G8B8;
-        }
-        else
-        {
-            format = VidPixelFormat.A1R5G5B5;
-        }
-
-        MemoryMarshal.Write(buffer, new VidLayerHeader(format, (short)bounds.Width, (short)bounds.Height));
-        int length = Unsafe.SizeOf<VidLayerHeader>();
-        for (int y = bounds.Top; y < bounds.Bottom; y++)
-        {
-            for (int x = bounds.Left; x < bounds.Right; x++)
-            {
-                if (Flags.HasFlag(PictureFlags.Palette))
-                {
-                    buffer[length++] = (byte)GetHighColor(new Point(x, y));
-                }
-                else if (Flags.HasFlag(PictureFlags.Alpha))
-                {
-                    Append(buffer, ref length, (int)GetHighColor(new Point(x, y)));
-                }
-                else
-                {
-                    Append(buffer, ref length, (short)GetHighColor(new Point(x, y)));
-                }
-            }
-        }
-
-        AppendLayerMesh(buffer, ref length, bounds);
-        return length;
-    }
-
-    private void AppendLayerMesh(byte[] buffer, ref int length, Rectangle bounds)
-    {
-        int meshStart = length;
-        length += Unsafe.SizeOf<VidLayerMeshHeader>();
-        int tileCount = 0;
-        int indexCount = 0;
-        int stride = bounds.Width + TileNeighborhood;
-        short[] grid = new short[stride * (bounds.Height + TileNeighborhood)];
-        for (int y = bounds.Top; y < bounds.Bottom + TileSize; y += TileSize)
-        {
-            for (int x = bounds.Left; x < bounds.Right + TileSize; x += TileSize)
-            {
-                var area = new Rectangle(x - TileSize, y - TileSize, TileNeighborhood, TileNeighborhood);
-                if (!HasOpaque(area))
-                    continue;
-
-                short depth = GetRegionDepth(area);
-                Append(buffer, ref length, new VidLayerVertex((short)x, (short)y, depth, (short)(x - bounds.Left), (short)(y - bounds.Top)));
-                grid[(y - bounds.Top) * stride - bounds.Left + x] = (short)tileCount;
-                tileCount++;
-            }
-        }
-
-        for (int y = bounds.Top; y < bounds.Bottom + TileSize; y += TileSize)
-        {
-            for (int x = bounds.Left; x < bounds.Right + TileSize; x += TileSize)
-            {
-                if (!HasOpaque(new Rectangle(x, y, TileSize, TileSize)))
-                    continue;
-
-                int upper = (y - bounds.Top) * stride - bounds.Left + x;
-                int lower = (y - bounds.Top + TileSize) * stride - bounds.Left + x;
-                ReadOnlySpan<short> corners = [grid[upper], grid[upper + TileSize], grid[lower], grid[lower + TileSize], grid[upper + TileSize], grid[lower]];
-                MemoryMarshal.AsBytes(corners).CopyTo(buffer.AsSpan(length));
-                length += corners.Length * sizeof(short);
-                indexCount += corners.Length;
-            }
-        }
-
-        MemoryMarshal.Write(buffer.AsSpan(meshStart), new VidLayerMeshHeader(tileCount, indexCount));
     }
 }

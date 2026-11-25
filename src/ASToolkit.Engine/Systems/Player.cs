@@ -101,56 +101,6 @@ internal sealed class Player
     [EngineRoutine(0x0043ea10)]
     public void Control(Input input)
     {
-        ShareGroupAttacks();
-        Messages.Tact();
-
-        var player = Flagman;
-
-        if (player is null)
-            return;
-
-        if (player.Vid.Class != SpriteClass.Man)
-            return;
-
-        var flags = input.Flags;
-        ApplyButtons(input, player);
-        ScrollWeapons(input);
-        player = Flagman!;
-        var cursorDirection = Angle.FromOffset(new Vector2(input.Cursor.X - player.Position.X, player.Position.Z + input.Cursor.Y - player.Position.Y));
-        Steer(player, flags, _settings.IsMovementRelativeToCursor ? cursorDirection : default);
-        if (flags.HasFlag(InputFlags.Left) || flags.HasFlag(InputFlags.Right) || flags.HasFlag(InputFlags.Down) || flags.HasFlag(InputFlags.Up))
-        {
-            player.StartMove();
-        }
-
-        TurnTorso(player, cursorDirection);
-        if (Hovered is not null && Hovered.Vid.SpriteType.HasFlag(OldSpriteType.Terrain))
-        {
-            _map.Release(Hovered);
-            Hovered = null;
-        }
-    }
-
-    [EngineRoutine(0x00413280)]
-    private void ForgetSprite(Sprite removed)
-    {
-        _sprites.Delete(removed);
-
-        if (Flagman == removed)
-        {
-            _map.Release(removed);
-            Flagman = null;
-        }
-
-        if (Hovered == removed)
-        {
-            _map.Release(removed);
-            Hovered = null;
-        }
-    }
-
-    private void ShareGroupAttacks()
-    {
         foreach (var group in _map.Groups)
         {
             var members = group.Members;
@@ -186,10 +136,16 @@ internal sealed class Player
                 }
             }
         }
-    }
+        Messages.Tact();
 
-    private void ApplyButtons(Input input, Sprite player)
-    {
+        var player = Flagman;
+
+        if (player is null)
+            return;
+
+        if (player.Vid.Class != SpriteClass.Man)
+            return;
+
         var flags = input.Flags;
         if (flags.HasFlag(InputFlags.Second))
         {
@@ -220,10 +176,6 @@ internal sealed class Player
         {
             ((Man)Flagman!).ChangeWeapon(input.Key - FirstWeaponKey);
         }
-    }
-
-    private void ScrollWeapons(Input input)
-    {
         int weaponSlot = Flagman!.WeaponSlot;
         int notches = input.Wheel;
 
@@ -265,10 +217,9 @@ internal sealed class Player
                     break;
             }
         }
-    }
-
-    private void Steer(Sprite player, InputFlags flags, Angle origin)
-    {
+        player = Flagman!;
+        var cursorDirection = Angle.FromOffset(new Vector2(input.Cursor.X - player.Position.X, player.Position.Z + input.Cursor.Y - player.Position.Y));
+        var origin = _settings.IsMovementRelativeToCursor ? cursorDirection : default;
         bool up = flags.HasFlag(InputFlags.Up);
         bool down = flags.HasFlag(InputFlags.Down);
         bool left = flags.HasFlag(InputFlags.Left);
@@ -310,28 +261,52 @@ internal sealed class Player
         {
             player.Stop();
         }
-    }
-
-    private void TurnTorso(Sprite player, Angle cursorDirection)
-    {
-        var torso = player.Link;
-
-        if (torso is null || torso.Vid != player.Vid.LinkVid)
-            return;
-        
-        if (player is { Speed: 0, Vid.Id: KnownObject.PlayerStart })
+        if (flags.HasFlag(InputFlags.Left) || flags.HasFlag(InputFlags.Right) || flags.HasFlag(InputFlags.Down) || flags.HasFlag(InputFlags.Up))
         {
-            if (!_isTurningLegs)
-            {
-                _isTurningLegs = player.Direction.MeasureTurnTo(torso.Direction) > LegSlack;
-            }
-            else
-            {
-                _isTurningLegs = player.RotateTact(torso.Direction, _map.FrameTime) != default;
-            }
+            player.StartMove();
         }
 
-        torso.RotateTact(cursorDirection, _map.FrameTime);
+        var torso = player.Link;
+
+        if (torso is not null && torso.Vid == player.Vid.LinkVid)
+        {
+            if (player is { Speed: 0, Vid.Id: KnownObject.PlayerStart })
+            {
+                if (!_isTurningLegs)
+                {
+                    _isTurningLegs = player.Direction.MeasureTurnTo(torso.Direction) > LegSlack;
+                }
+                else
+                {
+                    _isTurningLegs = player.RotateTact(torso.Direction, _map.FrameTime) != default;
+                }
+            }
+
+            torso.RotateTact(cursorDirection, _map.FrameTime);
+        }
+        if (Hovered is not null && Hovered.Vid.SpriteType.HasFlag(OldSpriteType.Terrain))
+        {
+            _map.Release(Hovered);
+            Hovered = null;
+        }
+    }
+
+    [EngineRoutine(0x00413280)]
+    private void ForgetSprite(Sprite removed)
+    {
+        _sprites.Delete(removed);
+
+        if (Flagman == removed)
+        {
+            _map.Release(removed);
+            Flagman = null;
+        }
+
+        if (Hovered == removed)
+        {
+            _map.Release(removed);
+            Hovered = null;
+        }
     }
 
     [EngineRoutine(0x004134c0)]

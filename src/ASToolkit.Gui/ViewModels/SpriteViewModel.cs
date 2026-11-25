@@ -164,7 +164,7 @@ public partial class SpriteViewModel : ViewModelBase
         {
             int saved = sprite.Frame;
             var center = sprite.Position.ToDrawPosition();
-            Graphics.Clear(screen, Backdrop);
+            Graphics.ClearScreen(screen, Backdrop);
             sprite.Frame = frame;
             vid.Draw(screen, map, sprite, center - new Vector2(size.Width, size.Height) * 0.5f);
             sprite.Frame = saved;

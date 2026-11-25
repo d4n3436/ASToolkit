@@ -21,6 +21,7 @@ public sealed class GameSession : IDisposable
 
     internal bool IsTexturePowerOfTwoRequired = true;
     internal Size TextureMaxSize = new(256, 256);
+    internal int TexturePaletteCount;
     internal int TextureMemoryInUse;
     internal bool IsTextureSquareRequired;
     internal bool IsTextureDynamicSupported;

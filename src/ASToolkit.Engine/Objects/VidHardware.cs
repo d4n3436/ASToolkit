@@ -208,7 +208,18 @@ public sealed class VidHardware : Vid
         bool hasDepth = FileType.HasFlag(VidType.ZBuffer);
         var gamma = GetGamma(map, sprite);
         var graphics = map.Session.Graphics;
-        SetBlend(graphics);
+        if (!FileType.HasFlag(VidType.Blended))
+        {
+            graphics.SetRenderState(RenderState.AlphaBlendEnable, 0);
+        }
+        else if (FileType.HasFlag(VidType.Runs8Bit))
+        {
+            graphics.SetAlphaBlend(BlendFactor.SourceAlpha, BlendFactor.InverseSourceAlpha);
+        }
+        else
+        {
+            graphics.SetAlphaBlend(BlendFactor.DestinationColor, BlendFactor.One);
+        }
         for (int iteration = 0; iteration < iterations; iteration++)
         {
             if (properties.HasFlag(ObjectProperties.Blur))
@@ -218,13 +229,61 @@ public sealed class VidHardware : Vid
                 z = (int)((sprite.PreviousPosition.Z - position.Z) * iteration / iterations + position.Z);
             }
 
-            if (!properties.HasFlag(ObjectProperties.AlwaysTop) && !hasDepth)
-            {
-                if (x < screen.Viewport.Left || x >= screen.Viewport.Right || y < screen.Viewport.Top || y >= screen.Viewport.Bottom || screen.Depth[screen.DepthWidth * y + x] > z * 8 + DepthBias)
-                    continue;
-            }
+            if (!properties.HasFlag(ObjectProperties.AlwaysTop) && !hasDepth &&
+                (x < screen.Viewport.Left || x >= screen.Viewport.Right || y < screen.Viewport.Top || y >= screen.Viewport.Bottom || screen.Depth[screen.DepthWidth * y + x] > z * 8 + DepthBias))
+                continue;
 
-            DrawTiles(screen, map, first, new Point(x, y), z, new Vector2(scaleX, scaleY), gamma, hasDepth);
+            var origin = new Point(x, y);
+            var scale = new Vector2(scaleX, scaleY);
+
+            for (var tile = first; ; tile = _tiles[tile.Next])
+            {
+                int left = (int)((tile.Origin.X - FrameSize.Center.X) * scale.X) + origin.X;
+                int top = (int)((tile.Origin.Y - FrameSize.Center.Y) * scale.Y) + origin.Y;
+                if (left + tile.Size.Width >= screen.Viewport.Left && left < screen.Viewport.Right && top + tile.Size.Height >= screen.Viewport.Top && top < screen.Viewport.Bottom)
+                {
+                    var corner = new Point(left, top);
+
+                    int width = hasDepth ? Math.Min(tile.Size.Width, screen.Viewport.Right - corner.X) : tile.Size.Width;
+                    int height = hasDepth ? Math.Min(tile.Size.Height, screen.Viewport.Bottom - corner.Y) : tile.Size.Height;
+
+                    var destination = Rectangle.FromLTRB(corner.X, corner.Y, corner.X + (int)(width * scale.X), corner.Y + (int)(height * scale.Y));
+                    var source = new Rectangle(tile.Offset.X, tile.Offset.Y, width, height);
+                    if (hasDepth)
+                    {
+                        var depth = _surfaces[tile.Texture + 1]!;
+                        Graphics.CopyDepth(screen, destination, source, depth);
+                    }
+
+                    float topDepth = z * DepthUnit + DepthBase;
+                    if (properties.HasFlag(ObjectProperties.Wave) && !TopZ.IsExactlyZero())
+                    {
+                        topDepth = new Angle((byte)(map.CurrentTime >> WaveTimeShift & WaveTableMask)).Sine * TopZ * DepthUnit * 0.5f + topDepth;
+                    }
+
+                    float bottomDepth;
+                    bool isSorted = !properties.HasFlag(ObjectProperties.AlwaysTop) && !hasDepth;
+                    if (isSorted && Size.Z <= Size.Y)
+                    {
+                        bottomDepth = topDepth;
+                    }
+                    else if (isSorted)
+                    {
+                        bottomDepth = topDepth - height * DepthUnit;
+                        topDepth = height * DepthUnit + topDepth;
+                    }
+                    else
+                    {
+                        bottomDepth = FrontDepth;
+                        topDepth = FrontDepth;
+                    }
+
+                    _surfaces[tile.Texture]!.DrawQuad(screen, destination, source, gamma, map.Session.Graphics.Blend, false, topDepth, bottomDepth);
+                }
+
+                if (tile.Next == 0)
+                    break;
+            }
         }
     }
 
@@ -290,10 +349,117 @@ public sealed class VidHardware : Vid
             }
 
             var surface = surfaces[i];
-            if (!TryLoadSurface(surface, i, ref buffer, paletteBytes, session, out var texture))
-                return;
+            bool hasPalette = FileType.HasFlag(VidType.Palette);
+            VidPixelFormat format;
+            if (FileType.HasFlag(VidType.SurfaceVariant))
+            {
+                format = FileType.HasFlag(BlendedRuns) ? VidPixelFormat.Dxt3 : VidPixelFormat.Dxt1;
+            }
+            else if (hasPalette)
+            {
+                format = VidPixelFormat.P8;
+            }
+            else
+            {
+                format = FileType.HasFlag(BlendedRuns) ? VidPixelFormat.A4R4G4B4 : VidPixelFormat.R5G6B5;
+            }
 
-            _surfaces[i] = texture;
+            var created = new Texture(surface.Size, format, TextureFlags.None, session);
+            if (created.IsEmpty)
+            {
+                Report(session.Error, LogError.Create, 0, TextureText);
+                return;
+            }
+
+            format = created.Format;
+            var size = created.Size;
+            var texels = created.Texels;
+
+            surface.Palette.Span.CopyTo(paletteBytes);
+            var colors = MemoryMarshal.Cast<byte, VidPackedColor>(paletteBytes);
+            if (hasPalette)
+            {
+                Report(session.Error, LogError.Text, format == VidPixelFormat.P8 ? 1 : 0, "palette %i"u8);
+            }
+
+            if (hasPalette && format == VidPixelFormat.P8)
+            {
+                uint[] palette = new uint[colors.Length];
+                for (int entry = 0; entry < palette.Length; entry++)
+                {
+                    palette[entry] = Graphics.PackColor(colors[entry].Red, colors[entry].Green, colors[entry].Blue);
+                }
+
+                created.SetPalette(palette, session);
+            }
+
+            if (surface.Failure == VidSurfaceFailure.Decode)
+            {
+                Report(session.Error, LogError.Load, i, "Can't decode"u8);
+            }
+
+            int area = surface.Size.Width * surface.Size.Height;
+            var stream = surface.Data.Span;
+            if (!hasPalette && surface.StreamSize < area * sizeof(ushort))
+            {
+                Report(session.Error, LogError.Text, 0, "Load DXT"u8);
+                stream.CopyTo(MemoryMarshal.AsBytes(texels));
+            }
+            else
+            {
+                int length = Math.Max(stream.Length, area * sizeof(ushort));
+                if (buffer.Length < length)
+                {
+                    buffer = new byte[length];
+                }
+
+                stream.CopyTo(buffer);
+                var textureSize = surface.Size;
+                int pitch = size.Width;
+
+                int width = textureSize.Width;
+                var pixels = MemoryMarshal.Cast<byte, ushort>(buffer);
+                for (int row = 0; row < textureSize.Height; row++)
+                {
+                    var target = texels.Slice(row * pitch, width);
+                    if (hasPalette && format == VidPixelFormat.P8)
+                    {
+                        var indexes = buffer.AsSpan(row * width, width);
+                        for (int x = 0; x < width; x++)
+                        {
+                            target[x] = indexes[x];
+                        }
+
+                        continue;
+                    }
+
+                    if (hasPalette)
+                    {
+                        var indexes = buffer.AsSpan(row * width, width);
+                        for (int x = 0; x < width; x++)
+                        {
+                            var color = colors[indexes[x]];
+                            target[x] = (ushort)(color.Green << _format.GreenShift & _format.GreenMask | (color.Red & HighChannelMask) << _format.RedShift | color.Blue >> LowBlueBits & BlueMask);
+                        }
+
+                        continue;
+                    }
+
+                    var line = pixels.Slice(row * width, width);
+                    if (format is VidPixelFormat.R5G6B5 or VidPixelFormat.A4R4G4B4)
+                    {
+                        line.CopyTo(target);
+                        continue;
+                    }
+
+                    for (int x = 0; x < width; x++)
+                    {
+                        target[x] = (ushort)(line[x] >> 1 & Rgb555Mask | line[x] & BlueMask);
+                    }
+                }
+            }
+
+            _surfaces[i] = created;
 
             if (hasDepth)
             {
@@ -301,7 +467,29 @@ public sealed class VidHardware : Vid
                 if (i >= surfaces.Length)
                     continue;
 
-                LoadDepthSurface(surfaces[i], surface.Size, i, session);
+                var depthSurface = surfaces[i];
+                var surfaceSize = surface.Size;
+                var depths = new Texture(surfaceSize, VidPixelFormat.D16, TextureFlags.SystemMemory, session);
+                var depthSize = depths.Size;
+                if (depths.IsEmpty)
+                {
+                    Report(session.Error, LogError.Create, 0, TextureText);
+                }
+                else if (depthSurface.StreamSize != surfaceSize.Height * depthSize.Width * sizeof(ushort))
+                {
+                    Report(session.Error, LogError.Load, depthSurface.StreamSize, "ZBuffer: invalid size"u8);
+                }
+                else
+                {
+                    if (depthSurface.Failure == VidSurfaceFailure.DepthDecode)
+                    {
+                        Report(session.Error, LogError.Load, depthSurface.DecodedSize, "Can't decode z"u8);
+                    }
+
+                    depthSurface.Data.Span.CopyTo(MemoryMarshal.AsBytes(depths.Texels));
+                }
+
+                _surfaces[i] = depths;
             }
         }
 
@@ -315,234 +503,6 @@ public sealed class VidHardware : Vid
             Report(session.Error, LogError.Load, 0, "tex_coor"u8);
         }
 
-        LoadTiles(file);
-    }
-
-    private void SetBlend(Graphics graphics)
-    {
-        if (!FileType.HasFlag(VidType.Blended))
-        {
-            graphics.SetRenderState(RenderState.AlphaBlendEnable, 0);
-        }
-        else if (FileType.HasFlag(VidType.Runs8Bit))
-        {
-            graphics.SetAlphaBlend(BlendFactor.SourceAlpha, BlendFactor.InverseSourceAlpha);
-        }
-        else
-        {
-            graphics.SetAlphaBlend(BlendFactor.DestinationColor, BlendFactor.One);
-        }
-    }
-
-    private void DrawTiles(Screen screen, Map map, HardwareTile first, Point origin, int z, Vector2 scale, Gamma gamma, bool hasDepth)
-    {
-        for (var tile = first; ; tile = _tiles[tile.Next])
-        {
-            int left = (int)((tile.Origin.X - FrameSize.Center.X) * scale.X) + origin.X;
-            int top = (int)((tile.Origin.Y - FrameSize.Center.Y) * scale.Y) + origin.Y;
-            if (left + tile.Size.Width >= screen.Viewport.Left && left < screen.Viewport.Right && top + tile.Size.Height >= screen.Viewport.Top && top < screen.Viewport.Bottom)
-            {
-                DrawTile(screen, map, tile, new Point(left, top), z, scale, gamma, hasDepth);
-            }
-
-            if (tile.Next == 0)
-                break;
-        }
-    }
-
-    private void DrawTile(Screen screen, Map map, in HardwareTile tile, Point corner, int z, Vector2 scale, Gamma gamma, bool hasDepth)
-    {
-        int width = tile.Size.Width;
-        int height = tile.Size.Height;
-        if (hasDepth)
-        {
-            width = Math.Min(width, screen.Viewport.Right - corner.X);
-            height = Math.Min(height, screen.Viewport.Bottom - corner.Y);
-        }
-
-        var destination = Rectangle.FromLTRB(corner.X, corner.Y, corner.X + (int)(width * scale.X), corner.Y + (int)(height * scale.Y));
-        var source = new Rectangle(tile.Offset.X, tile.Offset.Y, width, height);
-        if (hasDepth)
-        {
-            var depth = _surfaces[tile.Texture + 1]!;
-            Graphics.CopyDepth(screen, destination, source, depth);
-        }
-
-        var properties = Properties;
-        float topDepth = z * DepthUnit + DepthBase;
-        if (properties.HasFlag(ObjectProperties.Wave) && !TopZ.IsExactlyZero())
-        {
-            topDepth = new Angle((byte)(map.CurrentTime >> WaveTimeShift & WaveTableMask)).Sine * TopZ * DepthUnit * 0.5f + topDepth;
-        }
-
-        float bottomDepth;
-        if (!properties.HasFlag(ObjectProperties.AlwaysTop) && !hasDepth)
-        {
-            if (Size.Z <= Size.Y)
-            {
-                bottomDepth = topDepth;
-            }
-            else
-            {
-                bottomDepth = topDepth - height * DepthUnit;
-                topDepth = height * DepthUnit + topDepth;
-            }
-        }
-        else
-        {
-            bottomDepth = FrontDepth;
-            topDepth = FrontDepth;
-        }
-
-        _surfaces[tile.Texture]!.DrawQuad(screen, destination, source, gamma, map.Session.Graphics.Blend, false, topDepth, bottomDepth);
-    }
-
-    private bool TryLoadSurface(in VidTexture surface, int index, ref byte[] buffer, Span<byte> paletteBytes, GameSession session, [NotNullWhen(true)] out Texture? texture)
-    {
-        texture = null;
-        bool hasPalette = FileType.HasFlag(VidType.Palette);
-        VidPixelFormat format;
-        if (FileType.HasFlag(VidType.SurfaceVariant))
-        {
-            format = FileType.HasFlag(BlendedRuns) ? VidPixelFormat.Dxt3 : VidPixelFormat.Dxt1;
-        }
-        else if (hasPalette)
-        {
-            format = VidPixelFormat.P8;
-        }
-        else
-        {
-            format = FileType.HasFlag(BlendedRuns) ? VidPixelFormat.A4R4G4B4 : VidPixelFormat.R5G6B5;
-        }
-
-        var created = new Texture(surface.Size, format, TextureFlags.None, session);
-        if (created.IsEmpty)
-        {
-            Report(session.Error, LogError.Create, 0, TextureText);
-            return false;
-        }
-
-        format = created.Format;
-        var size = created.Size;
-        var texels = created.Texels;
-
-        uint[] palette = [];
-        surface.Palette.Span.CopyTo(paletteBytes);
-        var colors = MemoryMarshal.Cast<byte, VidPackedColor>(paletteBytes);
-        if (hasPalette)
-        {
-            Report(session.Error, LogError.Text, format == VidPixelFormat.P8 ? 1 : 0, "palette %i"u8);
-            if (format == VidPixelFormat.P8)
-            {
-                palette = new uint[colors.Length];
-                for (int entry = 0; entry < palette.Length; entry++)
-                {
-                    palette[entry] = Gamma.OpaqueAlpha | colors[entry].Rgb;
-                }
-            }
-        }
-
-        if (surface.Failure == VidSurfaceFailure.Decode)
-        {
-            Report(session.Error, LogError.Load, index, "Can't decode"u8);
-        }
-
-        int area = surface.Size.Width * surface.Size.Height;
-        var stream = surface.Data.Span;
-        if (!hasPalette && surface.StreamSize < area * sizeof(ushort))
-        {
-            Report(session.Error, LogError.Text, 0, "Load DXT"u8);
-            stream.CopyTo(MemoryMarshal.AsBytes(texels));
-        }
-        else
-        {
-            int length = Math.Max(stream.Length, area * sizeof(ushort));
-            if (buffer.Length < length)
-            {
-                buffer = new byte[length];
-            }
-
-            stream.CopyTo(buffer);
-            ConvertTexels(buffer, texels, surface.Size, size.Width, format, colors);
-        }
-
-        created.Palette = palette;
-        texture = created;
-        return true;
-    }
-
-    private void ConvertTexels(ReadOnlySpan<byte> buffer, Span<ushort> texels, Size size, int pitch, VidPixelFormat format, ReadOnlySpan<VidPackedColor> colors)
-    {
-        bool hasPalette = FileType.HasFlag(VidType.Palette);
-        int width = size.Width;
-        var pixels = MemoryMarshal.Cast<byte, ushort>(buffer);
-        for (int row = 0; row < size.Height; row++)
-        {
-            var target = texels.Slice(row * pitch, width);
-            if (hasPalette)
-            {
-                var indexes = buffer.Slice(row * width, width);
-                if (format == VidPixelFormat.P8)
-                {
-                    for (int x = 0; x < width; x++)
-                    {
-                        target[x] = indexes[x];
-                    }
-                }
-                else
-                {
-                    for (int x = 0; x < width; x++)
-                    {
-                        var color = colors[indexes[x]];
-                        target[x] = (ushort)(color.Green << _format.GreenShift & _format.GreenMask | (color.Red & HighChannelMask) << _format.RedShift | color.Blue >> LowBlueBits & BlueMask);
-                    }
-                }
-            }
-            else
-            {
-                var line = pixels.Slice(row * width, width);
-                if (format is VidPixelFormat.R5G6B5 or VidPixelFormat.A4R4G4B4)
-                {
-                    line.CopyTo(target);
-                }
-                else
-                {
-                    for (int x = 0; x < width; x++)
-                    {
-                        target[x] = (ushort)(line[x] >> 1 & Rgb555Mask | line[x] & BlueMask);
-                    }
-                }
-            }
-        }
-    }
-
-    private void LoadDepthSurface(in VidTexture depthSurface, Size size, int index, GameSession session)
-    {
-        var depths = new Texture(size, VidPixelFormat.D16, TextureFlags.SystemMemory, session);
-        var depthSize = depths.Size;
-        if (depths.IsEmpty)
-        {
-            Report(session.Error, LogError.Create, 0, TextureText);
-        }
-        else if (depthSurface.StreamSize != size.Height * depthSize.Width * sizeof(ushort))
-        {
-            Report(session.Error, LogError.Load, depthSurface.StreamSize, "ZBuffer: invalid size"u8);
-        }
-        else
-        {
-            if (depthSurface.Failure == VidSurfaceFailure.DepthDecode)
-            {
-                Report(session.Error, LogError.Load, depthSurface.DecodedSize, "Can't decode z"u8);
-            }
-
-            depthSurface.Data.Span.CopyTo(MemoryMarshal.AsBytes(depths.Texels));
-        }
-
-        _surfaces[index] = depths;
-    }
-
-    private void LoadTiles(in VidResource file)
-    {
         for (int i = 0; i < file.TextureFrameCount; i++)
         {
             file.TryGetTextureFrame(i, out var frame);

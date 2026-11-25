@@ -287,6 +287,51 @@ public sealed class Sound
         PlaySfx(id, unchecked(across * PanScale), Math.Min(acrossLevel, downLevel));
     }
 
+    private void MusicTact(GameRandom random, uint realTime)
+    {
+        var music = _music;
+
+        if (music is null)
+            return;
+
+        music.Update(realTime);
+        bool isNextTrack;
+
+        if (_fade < 0)
+        {
+            if (_fadeStartedAt == 0 || realTime - _fadeStartedAt > FadeWindow)
+            {
+                _fadeStartedAt = realTime;
+            }
+
+            music.SetVolume(_fade + (_musicVolume >= 0 ? (_musicVolume - FullVolume) * VolumeScale : 0));
+            _fade -= (int)((realTime - _fadeStartedAt) / 2);
+            isNextTrack = _fade < QuietestVolume;
+
+            if (isNextTrack)
+            {
+                _fade = 0;
+                _fadeStartedAt = 0;
+            }
+        }
+        else
+        {
+            isNextTrack = (random.Next() & TrackCheckMask) == 0 && !music.IsPlaying(realTime);
+        }
+
+        if (isNextTrack)
+        {
+            if (_trackName.Length == 0)
+            {
+                StopMusic(realTime);
+            }
+            else
+            {
+                PlayFile(_trackName, _loop, realTime);
+            }
+        }
+    }
+
     /// <summary>
     /// Advances the music and starts the sounds requested during the frame.
     /// </summary>
@@ -296,19 +341,57 @@ public sealed class Sound
     [EngineRoutine(0x0041d770)]
     public void Tact(GameRandom random, int time, uint realTime)
     {
-        var music = _music;
-
-        if (music is not null)
-        {
-            UpdateMusic(music, random, realTime);
-        }
+        MusicTact(random, realTime);
 
         if (_deviceState != DeviceReady)
             return;
 
         var requests = _requests.AsSpan();
         var voices = _voices.AsSpan();
-        int pending = MergeRequests(requests, voices, time, realTime);
+
+        int pending = 0;
+        for (int r = 0; r < requests.Length; r++)
+        {
+            ref var request = ref requests[r];
+            int id = request.Id;
+
+            if (id < 0)
+                continue;
+
+            int playing = 0;
+            for (int v = 0; v < voices.Length; v++)
+            {
+                ref var voice = ref voices[v];
+
+                if (voice.Id != id || !voice.IsPlaying)
+                    continue;
+
+                if (IsLooped(id) && Math.Abs(voice.Volume - request.Volume) < MergeReach && Math.Abs(voice.Pan - request.Pan) < MergeReach)
+                {
+                    request.Id = NoSound;
+                    voice.Play(this, v, request.Pan, request.Volume, time, realTime);
+
+                    break;
+                }
+
+                playing++;
+                byte limit = _sfx[id].Record.VoiceLimit;
+                int voiceLimit = limit == GlobalLimit ? UnlimitedVoices : limit == LoopedLimit ? 1 : limit / VoicesPerLimitStep;
+
+                if (voiceLimit < playing)
+                {
+                    request.Id = NoSound;
+
+                    break;
+                }
+            }
+
+            if (request.Id >= 0)
+            {
+                pending++;
+            }
+        }
+
         int free = 0;
         for (int v = 0; v < voices.Length; v++)
         {
@@ -318,8 +401,41 @@ public sealed class Sound
             }
         }
 
-        pending = DropQuietestRequests(requests, free, pending);
-        StopVoicesForRequests(voices, free, pending, realTime);
+        for (; free < pending; pending--)
+        {
+            if (requests[0].Id < 0)
+            {
+                requests[0].Volume = 0;
+            }
+
+            bool isFound = false;
+            int quietest = 0;
+            for (int r = 0; r < requests.Length; r++)
+            {
+                if (requests[r].Id >= 0 && _sfx[requests[r].Id].Record.VoiceLimit != GlobalLimit && requests[r].Volume <= requests[quietest].Volume)
+                {
+                    isFound = true;
+                    quietest = r;
+                }
+            }
+
+            if (!isFound)
+                break;
+
+            requests[quietest].Id = NoSound;
+        }
+
+        for (int v = 0; free < pending && v < voices.Length; v++)
+        {
+            ref var voice = ref voices[v];
+
+            if (voice.IsPlaying && _sfx[voice.Id].Record.VoiceLimit != GlobalLimit)
+            {
+                StopVoice(ref voice, realTime);
+                free++;
+            }
+        }
+
         for (int r = 0; r < requests.Length; r++)
         {
             ref var request = ref requests[r];
@@ -371,7 +487,7 @@ public sealed class Sound
     /// </summary>
     /// <param name="volume">The volume from 0 to 100.</param>
     [EngineRoutine(0x0041ddc0)]
-    public void SetVolume(int volume) => _soundVolume = volume < 0 ? 0 : Math.Min(volume, FullVolume);
+    public void VolumeSound(int volume) => _soundVolume = volume < 0 ? 0 : Math.Min(volume, FullVolume);
 
     /// <summary>
     /// Plays a music track and fades the current one out first.
@@ -952,137 +1068,6 @@ public sealed class Sound
 
         _fade = 0;
         PlayToPosition = NoSound;
-    }
-
-    private void UpdateMusic(OggMusic music, GameRandom random, uint realTime)
-    {
-        music.Update(realTime);
-        bool isNextTrack;
-
-        if (_fade < 0)
-        {
-            if (_fadeStartedAt == 0 || realTime - _fadeStartedAt > FadeWindow)
-            {
-                _fadeStartedAt = realTime;
-            }
-
-            music.SetVolume(_fade + (_musicVolume >= 0 ? (_musicVolume - FullVolume) * VolumeScale : 0));
-            _fade -= (int)((realTime - _fadeStartedAt) / 2);
-            isNextTrack = _fade < QuietestVolume;
-
-            if (isNextTrack)
-            {
-                _fade = 0;
-                _fadeStartedAt = 0;
-            }
-        }
-        else
-        {
-            isNextTrack = (random.Next() & TrackCheckMask) == 0 && !music.IsPlaying(realTime);
-        }
-
-        if (isNextTrack)
-        {
-            if (_trackName.Length == 0)
-            {
-                StopMusic(realTime);
-            }
-            else
-            {
-                PlayFile(_trackName, _loop, realTime);
-            }
-        }
-    }
-
-    private int MergeRequests(Span<SfxRequest> requests, Span<SfxBuffer> voices, int time, uint realTime)
-    {
-        int pending = 0;
-        for (int r = 0; r < requests.Length; r++)
-        {
-            ref var request = ref requests[r];
-            int id = request.Id;
-
-            if (id < 0)
-                continue;
-
-            int playing = 0;
-            for (int v = 0; v < voices.Length; v++)
-            {
-                ref var voice = ref voices[v];
-
-                if (voice.Id != id || !voice.IsPlaying)
-                    continue;
-
-                if (IsLooped(id) && Math.Abs(voice.Volume - request.Volume) < MergeReach && Math.Abs(voice.Pan - request.Pan) < MergeReach)
-                {
-                    request.Id = NoSound;
-                    voice.Play(this, v, request.Pan, request.Volume, time, realTime);
-
-                    break;
-                }
-
-                playing++;
-                byte limit = _sfx[id].Record.VoiceLimit;
-                int voiceLimit = limit == GlobalLimit ? UnlimitedVoices : limit == LoopedLimit ? 1 : limit / VoicesPerLimitStep;
-
-                if (voiceLimit < playing)
-                {
-                    request.Id = NoSound;
-
-                    break;
-                }
-            }
-
-            if (request.Id >= 0)
-            {
-                pending++;
-            }
-        }
-
-        return pending;
-    }
-
-    private int DropQuietestRequests(Span<SfxRequest> requests, int free, int pending)
-    {
-        for (; free < pending; pending--)
-        {
-            if (requests[0].Id < 0)
-            {
-                requests[0].Volume = 0;
-            }
-
-            bool isFound = false;
-            int quietest = 0;
-            for (int r = 0; r < requests.Length; r++)
-            {
-                if (requests[r].Id >= 0 && _sfx[requests[r].Id].Record.VoiceLimit != GlobalLimit && requests[r].Volume <= requests[quietest].Volume)
-                {
-                    isFound = true;
-                    quietest = r;
-                }
-            }
-
-            if (!isFound)
-                break;
-
-            requests[quietest].Id = NoSound;
-        }
-
-        return pending;
-    }
-
-    private void StopVoicesForRequests(Span<SfxBuffer> voices, int free, int pending, uint realTime)
-    {
-        for (int v = 0; free < pending && v < voices.Length; v++)
-        {
-            ref var voice = ref voices[v];
-
-            if (voice.IsPlaying && _sfx[voice.Id].Record.VoiceLimit != GlobalLimit)
-            {
-                StopVoice(ref voice, realTime);
-                free++;
-            }
-        }
     }
 
     private void StopVoice(ref SfxBuffer voice, uint realTime)

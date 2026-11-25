@@ -41,18 +41,86 @@ public partial class Sprite
 
                 break;
             case ActionCode.Death:
-                if (Vid.Damage != 0)
+                if (Vid.Damage == 0)
+                    break;
+
+                Hp = 0;
+                var payload = Vid;
+                var impact = Position;
+                var point = impact.AsVector2();
+                var reach = payload.Half + new Vector2(payload.DeathRange);
+                float heightReach = Math.Max(Map.MinBlastHeight, payload.Size.Z);
+                bool isScaled = payload.IsExplosive && !payload.DeathRange.IsExactlyZero();
+                int damage = payload.Damage;
+
+                for (var sprite = Map.Sprites.First(point - reach, point + reach); sprite is not null; sprite = Map.Sprites.NextHashInBox())
                 {
-                    Hp = 0;
-                    ApplyBlast();
+                    if (sprite == this || sprite.Vid.MaxHp == 0 || payload.ShouldSkipOwnArmy && sprite.Army == Army)
+                        continue;
+
+                    var victim = sprite.Position;
+                    var offset = Vector2.Abs(victim.AsVector2() - point);
+                    float top = victim.Z + sprite.Vid.Size.Z;
+
+                    if (offset.X >= reach.X + sprite.Vid.Half.X || offset.Y >= reach.Y + sprite.Vid.Half.Y ||
+                        MathF.Abs(impact.Z - victim.Z) >= heightReach + sprite.Vid.Size.Z ||
+                        top < Map.GetGroundZ((victim.AsVector2() + point) * 0.5f) ||
+                        top < Map.GetGroundZ((point * 3 + victim.AsVector2()) * 0.25f) ||
+                        top < Map.GetGroundZ((victim.AsVector2() * 3 + point) * 0.25f))
+                        continue;
+
+                    float distance = victim.AsVector2().NearLength(point);
+
+                    if (isScaled && distance > payload.DeathRange)
+                        continue;
+
+                    Map.Action(sprite, ActionCode.Damage, isScaled ? (int)(damage - damage * distance / payload.DeathRange) : damage);
                 }
 
                 break;
             case ActionCode.CoorAttack:
-                CoorAttackCase(new Point(var1, var2));
+                var cursor = new Point(var1, var2);
+                var aimer = (ArmedLink ?? this).Vid;
+                int cursorY = cursor.Y;
+                float cursorZ;
+
+                if (aimer.Weapon.Targets == OldSpriteType.Unit)
+                {
+                    cursorZ = Map.GetGroundZ(new Vector2(cursor.X, cursor.Y + UnitAimLift)) + UnitAimLift;
+                    cursorY += (int)cursorZ;
+                }
+                else
+                {
+                    cursorZ = Map.GetGroundZ(new Vector2(cursor.X, cursor.Y)) + GroundAimLift;
+                    cursorY += (int)cursorZ - (int)GroundAimLift;
+                }
+
+                SetCommand(Command.OneAttack, Map.ConstructGoal(new Vector3(cursor.X, cursorY, cursorZ)));
                 break;
             case ActionCode.Random:
-                RandomCase();
+                int duration = (byte)Vid.GetVisualFrameDuration(Animation);
+
+                if (Map.Random.Next() % 5 == 0)
+                {
+                    ChangeAnimation(SpriteAnimation.Stand);
+                }
+                else if (Map.Random.Next() % 5 == 0)
+                {
+                    ChangeAnimation(SpriteAnimation.Unload);
+                }
+                else if (Animation == SpriteAnimation.LRotate && Map.Random.Next() % 3 != 0)
+                {
+                    RotateTact(Direction - QuarterTurn, duration);
+                }
+                else if (Animation == SpriteAnimation.RRotate && Map.Random.Next() % 3 != 0)
+                {
+                    RotateTact(Direction + QuarterTurn, duration);
+                }
+                else if (Map.Random.Next() % 4 == 0)
+                {
+                    RotateTact(Map.Random.Next() % 2 == 0 ? Direction + QuarterTurn : Direction - QuarterTurn, duration);
+                }
+
                 break;
             case ActionCode.GetGoal:
                 return Map.GetSpriteHandle(Goal);
@@ -60,7 +128,9 @@ public partial class Sprite
                 Goal = Map.ConstructGoal(new Vector3(var1, var2, var3));
                 break;
             case ActionCode.GetBattleRange:
-                return BattleRange();
+                var armedLink = ArmedLink;
+
+                return (int)(Vid.Weapon.BattleRange.IsExactlyZero() && armedLink is not null ? armedLink.Vid.Weapon.BattleRange : Vid.Weapon.BattleRange);
             case ActionCode.GetLink:
                 return Map.GetSpriteHandle(Link);
             case ActionCode.GetUplink:
@@ -79,7 +149,22 @@ public partial class Sprite
                 Move(target);
                 break;
             case ActionCode.BuildUnit:
-                BuildUnitCase(var1, new Point(var2, var3));
+                var buildOffset = new Point(var2, var3);
+
+                if (var1 == 0)
+                {
+                    var1 = Map.Action(this, ActionCode.GetItemType, (int)BuiltSpriteType);
+                }
+
+                if (var1 <= 0)
+                    break;
+
+                var builtVid = Map.FindVid((KnownObject)var1);
+
+                if (builtVid is null)
+                    break;
+
+                AddBuiltUnit(builtVid, Map.GetBuildPosition(this, buildOffset));
                 break;
             case ActionCode.PlaySfx:
                 PlaySfx(var1);
@@ -94,7 +179,14 @@ public partial class Sprite
 
                 break;
             case ActionCode.Pause:
-                Pause(var1, var2);
+                if (!Speed.IsExactlyZero())
+                {
+                    Stop();
+                }
+
+                int pause = var1 + Map.Random.Next() % (var2 + 1);
+                Timer = pause;
+                SetCommand(pause != 0 ? Command.Pause : Command.None);
                 break;
             case ActionCode.Turn:
                 RotateTact(new Angle(unchecked((byte)var1)), Vid.GetVisualFrameDuration(Animation));
@@ -103,10 +195,59 @@ public partial class Sprite
                 SetCommand(Command.None);
                 break;
             case ActionCode.FlagmanTrigger:
-                FlagmanTriggerCase(new Point(var1, var2), var3);
+                var triggerPoint = new Point(var1, var2);
+
+                var trigger = Map.Flagman(Map.ControlledPlayer);
+
+                if (trigger is null || trigger.Position.AsVector2().NearLength(new Vector2(triggerPoint.X, triggerPoint.Y)) >= var3)
+                {
+                    ActionStack.Insert(new Act((int)ActionCode.FlagmanTrigger, triggerPoint.X, triggerPoint.Y, var3));
+                }
+
                 break;
             case ActionCode.ChangeVid:
-                ChangeVidCase(var1, var2);
+                var newVid = Map.FindVid((KnownObject)var1);
+
+                if (newVid is null || newVid == Vid)
+                    break;
+
+                Map.DropLinks(this);
+                Map.Sprites.DeleteFromHash(this);
+                RemoveFromUpdates();
+                var newAnimation = var2 < 0 ? Animation : (SpriteAnimation)var2;
+                var oldDirection = Direction;
+                int army = (int)Army & Vid.ArmyMask;
+                if (Vid.Counts[army] != 0)
+                {
+                    Vid.Counts[army]--;
+                }
+
+                newVid.LastCreatedAt = Map.RealCurrentTime;
+                newVid.Counts[army]++;
+
+                Vid = newVid;
+
+                if (newVid.HasTimers && ExtraData is not null)
+                {
+                    ExtraData.Lifetime = newVid.Lifetime;
+                }
+                else if (newVid.HasTimers)
+                {
+                    CreateExtraData();
+                }
+
+                Animation = SpriteAnimation.Stand;
+                _direction = default;
+                FirstFrame = 0;
+                Frame = 0;
+                LastFrame = newVid.GetFramesPerDirection(SpriteAnimation.Stand) - 1;
+                AddToUpdates();
+                Map.Sprites.InsertToHash(this);
+
+                CreateLink();
+
+                ChangeAnimation(newAnimation);
+                ChangeDirection(oldDirection);
                 break;
             case ActionCode.ChangeCoor:
                 ChangeCoor(new Vector3(var1, var2, var3));
@@ -143,14 +284,38 @@ public partial class Sprite
             case ActionCode.GetPercentHp:
                 return PercentHp() * 100 / 0xff;
             case ActionCode.CopyStackTo:
-                CopyStackToCase(target);
+                if (target is null || target == this)
+                    break;
+
+                target.ClearOrders();
+                foreach (var order in ActionStack.Items)
+                {
+                    if (order.Value == Act.StopMarker)
+                        break;
+
+                    target.ActionStack.Insert(order);
+                }
+
                 break;
             case ActionCode.StopStack:
                 ActionStack.Insert(new Act((int)code, var1, var2, var3));
                 Map.Action(this, ActionCode.NextCommand);
                 break;
             case ActionCode.NextCommand:
-                NextCommandCase();
+                var state = Animation;
+
+                if (state >= SpriteAnimation.Death)
+                    break;
+
+                if (Speed.IsExactlyZero() && state > SpriteAnimation.RRotate && state != SpriteAnimation.StandOpen)
+                {
+                    ChangeAnimation(SpriteAnimation.Stand);
+                }
+                else if (!Speed.IsExactlyZero() && state != SpriteAnimation.Go)
+                {
+                    ChangeAnimation(SpriteAnimation.Go);
+                }
+
                 break;
             case ActionCode.UndoRemove:
                 SetFlag(SpriteFlags.Removed, true);
@@ -163,13 +328,24 @@ public partial class Sprite
                 AddToUpdates();
                 return 0;
             case ActionCode.DestroyUnit:
-                DestroyUnitCase(var1, new Vector2(var2, var3));
+                var destroyPoint = new Vector2(var2, var3);
+
+                if (var1 <= -1 || Map.FindVid((KnownObject)var1) is null)
+                    break;
+
+                var destroyed = Map.GetSpriteScr(SpriteSearch.Id + var1, destroyPoint);
+
+                if (destroyed is not null)
+                {
+                    Map.DeleteSprite(destroyed);
+                }
+
                 break;
             case ActionCode.AddItem:
                 InsertItem(var1);
                 break;
             case ActionCode.DeleteItem:
-                if (RemoveItemAt(GetItemNumber(var1)))
+                if (ExtraData is not null && ExtraData.Items.DeleteNumber(GetItemNumber(var1)) == 0)
                     return 1;
 
                 break;
@@ -181,11 +357,94 @@ public partial class Sprite
             case ActionCode.GetItem:
                 return var1 >= 0 && var1 < Items.Count ? Items[var1] : 0;
             case ActionCode.GetItemType:
-                return GetItemTypeCase(var1);
+                if (Items.Count == 0)
+                    return NoItem;
+
+                var mask = var1 != 0 ? (OldSpriteType)var1 : OldSpriteType.All;
+                int matching = 0;
+                foreach (int item in Items)
+                {
+                    matching += (Map.Vid(item).SpriteType & mask) != OldSpriteType.None ? 1 : 0;
+                }
+
+                int pick = Map.Random.Next();
+
+                if (matching == 0)
+                    return NoItem;
+
+                pick %= matching;
+                foreach (int item in Items)
+                {
+                    if ((Map.Vid(item).SpriteType & mask) != OldSpriteType.None && --pick < 0)
+                        return item;
+                }
+
+                return NoItem;
             case ActionCode.Damage:
-                return ActionDamage(var1, var2);
+                int maxHp = Vid.GetArmyMaxHp((int)Army);
+
+                if (maxHp <= Hp && var1 < 0)
+                    return 1;
+
+                if (Animation >= SpriteAnimation.Death)
+                    return 0;
+
+                int handler = Vid.DamageHandler;
+
+                if (handler >= 0 && Map.ScriptRun(handler, this, var2, var1) != 0)
+                    return 0;
+
+                if (Vid.MaxHp != 0)
+                {
+                    ChangeHp(Hp - var1);
+                }
+
+                if (maxHp < Hp && var1 < 0)
+                {
+                    Hp = maxHp;
+                }
+
+                if (var1 <= 0)
+                    return 0;
+
+                if (Vid.GetFrameCount(SpriteAnimation.Close) != 0 && Animation is SpriteAnimation.Stand or SpriteAnimation.Go)
+                {
+                    ChangeAnimation(SpriteAnimation.Close);
+                    return 0;
+                }
+
+                int closeHandler = Vid.StateHandlers[(int)SpriteAnimation.Close];
+
+                if (closeHandler >= 0 && Map.ScriptRun(closeHandler, this, var2) != 0)
+                    return 0;
+
+                int closeSound = Vid.Sounds[(int)SpriteAnimation.Close];
+
+                if (closeSound != 0)
+                {
+                    PlaySfx(closeSound);
+                }
+
+                if (Vid.Children[(int)SpriteAnimation.Close] != 0)
+                {
+                    CreateChildAs(SpriteAnimation.Close);
+                }
+
+                return 0;
             case ActionCode.Repair:
-                RepairCase();
+                DestroyLink(Vid.ChildVids[(int)SpriteAnimation.Wound]);
+                Hp = Vid.GetArmyMaxHp((int)Army);
+                var link = Link;
+
+                if (link is not null && link.Vid == Vid.LinkVid)
+                {
+                    Map.Action(link, ActionCode.Repair);
+                }
+                else
+                {
+                    CreateLink();
+                }
+
                 break;
             case ActionCode.GetHp:
                 return Hp;
@@ -245,14 +504,14 @@ public partial class Sprite
                 int itemCount = 0;
                 stream.ReadInto(ref itemCount);
                 var items = stream.Read<int>(itemCount);
-                if (itemCount != 0)
+                if (itemCount == 0)
+                    break;
+
+                EnsureExtraData();
+                ExtraData!.Items.Release();
+                foreach (int item in items)
                 {
-                    EnsureExtraData();
-                    ExtraData!.Items.Release();
-                    foreach (int item in items)
-                    {
-                        ExtraData.Items.Insert(item);
-                    }
+                    ExtraData.Items.Insert(item);
                 }
 
                 break;
@@ -278,20 +537,21 @@ public partial class Sprite
                 {
                     ref readonly var entry = ref entries[i];
                     int oldAct = entry.Act & byte.MaxValue;
-                    switch (oldAct)
+                    if (oldAct == OldMoveAct)
                     {
-                        case OldMoveAct:
-                            oldAct = (int)ActionCode.Move;
-                            break;
-                        case OldAttackAct:
-                            oldAct = (int)ActionCode.Attack;
-                            break;
-                        case OldStopStackAct:
-                            oldAct = (int)ActionCode.StopStack;
-                            break;
-                        default:
-                            Map.Session.Error.Error($"SPRITE {(int)Vid.Id}", LogError.Unknown, oldAct, "actionStack.act restore"u8);
-                            break;
+                        oldAct = (int)ActionCode.Move;
+                    }
+                    else if (oldAct == OldAttackAct)
+                    {
+                        oldAct = (int)ActionCode.Attack;
+                    }
+                    else if (oldAct == OldStopStackAct)
+                    {
+                        oldAct = (int)ActionCode.StopStack;
+                    }
+                    else
+                    {
+                        Map.Session.Error.Error($"SPRITE {(int)Vid.Id}", LogError.Unknown, oldAct, "actionStack.act restore"u8);
                     }
 
                     entries[i] = new StackAction(oldAct, entry.Var1, entry.Var2, 0);
@@ -386,270 +646,6 @@ public partial class Sprite
         }
     }
 
-    private int BattleRange()
-    {
-        var armedLink = ArmedLink;
-
-        return (int)(Vid.Weapon.BattleRange.IsExactlyZero() && armedLink is not null ? armedLink.Vid.Weapon.BattleRange : Vid.Weapon.BattleRange);
-    }
-
-    private void NextCommandCase()
-    {
-        var state = Animation;
-
-        if (state >= SpriteAnimation.Death)
-            return;
-
-        if (Speed.IsExactlyZero())
-        {
-            if (state > SpriteAnimation.RRotate && state != SpriteAnimation.StandOpen)
-            {
-                ChangeAnimation(SpriteAnimation.Stand);
-            }
-        }
-        else if (state != SpriteAnimation.Go)
-        {
-            ChangeAnimation(SpriteAnimation.Go);
-        }
-    }
-
-    private void CoorAttackCase(Point point)
-    {
-        var armed = (ArmedLink ?? this).Vid;
-        int y = point.Y;
-        float z;
-
-        if (armed.Weapon.Targets == OldSpriteType.Unit)
-        {
-            z = Map.GetGroundZ(new Vector2(point.X, point.Y + UnitAimLift)) + UnitAimLift;
-            y += (int)z;
-        }
-        else
-        {
-            z = Map.GetGroundZ(new Vector2(point.X, point.Y)) + GroundAimLift;
-            y += (int)z - (int)GroundAimLift;
-        }
-
-        SetCommand(Command.OneAttack, Map.ConstructGoal(new Vector3(point.X, y, z)));
-    }
-
-    private void RandomCase()
-    {
-        int duration = (byte)Vid.GetVisualFrameDuration(Animation);
-
-        if (Map.Random.Next() % 5 == 0)
-        {
-            ChangeAnimation(SpriteAnimation.Stand);
-        }
-        else if (Map.Random.Next() % 5 == 0)
-        {
-            ChangeAnimation(SpriteAnimation.Unload);
-        }
-        else if (Animation == SpriteAnimation.LRotate && Map.Random.Next() % 3 != 0)
-        {
-            RotateTact(Direction - QuarterTurn, duration);
-        }
-        else if (Animation == SpriteAnimation.RRotate && Map.Random.Next() % 3 != 0)
-        {
-            RotateTact(Direction + QuarterTurn, duration);
-        }
-        else if (Map.Random.Next() % 4 == 0)
-        {
-            RotateTact(Map.Random.Next() % 2 == 0 ? Direction + QuarterTurn : Direction - QuarterTurn, duration);
-        }
-    }
-
-    private void BuildUnitCase(int id, Point offset)
-    {
-        if (id == 0)
-        {
-            id = Map.Action(this, ActionCode.GetItemType, (int)BuiltSpriteType);
-        }
-
-        if (id <= 0)
-            return;
-
-        var vid = Map.FindVid((KnownObject)id);
-
-        if (vid is null)
-            return;
-
-        AddBuiltUnit(vid, Map.GetBuildPosition(this, offset));
-    }
-
-    private void Pause(int time, int spread)
-    {
-        if (!Speed.IsExactlyZero())
-        {
-            Stop();
-        }
-
-        int pause = time + Map.Random.Next() % (spread + 1);
-        Timer = pause;
-        SetCommand(pause != 0 ? Command.Pause : Command.None);
-    }
-
-    private void FlagmanTriggerCase(Point point, int range)
-    {
-        var flagman = Map.Flagman(Map.ControlledPlayer);
-
-        if (flagman is null || flagman.Position.AsVector2().NearLength(new Vector2(point.X, point.Y)) >= range)
-        {
-            ActionStack.Insert(new Act((int)ActionCode.FlagmanTrigger, point.X, point.Y, range));
-        }
-    }
-
-    private void ChangeVidCase(int id, int animation)
-    {
-        var vid = Map.FindVid((KnownObject)id);
-
-        if (vid is null || vid == Vid)
-            return;
-
-        Map.DropLinks(this);
-        Map.Sprites.DeleteFromHash(this);
-        RemoveFromUpdates();
-        var state = animation < 0 ? Animation : (SpriteAnimation)animation;
-        var direction = Direction;
-        ChangeVid(vid);
-        AddToUpdates();
-        Map.Sprites.InsertToHash(this);
-
-        CreateLink();
-
-        ChangeAnimation(state);
-        ChangeDirection(direction);
-    }
-
-    private void CopyStackToCase(Sprite? target)
-    {
-        if (target is null || target == this)
-            return;
-
-        target.ClearOrders();
-        foreach (var order in ActionStack.Items)
-        {
-            if (order.Value == Act.StopMarker)
-                break;
-
-            target.ActionStack.Insert(order);
-        }
-    }
-
-    private void DestroyUnitCase(int id, Vector2 point)
-    {
-        if (id <= -1 || Map.FindVid((KnownObject)id) is null)
-            return;
-
-        var found = Map.GetSpriteScr(SpriteSearch.Id + id, point);
-
-        if (found is not null)
-        {
-            Map.DeleteSprite(found);
-        }
-    }
-
-    private int GetItemTypeCase(int type)
-    {
-        if (Items.Count == 0)
-            return NoItem;
-
-        var mask = type != 0 ? (OldSpriteType)type : OldSpriteType.All;
-        int matching = 0;
-        foreach (int item in Items)
-        {
-            if ((GetItemType(item) & mask) != OldSpriteType.None)
-            {
-                matching++;
-            }
-        }
-
-        int pick = Map.Random.Next();
-
-        if (matching == 0)
-            return NoItem;
-
-        pick %= matching;
-        foreach (int item in Items)
-        {
-            if ((GetItemType(item) & mask) != OldSpriteType.None && --pick < 0)
-                return item;
-        }
-
-        return NoItem;
-    }
-
-    private int ActionDamage(int damage, int var2)
-    {
-        int maxHp = Vid.GetArmyMaxHp((int)Army);
-
-        if (maxHp <= Hp && damage < 0)
-            return 1;
-
-        if (Animation >= SpriteAnimation.Death)
-            return 0;
-
-        int handler = Vid.DamageHandler;
-
-        if (handler >= 0 && Map.ScriptRun(handler, this, var2, damage) != 0)
-            return 0;
-
-        if (Vid.MaxHp != 0)
-        {
-            ChangeHp(Hp - damage);
-        }
-
-        if (maxHp < Hp && damage < 0)
-        {
-            Hp = maxHp;
-        }
-
-        if (damage <= 0)
-            return 0;
-
-        if (Vid.GetFrameCount(SpriteAnimation.Close) != 0 && Animation is SpriteAnimation.Stand or SpriteAnimation.Go)
-        {
-            ChangeAnimation(SpriteAnimation.Close);
-            return 0;
-        }
-
-        int closeHandler = Vid.StateHandlers[(int)SpriteAnimation.Close];
-
-        if (closeHandler >= 0 && Map.ScriptRun(closeHandler, this, var2) != 0)
-            return 0;
-
-        int closeSound = Vid.Sounds[(int)SpriteAnimation.Close];
-
-        if (closeSound != 0)
-        {
-            PlaySfx(closeSound);
-        }
-
-        if (Vid.Children[(int)SpriteAnimation.Close] != 0)
-        {
-            CreateChildAs(SpriteAnimation.Close);
-        }
-
-        return 0;
-    }
-
-    private void RepairCase()
-    {
-        DestroyLink(Vid.ChildVids[(int)SpriteAnimation.Wound]);
-        Hp = Vid.GetArmyMaxHp((int)Army);
-        var link = Link;
-
-        if (link is not null && link.Vid == Vid.LinkVid)
-        {
-            Map.Action(link, ActionCode.Repair);
-        }
-        else
-        {
-            CreateLink();
-        }
-    }
-
-    private OldSpriteType GetItemType(int item) => Map.FindVid((KnownObject)item)?.SpriteType ?? OldSpriteType.None;
 
     [EngineRoutine(0x00445be0)]
     private void ClearOrders()
@@ -665,44 +661,5 @@ public partial class Sprite
         }
 
         ActionStack.Release();
-    }
-
-    private void ApplyBlast()
-    {
-        var payload = Vid;
-
-        if (payload.Damage == 0)
-            return;
-
-        var impact = Position;
-        var point = impact.AsVector2();
-        var reach = payload.Half + new Vector2(payload.DeathRange);
-        float heightReach = Math.Max(Map.MinBlastHeight, payload.Size.Z);
-        bool isScaled = payload.IsExplosive && !payload.DeathRange.IsExactlyZero();
-        int damage = payload.Damage;
-        
-        for (var sprite = Map.Sprites.First(point - reach, point + reach); sprite is not null; sprite = Map.Sprites.NextHashInBox())
-        {
-            if (sprite == this || sprite.Vid.MaxHp == 0 || payload.ShouldSkipOwnArmy && sprite.Army == Army)
-                continue;
-
-            var victim = sprite.Position;
-            var offset = Vector2.Abs(victim.AsVector2() - point);
-            float top = victim.Z + sprite.Vid.Size.Z;
-
-            if (offset.X >= reach.X + sprite.Vid.Half.X || offset.Y >= reach.Y + sprite.Vid.Half.Y ||
-                MathF.Abs(impact.Z - victim.Z) >= heightReach + sprite.Vid.Size.Z ||
-                top < Map.GetGroundZ((victim.AsVector2() + point) * 0.5f) ||
-                top < Map.GetGroundZ((point * 3 + victim.AsVector2()) * 0.25f) ||
-                top < Map.GetGroundZ((victim.AsVector2() * 3 + point) * 0.25f))
-                continue;
-
-            float distance = victim.AsVector2().NearLength(point);
-
-            if (isScaled && distance > payload.DeathRange)
-                continue;
-
-            Map.Action(sprite, ActionCode.Damage, isScaled ? (int)(damage - damage * distance / payload.DeathRange) : damage);
-        }
     }
 }
