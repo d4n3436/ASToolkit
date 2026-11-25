@@ -57,10 +57,10 @@ public class MapLoadTests
     public void Load_MissingFile_LogsTheInvalidMapAndStaysLoading()
     {
         var logs = new MemoryWriteOverlay();
-        using (var session = new GameSession(new Registry(""), logs, new LoadingRedrawClock()))
+        using (var session = new GameSession(EngineTestMap.CreateRegistry(), logs, new LoadingRedrawClock()))
         {
             var map = EngineTestMap.CreateMap(session: session);
-            map.Load("maps\\missing.map"u8, GameClock.StartWallTime);
+            map.Load("maps\\missing.map"u8, Map.StartWallTime);
 
             Assert.True(map.IsLoading);
         }
@@ -77,9 +77,9 @@ public class MapLoadTests
         files.Set("maps\\old.lgc", script);
         files.Set(OldMapPath, CreateOldMap());
         var registry = new Registry("");
-        var map = new MapSteam(TestGameFolder.RequireFolder(), TestGameFolder.Objects, files, registry, new GameSession(registry, time: new LoadingRedrawClock()));
+        var map = new MapSteam(TestGameFolder.RequireFolder(), TestGameFolder.Objects, files, new GameSession(registry, time: new LoadingRedrawClock()));
 
-        map.Load("maps\\old.map"u8, GameClock.StartWallTime);
+        map.Load("maps\\old.map"u8, Map.StartWallTime);
 
         Assert.False(map.IsLoading);
         Assert.Equal(new SizeF(2000, 1600), map.Size);
@@ -101,11 +101,11 @@ public class MapLoadTests
         files.Set(ExtraMapPath, map.Build());
         files.Set("maps\\extra.lgc", script);
         var registry = new Registry("");
-        var steam = new MapSteam(TestGameFolder.RequireFolder(), TestGameFolder.Objects, files, registry, new GameSession(registry, time: new LoadingRedrawClock()));
+        var steam = new MapSteam(TestGameFolder.RequireFolder(), TestGameFolder.Objects, files, new GameSession(registry, time: new LoadingRedrawClock()));
 
-        steam.Load("maps\\extra.map"u8, GameClock.StartWallTime);
+        steam.Load("maps\\extra.map"u8, Map.StartWallTime);
         var extra = steam.FindVid(ExtraId);
-        steam.Load(EngineTestMap.MapName, GameClock.StartWallTime);
+        steam.Load(EngineTestMap.MapName, Map.StartWallTime);
 
         Assert.NotNull(extra);
         Assert.True(extra.FileType.HasFlag(VidType.FrameVector));
@@ -121,7 +121,7 @@ public class MapLoadTests
         var device = new RecordingGraphicsDevice();
         map.Session.Graphics.Device = device;
 
-        map.Load(EngineTestMap.MapName, GameClock.StartWallTime);
+        map.Load(EngineTestMap.MapName, Map.StartWallTime);
 
         Assert.True(map.Constant.IsDebugMode);
         Assert.Equal(14, device.Presented.Count);
@@ -150,7 +150,7 @@ public class MapLoadTests
         head.AddRange(BitConverter.GetBytes(1600));
         head.AddRange(BitConverter.GetBytes((short)0));
         head.AddRange(BitConverter.GetBytes((short)0));
-        head.AddRange(BitConverter.GetBytes(GameClock.LevelStartTime));
+        head.AddRange(BitConverter.GetBytes(Map.LevelStartTime));
         head.AddRange(BitConverter.GetBytes(6));
         var sprites = new List<byte>();
         sprites.AddRange(BitConverter.GetBytes(1));

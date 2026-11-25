@@ -101,7 +101,7 @@ public class DemoReplayTests
 
         var clock = new LoadingRedrawClock();
         var registry = new Registry("");
-        var map = new MapSteam(game, TestGameFolder.Objects, files, registry, new GameSession(registry, time: clock));
+        var map = new MapSteam(game, TestGameFolder.Objects, files, new GameSession(registry, time: clock));
         clock.Schedule(loadingScreenRecords ?? []);
         map.Input.PostMessage(WindowMessageId.ActivateApp, 1, 0);
         if (isRequested)
@@ -110,7 +110,7 @@ public class DemoReplayTests
         }
         else
         {
-            map.Load(Encoding.ASCII.GetBytes(demoPath), GameClock.StartWallTime);
+            map.Load(Encoding.ASCII.GetBytes(demoPath), Map.StartWallTime);
         }
 
         return map;

@@ -116,21 +116,21 @@ public partial class VidSoftware : Vid
     }
 
     [EngineRoutine(0x00415440)]
-    internal override void Destruct(MyError? error)
+    internal override void Destruct(GameSession session)
     {
         if (NextMirror == this)
         {
             _buffer = [];
             FrameOffsets = [];
-            MemoryInUse -= _bufferSize;
+            session.VidMemoryInUse -= _bufferSize;
             _bufferSize = 0;
         }
 
-        base.Destruct(error);
+        base.Destruct(session);
     }
 
     [EngineRoutine(0x004154b0)]
-    internal override void Load(in VidResource file, ReadOnlyMemory<byte> data, MyError? error)
+    internal override void Load(in VidResource file, ReadOnlyMemory<byte> data, GameSession session)
     {
         var resource = default(Resource);
         resource.Open(null, data.Span, Resource.AnyTag);
@@ -149,14 +149,14 @@ public partial class VidSoftware : Vid
             }
             else
             {
-                Report(error, LogError.Load, 0, "PAL "u8);
+                Report(session.Error, LogError.Load, 0, "PAL "u8);
                 throw new InvalidDataException($"There is no palette in '{Path}'.");
             }
         }
 
         if (resource.GoNext("DATA"u8) != Resource.Found)
         {
-            Report(error, LogError.Load, 0, "DATA"u8);
+            Report(session.Error, LogError.Load, 0, "DATA"u8);
         }
 
         int paletteSize = GetPaletteSize();
@@ -175,8 +175,8 @@ public partial class VidSoftware : Vid
             position = paletteSize * 2;
         }
 
-        LoadFrameRecords(ref resource, coder, position, error);
-        MemoryInUse += _bufferSize;
+        LoadFrameRecords(ref resource, coder, position, session.Error);
+        session.VidMemoryInUse += _bufferSize;
         if (!Properties.HasFlag(ObjectProperties.BuildVidZToGridZ) || !FileType.HasFlag(VidType.Palette) || !FileType.HasFlag(VidType.Runs8Bit))
             return;
 
@@ -203,7 +203,7 @@ public partial class VidSoftware : Vid
     }
 
     [EngineRoutine(0x004162b0)]
-    internal override void SetGamma(Gamma gamma, int army, Gamma ambient, MyError? error)
+    internal override void SetGamma(Gamma gamma, int army, Gamma ambient, GameSession session)
     {
         int size = GetPaletteSize();
         if (_buffer.Length == 0 || !FileType.HasFlag(VidType.Palette))
@@ -211,7 +211,7 @@ public partial class VidSoftware : Vid
 
         if ((uint)army > AllArmies)
         {
-            Report(error, LogError.Invalid, army, "n_gamma in VID_SOFTWARE::SetGamma"u8);
+            Report(session.Error, LogError.Invalid, army, "n_gamma in VID_SOFTWARE::SetGamma"u8);
 
             return;
         }
@@ -223,7 +223,7 @@ public partial class VidSoftware : Vid
             {
                 for (int i = 0; i < ArmyPalettes; i++)
                 {
-                    SetGamma(Gammas[i], i, ambient, error);
+                    SetGamma(Gammas[i], i, ambient, session);
                 }
 
                 return;
@@ -241,7 +241,7 @@ public partial class VidSoftware : Vid
         Gammas[army] = gamma;
         if (!FileType.HasFlag(VidType.PaletteVariants))
         {
-            SplitPalettes(size);
+            SplitPalettes(size, session);
         }
 
         var slot = _buffer.AsSpan(size * army, size);
@@ -280,10 +280,10 @@ public partial class VidSoftware : Vid
         }
     }
 
-    private void SplitPalettes(int size)
+    private void SplitPalettes(int size, GameSession session)
     {
         _bufferSize += size * 3;
-        MemoryInUse += size * 3;
+        session.VidMemoryInUse += size * 3;
         byte[] split = new byte[_bufferSize];
         _buffer.AsSpan(size).CopyTo(split.AsSpan(size * ArmyPalettes));
         split.AsSpan(size * ArmyPalettes, size).CopyTo(split.AsSpan(0, size));
@@ -430,6 +430,8 @@ public partial class VidSoftware : Vid
 
     private void AddHeightPoints(ReadOnlySpan<short> grid)
     {
+        int halfWidth = FrameSize.Width / 2;
+        int halfHeight = FrameSize.Height / 2;
         for (int cellRow = FrameSize.Height / HeightCellSize - 1; cellRow >= 0; cellRow--)
         {
             for (int column = 0; column < FrameSize.Width / HeightCellSize; column++)
@@ -437,7 +439,7 @@ public partial class VidSoftware : Vid
                 short height = grid[cellRow * HeightGridSide + column];
                 if (height != EmptyHeight)
                 {
-                    HeightPoints.Add(new Vector3(column * (float)HeightCellSize - (float)(FrameSize.Width / 2), cellRow * (float)HeightCellSize - (float)(FrameSize.Height / 2), height));
+                    HeightPoints.Add(new Vector3(column * (float)HeightCellSize - halfWidth, cellRow * (float)HeightCellSize - halfHeight, height));
                 }
             }
         }

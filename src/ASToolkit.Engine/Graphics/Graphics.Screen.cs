@@ -250,7 +250,7 @@ public sealed partial class Graphics
             Clear(Screen, ClearColor);
         }
 
-        var screen = map.Session.ScreenSize;
+        var screen = ScreenSize;
         DrawVid(map, vid, _loadingFrame, new Vector3(screen.Width * Map.HalfShare, screen.Height * Map.HalfShare + 1, LoadingDepth));
         UpdateEffects(map, true);
         DrawText(new Vector2(LoadingTextLeft, Viewport.Top + LoadingTextTop), LoadingText, TextColor);
@@ -289,7 +289,7 @@ public sealed partial class Graphics
     [EngineRoutine(0x00430870)]
     internal void UpdateScreen(Map map, bool drawFrame)
     {
-        var screen = map.Session.ScreenSize;
+        var screen = ScreenSize;
         var saved = map.Camera;
 
         if (Environment.HasFlag(MapEnvironment.Earthquake) && !map.IsPaused)

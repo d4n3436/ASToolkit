@@ -183,8 +183,8 @@ internal sealed class Menu : SpriteList
 
     private Vector3 GetPosition(MenuHeader header, Vector3 position)
     {
-        return new Vector3(_map.Session.ScreenSize.Width * Map.HalfShare + (position.X - header.Origin.X - header.Size.Center.X),
-            _map.Session.ScreenSize.Height * Map.HalfShare + (position.Y - header.Origin.Y - header.Size.Center.Y), position.Z);
+        return new Vector3(_map.Session.Graphics.ScreenSize.Width * Map.HalfShare + (position.X - header.Origin.X - header.Size.Center.X),
+            _map.Session.Graphics.ScreenSize.Height * Map.HalfShare + (position.Y - header.Origin.Y - header.Size.Center.Y), position.Z);
     }
 
     private bool IsElement(Sprite sprite, MenuHeader header, int id, Vector3 position)

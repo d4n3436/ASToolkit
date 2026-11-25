@@ -9,10 +9,10 @@ public readonly ref partial struct Texture
     private const uint OpaqueKey = 0xff000000;
 
     [EngineRoutine(0x004032e0)]
-    internal static TextureData Create(ReadOnlySpan<byte> source, Size size, VidPixelFormat format, ReadOnlySpan<uint> palette, TextureFlags flags, MyError? error)
+    internal static TextureData Create(ReadOnlySpan<byte> source, Size size, VidPixelFormat format, ReadOnlySpan<uint> palette, TextureFlags flags, GameSession session)
     {
         var textureSize = size;
-        ushort[] texels = Allocate(ref textureSize, format, flags, error, out var stored, out var result);
+        ushort[] texels = Allocate(ref textureSize, format, flags, session, out var stored, out var result);
         uint[] texturePalette = result == VidPixelFormat.P8 ? palette.ToArray() : [];
         int pitch = GetSourcePitch(format, size.Width);
         uint colorKey = stored.HasFlag(TextureFlags.AlphaPalette) ? 0 : OpaqueKey;

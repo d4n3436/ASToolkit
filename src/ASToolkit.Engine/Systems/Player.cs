@@ -36,7 +36,7 @@ internal sealed class Player
         _map = map;
         _settings = settings;
         Money = StartMoney;
-        var screen = map.Session.ScreenSize;
+        var screen = map.Session.Graphics.ScreenSize;
         Messages = new Message(map, MessageLineId, NoMarkerId, MessageDefaultOrigin, MessageLines, MessageLifetime)
         {
             Origin = new Vector2(screen.Width - MessageRightMargin, screen.Height - MessageBottomMargin),

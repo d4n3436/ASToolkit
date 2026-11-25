@@ -131,10 +131,10 @@ public sealed partial class Graphics
     ];
 
     [EngineRoutine(0x00403290)]
-    internal static ushort[] CreateTexture(MyError? error, VidPixelFormat format, out VidPixelFormat result)
+    internal static ushort[] CreateTexture(GameSession session, VidPixelFormat format, out VidPixelFormat result)
     {
         var size = new Size(TextureSide, TextureSide);
-        return Texture.Allocate(ref size, format, TextureFlags.None, error, out _, out result);
+        return Texture.Allocate(ref size, format, TextureFlags.None, session, out _, out result);
     }
 
     internal static int GetDisplayBits(VidPixelFormat format) => format switch
@@ -148,9 +148,19 @@ public sealed partial class Graphics
         _ => 0
     };
 
-    internal void SetUpSettings(bool isColor32, bool isFullScreen)
+    internal void SetUpSettings(bool hasAppMenu, bool isVSync, bool isColor32, bool isFullScreen)
     {
-        Flags &= ~(GraphicsFlags.WindowViewport | GraphicsFlags.Color32 | GraphicsFlags.FullScreen);
+        Flags &= ~(GraphicsFlags.MenuLoop | GraphicsFlags.VSync | GraphicsFlags.WindowViewport | GraphicsFlags.PreTact | GraphicsFlags.Color32 | GraphicsFlags.FullScreen);
+        if (hasAppMenu)
+        {
+            Flags |= GraphicsFlags.WindowViewport;
+        }
+
+        if (isVSync)
+        {
+            Flags |= GraphicsFlags.VSync;
+        }
+
         if (isColor32)
         {
             Flags |= GraphicsFlags.Color32;
@@ -161,8 +171,6 @@ public sealed partial class Graphics
             Flags |= GraphicsFlags.FullScreen;
         }
     }
-
-    internal void SetVSync(bool isVSync) => Flags = isVSync ? Flags | GraphicsFlags.VSync : Flags & ~GraphicsFlags.VSync;
 
     [EngineRoutine(0x00401c80)]
     internal int SetUpDevice(SizeF screenSize)
@@ -240,8 +248,8 @@ public sealed partial class Graphics
         if (Buffers.Light.Length == 0 || Buffers.LightFormat != VidPixelFormat.P8)
             return;
 
-        Texture.Release(new Size(TextureSide, TextureSide), Buffers.LightFormat);
-        Buffers.Light = CreateTexture(Error, VidPixelFormat.P8, out var format);
+        Texture.Release(_session, new Size(TextureSide, TextureSide), Buffers.LightFormat);
+        Buffers.Light = CreateTexture(_session, VidPixelFormat.P8, out var format);
         Buffers.LightFormat = format;
         if (Buffers.Light.Length == 0)
         {
@@ -408,7 +416,7 @@ public sealed partial class Graphics
 
     private ushort[] CreateBufferTexture(VidPixelFormat format, ReadOnlySpan<byte> name, out VidPixelFormat result)
     {
-        ushort[] texels = CreateTexture(Error, format, out result);
+        ushort[] texels = CreateTexture(_session, format, out result);
         if (texels.Length == 0)
         {
             Error?.Error("GRAPH"u8, LogError.Create, 0, name);

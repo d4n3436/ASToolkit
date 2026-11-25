@@ -25,7 +25,7 @@ public class FurnitureGrammarTests
     public void Default_Arrangements_NameFamiliesWithPieces()
     {
         var families = Grammar.Types.Values
-            .SelectMany(program => program.Arrangements)
+            .SelectMany(session => session.Arrangements)
             .Where(arrangement => arrangement.Kind != ArrangementKind.Heap)
             .SelectMany(arrangement => arrangement.Members.Keys.Append(arrangement.Family!.Value))
             .Concat(Grammar.Heap.Core.Keys)
@@ -43,7 +43,7 @@ public class FurnitureGrammarTests
     [Fact]
     public void Default_Bands_MatchTheirTables()
     {
-        Assert.All(Grammar.Types.Values, program => Assert.Equal(FurnitureGrammar.DensityBands.Length, program.PiecesPerHundredCells.Length));
+        Assert.All(Grammar.Types.Values, session => Assert.Equal(FurnitureGrammar.DensityBands.Length, session.PiecesPerHundredCells.Length));
         Assert.All(Grammar.Families.Values, family => Assert.Equal(FurnitureGrammar.WallBands.Length, family.WallShare.Length));
     }
 
@@ -51,7 +51,7 @@ public class FurnitureGrammarTests
     public void Default_StackedCompanions_StandOnTheTierUnderThem()
     {
         var stacks = Grammar.Types.Values
-            .Select(program => program.Companions)
+            .Select(session => session.Companions)
             .Append(Grammar.SharedModules)
             .SelectMany(table => table.SelectMany(anchor => anchor.Value.Select(dir => new Module(anchor.Key, dir.Key, dir.Value))))
             .Select(module => (module.Anchor, Tiers: module.Pieces.Where(piece => piece.Id == module.Anchor && piece.Z > 0).Select(piece => piece.Z).ToArray()))

@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text;
 using ASToolkit.Analysis.Levels;
 using ASToolkit.Analysis.Routes;
 using ASToolkit.Analysis.Scripting;
@@ -99,9 +100,9 @@ public sealed class Playthrough
         files.Set(mapPath, File.ReadAllBytes(mapFile));
         files.Set(scriptPath, File.Exists(scriptFile) ? File.ReadAllBytes(scriptFile) : DefaultLevelScript.ToArray());
         var profile = CreateProfile(gameFolder);
-        var map = new MapSteam(gameFolder, objects, files, profile, new GameSession(profile, time: new LoadingRedrawClock()));
+        var map = new MapSteam(gameFolder, objects, files, new GameSession(profile, time: new LoadingRedrawClock()));
         map.Input.PostMessage(WindowMessageId.ActivateApp, 1, 0);
-        map.RequestLoad(GameTextEncoding.Cyrillic.GetBytes(mapPath));
+        map.RequestLoad(Encoding.ASCII.GetBytes(mapPath));
         map.Tact(ViewSeed, ViewSeed, out _);
 
         return map;
@@ -142,7 +143,7 @@ public sealed class Playthrough
     /// Plays a level along its tour.
     /// </summary>
     /// <param name="analysis">The route analysis of the level.</param>
-    /// <param name="loadout">The weapons, ammunition, armor and implants the player carries into the level.</param>
+    /// <param name="loadout">The weapons, ammunition, armor, implants and money the player carries into the level.</param>
     /// <param name="seed">The seed of the random rolls.</param>
     /// <param name="record">Whether to record the run into a demo.</param>
     /// <returns>The outcome of the playthrough.</returns>
@@ -160,18 +161,30 @@ public sealed class Playthrough
     /// <param name="loadout">The equipment the player carried into the level.</param>
     /// <param name="demo">The demo the playthrough recorded.</param>
     /// <returns>The map after the level's load and the demo's first frame; stepping it plays the rest of the demo.</returns>
-    public Map LoadReplay(RouteAnalysis analysis, PlayerLoadout loadout, DemoResource demo)
-    {
-        GetSetup(analysis);
-        string demoPath = Path.ChangeExtension(GetMapPath(analysis.Name), DemoExtension);
-        _files.Set(demoPath, demo.Data);
-        var registry = CreateRegistry(_gameFolder, analysis.Name, loadout);
-        var map = new MapSteam(_gameFolder, _objects, _files, registry, new GameSession(registry, time: new LoadingRedrawClock()));
-        map.Input.PostMessage(WindowMessageId.ActivateApp, 1, 0);
-        map.RequestLoad(GameTextEncoding.Cyrillic.GetBytes(demoPath));
-        map.Tact(GameClock.StartWallTime, 0, out _);
+    public Map LoadReplay(RouteAnalysis analysis, PlayerLoadout loadout, DemoResource demo) => LoadReplay(analysis, loadout, demo, null);
 
-        return map;
+    /// <summary>
+    /// Plays a campaign again up to the run of a level it recorded, then loads that level's demo on the campaign's map and plays the demo's first frame.
+    /// </summary>
+    /// <param name="levels">The levels in campaign order.</param>
+    /// <param name="endMoney">The reward for each supplied level, in the same order.</param>
+    /// <param name="seed">The seed of the random rolls.</param>
+    /// <param name="state">The state before the first shop, or null to begin a new campaign without shopping.</param>
+    /// <param name="record">A value indicating whether the campaign recorded the levels for replay.</param>
+    /// <param name="recordedLevel">The zero-based index of the level the campaign recorded, or null if it recorded every level.</param>
+    /// <param name="level">The zero-based index of the level to replay.</param>
+    /// <param name="recorded">The result of the run of <paramref name="level"/> the campaign recorded.</param>
+    /// <returns>The map after the level's load and the demo's first frame; stepping it plays the rest of the demo.</returns>
+    /// <remarks>Earlier levels, shops and failed attempts are played again first, so the demo starts from the state its recording started from.</remarks>
+    public Map LoadReplay(IReadOnlyList<RouteAnalysis> levels, IReadOnlyList<int> endMoney, int seed, CampaignState? state, bool record, int? recordedLevel,
+        int level, PlaythroughResult recorded)
+    {
+        var loadout = recorded.StartingLoadout ?? throw new ArgumentException("The playthrough does not include a starting loadout.", nameof(recorded));
+        var demo = recorded.Demo ?? throw new ArgumentException("The playthrough does not include a recorded demo.", nameof(recorded));
+        Map? map = null;
+        PlayCampaign(levels, endMoney, seed, state, record, recordedLevel, (level, recorded.Attempt), ref map);
+
+        return LoadReplay(levels[level], loadout, demo, map);
     }
 
     /// <summary>
@@ -187,8 +200,15 @@ public sealed class Playthrough
     public CampaignResult PlayCampaign(IReadOnlyList<RouteAnalysis> levels, IReadOnlyList<int> endMoney, int seed,
         CampaignState? state = null, bool record = false, int? recordedLevel = null)
     {
-        var results = new List<PlaythroughResult>();
         Map? map = null;
+
+        return PlayCampaign(levels, endMoney, seed, state, record, recordedLevel, null, ref map);
+    }
+
+    private CampaignResult PlayCampaign(IReadOnlyList<RouteAnalysis> levels, IReadOnlyList<int> endMoney, int seed,
+        CampaignState? state, bool record, int? recordedLevel, (int Level, int Attempt)? stop, ref Map? map)
+    {
+        var results = new List<PlaythroughResult>();
         bool shouldShopFirst = state is not null;
         state ??= CampaignState.CreateInitial();
         for (int level = 0; level < levels.Count; level++)
@@ -196,14 +216,20 @@ public sealed class Playthrough
             int money = state.Money;
             int reward = level < endMoney.Count ? endMoney[level] : 0;
             int firstSeed = (seed * SeedLevels + level) * MaxAttempts;
-            var loadout = level > 0 || shouldShopFirst
+            var loadout = (level > 0 || shouldShopFirst
                 ? _shop.Shop(ref money, state.Loadout.Ammo, state.Loadout.Implants, state.Loadout.Items, reward)
-                : state.Loadout;
+                : state.Loadout) with { Money = money };
             bool recordLevel = record && (recordedLevel is null || recordedLevel == level);
+            if (stop == (level, 0))
+                return new CampaignResult(results, state, false);
+
             var result = Run(levels[level], loadout, firstSeed, recordLevel, ref map);
             for (int attempt = 1; attempt < MaxAttempts && !result.Survived; attempt++)
             {
-                result = Run(levels[level], loadout, firstSeed + attempt, recordLevel, ref map);
+                if (stop == (level, attempt))
+                    return new CampaignResult(results, state, false);
+
+                result = Run(levels[level], loadout, firstSeed + attempt, recordLevel, ref map) with { Attempt = attempt };
             }
 
             results.Add(result);
@@ -222,7 +248,7 @@ public sealed class Playthrough
                 items = carriedItems;
             }
 
-            state = new CampaignState(money + result.Money + reward,
+            state = new CampaignState(result.Money + reward,
                 new PlayerLoadout(0, result.Ammo, result.Implants) { Items = items });
         }
 
@@ -239,7 +265,7 @@ public sealed class Playthrough
         if (map is null)
         {
             var registry = CreateRegistry(_gameFolder, analysis.Name, loadout);
-            map = new MapSteam(_gameFolder, _objects, _files, registry, new GameSession(registry, time: new LoadingRedrawClock()));
+            map = new MapSteam(_gameFolder, _objects, _files, new GameSession(registry, time: new LoadingRedrawClock()));
             map.Input.PostMessage(WindowMessageId.ActivateApp, 1, 0);
         }
         else
@@ -249,7 +275,7 @@ public sealed class Playthrough
 
         if (record)
         {
-            map.Session.IsRecordingNextMap = true;
+            map.IsRecordingNextMap = true;
         }
 
         map.RequestLoad(setup.MapName);
@@ -317,6 +343,7 @@ public sealed class Playthrough
             registry.Set("PlayerAmmo" + slot, loadout.Ammo.GetValueOrDefault(weapon).ToString(CultureInfo.InvariantCulture));
         }
 
+        registry.Set("PlayerMoney", $"{loadout.Money}");
         int[] items = new int[RegistryItemCount];
         items[LifeImplantItem] = loadout.Implants.Life;
         items[StrengthImplantItem] = loadout.Implants.Strength;
@@ -338,9 +365,31 @@ public sealed class Playthrough
         }
     }
 
+    private Map LoadReplay(RouteAnalysis analysis, PlayerLoadout loadout, DemoResource demo, Map? map)
+    {
+        GetSetup(analysis);
+        string demoPath = Path.ChangeExtension(GetMapPath(analysis.Name), DemoExtension);
+        _files.Set(demoPath, demo.Data);
+        if (map is null)
+        {
+            var registry = CreateRegistry(_gameFolder, analysis.Name, loadout);
+            map = new MapSteam(_gameFolder, _objects, _files, new GameSession(registry, time: new LoadingRedrawClock()));
+            map.Input.PostMessage(WindowMessageId.ActivateApp, 1, 0);
+        }
+        else
+        {
+            ApplyLoadout(map.Registry, analysis.Name, loadout);
+        }
+
+        map.RequestLoad(Encoding.ASCII.GetBytes(demoPath));
+        map.Tact(Map.StartWallTime, 0, out _);
+
+        return map;
+    }
+
     private PlaythroughResult Run(RouteAnalysis analysis, PlayerLoadout loadout, int seed, bool record, ref Map? map)
     {
-        var play = Start(analysis, loadout, seed, record, record ? null : map);
+        var play = Start(analysis, loadout, seed, record, map);
         map = play.Map;
         play.Play();
 
@@ -380,6 +429,6 @@ public sealed class Playthrough
             _files.Set(scriptPath, DefaultLevelScript.ToArray());
         }
 
-        return new LevelSetup(GameTextEncoding.Cyrillic.GetBytes(mapPath), isLocked);
+        return new LevelSetup(Encoding.ASCII.GetBytes(mapPath), isLocked);
     }
 }

@@ -217,7 +217,7 @@ public partial class Picture
         for (int i = 0; i < vertexCount; i++)
         {
             var vertex = path[i];
-            int offset = (short)GetDepth(vertex);
+            int offset = GetDepth(vertex);
             offset = offset / OutlineDepthScale - OutlineDepthBias;
             points[i] = new VidOutlinePoint((short)vertex.X, (short)(vertex.Y + (short)offset), (short)offset);
         }

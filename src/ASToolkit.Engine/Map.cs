@@ -22,9 +22,33 @@ public partial class Map : IDisposable
     /// Represents the lowest height a blast reaches above its center.
     /// </summary>
     public const float MinBlastHeight = 20;
- 
+
+    /// <summary>
+    /// Represents the game time a level starts at.
+    /// </summary>
+    public const int LevelStartTime = 10;
+
+    /// <summary>
+    /// Represents the game time of the frame before the one a level starts at.
+    /// </summary>
+    public const int LevelStartPreviousTime = 1;
+
+    /// <summary>
+    /// Represents the wall time a new map starts at.
+    /// </summary>
+    public const uint StartWallTime = 1;
+    
     internal const int UpdatedLayerCount = 16;
+    internal const string ConfigFile = "AlienShooter.cfg";
+    private const string DefaultFont = "Arial";
+    private const int DefaultFontWidth = 0;
+    private const int DefaultFontHeight = 8;
     private const int CompactionPeriodMask = 3;
+    private const int ResumeFrameTime = 10;
+    private const uint MaxWallStep = 71;
+    private const uint FrameRateWindow = 1000;
+    private const float NormalSpeed = 1;
+    private const uint StartPreviousWallTimeOffset = 10;
     private const int SpriteRecordSize = 112;
     private const float OldGridRounding = 7;
     private const int StartRandomState = 1;
@@ -36,9 +60,13 @@ public partial class Map : IDisposable
     private const int ReleaseWindDirection = 200;
 
     private static readonly SizeF StartMapSize = new(640, 480);
-    private protected GameClock _clock;
+    private int _framesPerSecond;
+    private int _framesThisSecond;
     private protected MapFlags _flags;
+    private float _speed;
+    private ReadOnlyMemory<byte> _mapName;
     private ReadOnlyMemory<byte> _pendingMapName;
+    private ReadOnlyMemory<byte> _previousMapName;
     private readonly string _gameFolder;
     private protected int _stepCount;
     private int _levelStartTime;
@@ -83,19 +111,20 @@ public partial class Map : IDisposable
     /// <param name="gameFolder">The game folder that holds the sprite files of the object IDs.</param>
     /// <param name="objects">The object table.</param>
     /// <param name="fileSystem">The file system that holds the game's files.</param>
-    /// <param name="registry">The registry of the level scripts, or null for an empty one.</param>
-    /// <param name="session">The session the map belongs to, or null to create one.</param>
+    /// <param name="session">The session the map belongs to, or null to start one.</param>
     [EngineRoutine(0x00408ff0)]
-    protected Map(string gameFolder, ObjectTable objects, IGameFileSystem fileSystem, Registry? registry = null, GameSession? session = null)
+    protected Map(string gameFolder, ObjectTable objects, IGameFileSystem fileSystem, GameSession? session = null)
     {
-        Registry = registry ?? new Registry("");
         Menu = new Menu(this);
-        Session = session ?? new GameSession(Registry);
+        Session = session ?? new GameSession();
+        Session.RealCurrentTime = StartWallTime;
+        Session.PrevRealCurrentTime = unchecked(StartWallTime - StartPreviousWallTimeOffset);
         SetFlag(MapFlags.AppMenu, Session.HasAppMenu);
         _flags |= MapFlags.PlayerControlled | MapFlags.DrawFlagman | MapFlags.DrawSoundCount | MapFlags.MouseTips;
-        Session.ReadConfig(fileSystem);
-        SetFlag(MapFlags.DrawFps, Session.ShouldDrawFps);
-        SetFlag(MapFlags.DrawPresentation, Session.ShouldDrawPresentation);
+        int fontHeight = Profile.GetInteger(fileSystem, ConfigFile, GraphSection, "FontSizeY"u8, DefaultFontHeight);
+        int fontWidth = Profile.GetInteger(fileSystem, ConfigFile, GraphSection, "FontSizeX"u8, DefaultFontWidth);
+        string font = Profile.TryGetString(fileSystem, ConfigFile, GraphSection, "Font"u8, out var fontName) ? Encoding.ASCII.GetString(fontName.Span) : DefaultFont;
+        Session.Graphics.CreateDeviceFont(font, new Size(fontWidth, fontHeight), DefaultMaxTextureSize);
         _hasWindow = true;
         FileSystem = fileSystem;
         _gameFolder = gameFolder;
@@ -107,7 +136,7 @@ public partial class Map : IDisposable
         {
             _layers[layer] = new MyList<Sprite?>();
         }
-        _clock = new GameClock();
+        _speed = NormalSpeed;
         Size = StartMapSize;
         ResetGroundZ();
         var objectsFile = new Resource();
@@ -116,15 +145,17 @@ public partial class Map : IDisposable
             Session.Error.Error(MapLogTag, LogError.Open, 0, "resource file"u8);
         }
 
-        Sound = Session.Sound ??= new Sound(ref objectsFile, fileSystem, Session.Error, isHighQuality: Session.IsSoundHighQuality);
-        Constant = Session.Constant ??= new Constant(ref objectsFile, Session.Error);
-        Constant.IsDebugMode = Profile.GetInteger(fileSystem, GameSession.ConfigFile, GameSession.GameSection, "DebugMode"u8, 0) != 0;
+        Session.Sound ??= new Sound(ref objectsFile, fileSystem, Session.Error, isHighQuality: Session.Registry.GetInt("SoundHighQuality", 0) != 0);
+        Session.Constant ??= new Constant(ref objectsFile, Session.Error);
+        Constant.IsDebugMode = Profile.GetInteger(fileSystem, ConfigFile, GameSection, "DebugMode"u8, 0) != 0;
+        SetFlag(MapFlags.DrawFps, Profile.GetInteger(fileSystem, ConfigFile, GameSection, "DrawFPS"u8, 0) != 0);
+        SetFlag(MapFlags.DrawPresentation, Profile.GetInteger(fileSystem, ConfigFile, GameSection, "DrawPresentation"u8, 1) != 0);
         Collector = new SpriteCollector(this);
         LoadVid(ref objectsFile);
 
         EmptyVid.SetWeapons(_weapons!);
         Collector = new SpriteCollector(Size, Vids, this);
-        CursorSprite = new Mouse(EmptyVid, new Vector3(Session.ScreenSize.ToVector2() * HalfShare, 0), default, null, this);
+        CursorSprite = new Mouse(EmptyVid, new Vector3(Session.Graphics.ScreenSize.ToVector2() * HalfShare, 0), default, null, this);
         _controls = ControlSettings.Read(fileSystem);
         Input = new Input(_controls);
         for (int slot = 0; slot < ASToolkit.Engine.Vid.ArmyCount; slot++)
@@ -173,7 +204,7 @@ public partial class Map : IDisposable
     /// <summary>
     /// Gets the game time in milliseconds.
     /// </summary>
-    public int Time => _clock.Time;
+    public int Time => Session.CurrentTime;
 
     /// <summary>
     /// Gets the state of the random number generator.
@@ -183,9 +214,9 @@ public partial class Map : IDisposable
     /// <summary>
     /// Gets the length of the current frame in milliseconds.
     /// </summary>
-    public int FrameTime => _clock.FrameTime;
+    public int FrameTime => Session.CurrentTime - Session.PrevCurrentTime;
 
-    internal int PreviousTime => _clock.PreviousTime;
+    internal int PreviousTime => Session.PrevCurrentTime;
 
     /// <summary>
     /// Gets a value indicating whether the level script has locked the doors.
@@ -200,7 +231,7 @@ public partial class Map : IDisposable
     /// <summary>
     /// Gets the wall time of the current frame in milliseconds.
     /// </summary>
-    public uint WallTime => _clock.WallTime;
+    public uint WallTime => Session.RealCurrentTime;
 
     /// <summary>
     /// Gets a value indicating whether the map is loading a level.
@@ -213,14 +244,14 @@ public partial class Map : IDisposable
     public bool IsPaused => _flags.HasFlag(MapFlags.Paused);
 
     /// <summary>
-    /// Gets the sound effects and music of the session.
+    /// Gets the sound effects and music of the game.
     /// </summary>
-    public Sound Sound { get; }
+    public Sound Sound => Session.Sound!;
 
     /// <summary>
-    /// Gets the tuning values of the session.
+    /// Gets the tuning values of the game.
     /// </summary>
-    public Constant Constant { get; }
+    public Constant Constant => Session.Constant!;
 
     /// <summary>
     /// Gets the menu sprites that keep their place on the screen as the camera moves.
@@ -232,6 +263,16 @@ public partial class Map : IDisposable
     internal Menu Menu { get; }
 
     internal IGameFileSystem FileSystem { get; }
+
+    /// <summary>
+    /// Gets the name of the map loaded last.
+    /// </summary>
+    public ReadOnlyMemory<byte> MapName => _mapName;
+
+    /// <summary>
+    /// Gets the name of the map loaded before the last one.
+    /// </summary>
+    public ReadOnlyMemory<byte> PreviousMapName => _previousMapName;
 
     /// <summary>
     /// Gets the size of the map, in map pixels.
@@ -249,6 +290,11 @@ public partial class Map : IDisposable
     public Script Script { get; } = new();
 
     /// <summary>
+    /// Gets or sets a value indicating whether the next map load records the input of every frame into a demo kept in memory.
+    /// </summary>
+    public bool IsRecordingNextMap { get; set; }
+
+    /// <summary>
     /// Gets the input of the current frame.
     /// </summary>
     public Input Input { get; }
@@ -264,9 +310,13 @@ public partial class Map : IDisposable
 
     internal Dictionary<int, Sprite> Handles { get; } = [];
 
-    internal int FramesPerSecond => _clock.FramesPerSecond;
+    internal int FramesPerSecond => _framesPerSecond;
 
     private static ReadOnlySpan<byte> SpriteDataTag => "SPRD"u8;
+
+    internal static ReadOnlySpan<byte> GameSection => "game"u8;
+
+    internal static ReadOnlySpan<byte> GraphSection => "graph"u8;
 
     /// <summary>
     /// Sets a map file, or a demo file, to load at the start of the next step, before that step's frame runs.
@@ -304,7 +354,7 @@ public partial class Map : IDisposable
         _livingFences.Clear();
         _livingSites.Clear();
         _livingCharges.Clear();
-        if (!Session.IsRecordingNextMap)
+        if (!IsRecordingNextMap)
         {
             var demo = new Resource();
             if (demo.Open(FileSystem, Session.Error, name, "DEMO"u8) == 0)
@@ -324,7 +374,8 @@ public partial class Map : IDisposable
         }
 
         CursorSprite.Disable();
-        Session.EnterMap(name.ToArray());
+        _previousMapName = _mapName;
+        _mapName = name.ToArray();
         int seed = IsPlayingDemo ? _playedDemo!.Value.Seed : (int)wallTime;
         _rng.Seed(seed);
         ShowLoadingStep("Load extra vid"u8);
@@ -339,7 +390,7 @@ public partial class Map : IDisposable
 
         _flags &= ~MapFlags.Loading;
         Relation.Release();
-        Session.Error.Write($"Vid    release {Texture.MemoryInUse} {ASToolkit.Engine.Vid.MemoryInUse}");
+        Session.Error.Write($"Vid    release {Session.TextureMemoryInUse} {Session.VidMemoryInUse}");
         LoadScript(name);
         if (IsPlayingDemo)
         {
@@ -350,7 +401,7 @@ public partial class Map : IDisposable
             Script.WriteState(_recordedDemo!);
         }
 
-        _clock.SetWallTime(wallTime);
+        Session.RealCurrentTime = wallTime;
         ShowLoadingStep("Run scripts for create sprites"u8);
         if (!_flags.HasFlag(MapFlags.AppMenu))
         {
@@ -425,7 +476,19 @@ public partial class Map : IDisposable
     [EngineRoutine(0x0040f210)]
     public bool AdvanceClock(uint wallTime)
     {
-        _clock.StartTact(wallTime, wallTime);
+        uint step = Math.Min(wallTime - Session.RealCurrentTime, MaxWallStep);
+        Session.PrevRealCurrentTime = Session.RealCurrentTime;
+        Session.RealCurrentTime = wallTime;
+        Session.PrevCurrentTime = Session.CurrentTime;
+        Session.CurrentTime += (int)(step * _speed);
+        _framesThisSecond++;
+        if (Session.RealCurrentTime - Session.FrameRateStartedAt >= FrameRateWindow)
+        {
+            Session.FrameRateStartedAt = Session.RealCurrentTime;
+            _framesPerSecond = _framesThisSecond;
+            _framesThisSecond = 0;
+        }
+
         Input.ResetFrame();
         if ((Time & CompactionPeriodMask) == 0)
         {
@@ -496,13 +559,13 @@ public partial class Map : IDisposable
         {
             if (_vids[i] is not null)
             {
-                _vids[i]!.Destruct(Session.Error);
+                _vids[i]!.Destruct(Session);
                 _vids[i] = null;
             }
         }
 
         _vidCount = 0;
-        Session.Error.Write($"Vid    release {Texture.MemoryInUse} {ASToolkit.Engine.Vid.MemoryInUse}");
+        Session.Error.Write($"Vid    release {Session.TextureMemoryInUse} {Session.VidMemoryInUse}");
     }
 
     /// <summary>
@@ -554,10 +617,11 @@ public partial class Map : IDisposable
     [EngineRoutine(0x0040c570)]
     internal virtual void Release()
     {
-        var error = Session.Error;
-        LogCounts(error);
+        LogCounts();
         Relation.Release();
-        _clock.ResetRate();
+        _speed = NormalSpeed;
+        _framesPerSecond = 0;
+        _framesThisSecond = 0;
         Session.Graphics.Movie.Release();
         Session.Graphics.SetWind(ReleaseWindSpeed, new Angle(ReleaseWindDirection));
         Session.Graphics.SetEnvironment((MapEnvironment)(-1));
@@ -573,13 +637,13 @@ public partial class Map : IDisposable
         EndDemoRecording();
         _flags &= ~(MapFlags.RecordingDemo | MapFlags.PlayingDemo);
         _scrollType = ScrollType.FromBorder;
-        error.Write("Player release"u8);
+        Session.Error.Write("Player release"u8);
         foreach (var player in _players)
         {
             player.Reset();
         }
 
-        error.Write("Sprite release"u8);
+        Session.Error.Write("Sprite release"u8);
         // TODO: Port the trains; the release sets the flag (DAT_005da58c) that makes the Engine destructors (0x44e9f0, 0x450e20) skip their scripts while it destroys the sprites
         foreach (var player in _players)
         {
@@ -587,16 +651,16 @@ public partial class Map : IDisposable
         }
 
         DeleteAll();
-        error.Write("Menu   release"u8);
+        Session.Error.Write("Menu   release"u8);
         if (Menu.Count != 0)
         {
-            error.Error($"SPRITE {(int)Menu[0].Vid.Id}", LogError.Text, 0, "Menu sprite exist after delete"u8);
+            Session.Error.Error($"SPRITE {(int)Menu[0].Vid.Id}", LogError.Text, 0, "Menu sprite exist after delete"u8);
             Menu.DeleteAll();
         }
 
         int elapsed = Time - _levelStartTime;
-        error.Write($"Average fps={(elapsed == 0 ? 0 : (int)((uint)(_stepCount * 1000) / (uint)elapsed))}");
-        error.Write("Script release"u8);
+        Session.Error.Write($"Average fps={(elapsed == 0 ? 0 : (int)((uint)(_stepCount * 1000) / (uint)elapsed))}");
+        Session.Error.Write("Script release"u8);
         foreach (var file in _scriptFiles.Values)
         {
             file.Dispose();
@@ -682,7 +746,8 @@ public partial class Map : IDisposable
         int time = Time;
         reader.ReadInto(ref time);
         _levelStartTime = time;
-        _clock.SetTimes(time, time);
+        Session.PrevCurrentTime = time;
+        Session.CurrentTime = time;
         int version = 0;
         reader.ReadInto(ref version);
         Session.Graphics.OldLoadParameters(ref reader, this);
@@ -720,7 +785,7 @@ public partial class Map : IDisposable
         Session.Error.Write($"CurrentTime   ={(uint)Time,-15}   sizeof(SPRITE)={SpriteRecordSize,-8} Map version   ={version}");
         ShowLoadingStep("Create new hash table"u8);
         Collector = new SpriteCollector(Size, Vids, this);
-        SetPosition(Session.ScreenSize.ToVector2() * HalfShare + scroll, CameraMove.None);
+        SetPosition(Session.Graphics.ScreenSize.ToVector2() * HalfShare + scroll, CameraMove.None);
         ShowLoadingStep("Load gridZ"u8);
         ResetGroundZ();
         LoadGridZ(ref reader, _gridColumns * _gridRows * sizeof(short));
@@ -766,10 +831,11 @@ public partial class Map : IDisposable
         scroll = new Vector2(scrollX, scrollY);
         int savedTime = Time;
         reader.ReadInto(ref savedTime);
-        _clock.SetTimes(GameClock.LevelStartPreviousTime, GameClock.LevelStartTime);
-        if (!IsPlayingDemo && Session.IsRecordingNextMap)
+        Session.PrevCurrentTime = LevelStartPreviousTime;
+        Session.CurrentTime = LevelStartTime;
+        if (!IsPlayingDemo && IsRecordingNextMap)
         {
-            Session.IsRecordingNextMap = false;
+            IsRecordingNextMap = false;
             StartDemoRecording(name, seed);
         }
 
@@ -903,7 +969,7 @@ public partial class Map : IDisposable
 
     internal static int OpenObjects(IGameFileSystem fileSystem, MyError? error, ref Resource resource)
     {
-        var name = Profile.TryGetString(fileSystem, GameSession.ConfigFile, GameSession.GameSection, "Resource"u8, out var configured) ? configured.Span : "objects.res"u8;
+        var name = Profile.TryGetString(fileSystem, ConfigFile, GameSection, "Resource"u8, out var configured) ? configured.Span : "objects.res"u8;
 
         return resource.Open(fileSystem, error, name, "DATA"u8);
     }
@@ -931,7 +997,7 @@ public partial class Map : IDisposable
         {
             if (_vids[i] is not null && _vids[i]!.FileType.HasFlag(VidType.FrameVector))
             {
-                _vids[i]!.Destruct(Session.Error);
+                _vids[i]!.Destruct(Session);
                 _vids[i] = null;
             }
         }
@@ -1047,7 +1113,7 @@ public partial class Map : IDisposable
         return set.Sprites;
     }
 
-    private void SetTime(int time) => _clock.SetTime(time);
+    private void SetTime(int time) => Session.CurrentTime = time;
 
     [EngineRoutine(0x0043ad70)]
     private void LoadGroups(ref Resource reader)
@@ -1135,7 +1201,8 @@ public partial class Map : IDisposable
             }
         }
 
-        _clock.Resume(_pausedAt);
+        Session.CurrentTime = _pausedAt;
+        Session.PrevCurrentTime = _pausedAt - ResumeFrameTime;
         _flags &= ~MapFlags.Paused;
     }
 

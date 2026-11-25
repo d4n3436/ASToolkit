@@ -36,7 +36,7 @@ public partial class Map : IScriptFunctionHost
     /// <summary>
     /// Gets the registry of the level script.
     /// </summary>
-    public Registry Registry { get; }
+    public Registry Registry => Session.Registry;
 
     /// <summary>
     /// Gets the session the map belongs to.
@@ -208,7 +208,7 @@ public partial class Map : IScriptFunctionHost
                 Session.Error.Write(script.PopText().Span);
                 break;
             case ScriptFunction.ReloadVid:
-                ReloadVid(Session.Error, Sound);
+                ReloadVid();
                 break;
             case ScriptFunction.OldStrlen:
             case ScriptFunction.Strlen:
@@ -292,10 +292,10 @@ public partial class Map : IScriptFunctionHost
                 SetWind(script);
                 break;
             case ScriptFunction.ScreenX:
-                script.PushInt((int)Session.ScreenSize.Width);
+                script.PushInt((int)Session.Graphics.ScreenSize.Width);
                 break;
             case ScriptFunction.ScreenY:
-                script.PushInt((int)Session.ScreenSize.Height);
+                script.PushInt((int)Session.Graphics.ScreenSize.Height);
                 break;
             case ScriptFunction.ToScreenX:
                 script.PushInt((int)(script.PopNumber() - Camera.X));
@@ -308,16 +308,16 @@ public partial class Map : IScriptFunctionHost
                 Sound.SetVolume(script.PopNumber());
                 break;
             case ScriptFunction.SetMusicVolume:
-                Sound.SetMusicVolume(script.PopNumber(), _clock.WallTime);
+                Sound.SetMusicVolume(script.PopNumber(), Session.RealCurrentTime);
                 break;
             case ScriptFunction.PlaySfx:
                 Sound.Play(script.PopNumber(), 0, Sound.FullLoudness);
                 break;
             case ScriptFunction.StopSfx:
-                Sound.Stop(script.PopNumber(), _clock.WallTime);
+                Sound.Stop(script.PopNumber(), Session.RealCurrentTime);
                 break;
             case ScriptFunction.StopMusic:
-                Sound.StopMusic(_clock.WallTime);
+                Sound.StopMusic(Session.RealCurrentTime);
                 break;
             case ScriptFunction.PlaySfxFromCoor:
                 PlaySfxFromCoor(script);
@@ -326,7 +326,7 @@ public partial class Map : IScriptFunctionHost
                 PlayMusicFile(script);
                 break;
             case ScriptFunction.IsPlayMusic:
-                script.PushInt(Sound.IsPlayMusic(_clock.WallTime) ? 1 : 0);
+                script.PushInt(Sound.IsPlayMusic(Session.RealCurrentTime) ? 1 : 0);
                 break;
 
             case ScriptFunction.PlayMovie:
@@ -366,7 +366,7 @@ public partial class Map : IScriptFunctionHost
                 if (!IsPlayingDemo)
                 {
                     script.Stack.Pop();
-                    Session.IsRecordingNextMap = true;
+                    IsRecordingNextMap = true;
                 }
 
                 break;
@@ -396,13 +396,13 @@ public partial class Map : IScriptFunctionHost
                 FClose();
                 break;
             case ScriptFunction.GetPreviousMapName:
-                script.PushText(Session.PreviousMapName);
+                script.PushText(_previousMapName);
                 break;
             case ScriptFunction.GetAsProtectUserName:
                 script.PushText(default);
                 break;
             case ScriptFunction.GetMapName:
-                script.PushText(Session.MapName);
+                script.PushText(_mapName);
                 break;
             case ScriptFunction.Crc32:
                 PushInt(ComputeChecksum(PopText().Span));
@@ -1499,7 +1499,7 @@ public partial class Map : IScriptFunctionHost
     {
         var gamma = Gamma.FromScript((uint)value);
         vid.Gammas[army] = gamma;
-        vid.SetGamma(gamma, army, Session.Graphics.Gamma, Session.Error);
+        vid.SetGamma(gamma, army, Session.Graphics.Gamma, Session);
     }
 
     private void SetVidSpeed(Vid vid, int value)
@@ -1611,13 +1611,13 @@ public partial class Map : IScriptFunctionHost
     private void PlaySfxFromCoor(Script script)
     {
         var point = PopPoint(script);
-        Sound.PlayAt(script.PopNumber(), point - Camera - Session.ScreenSize.ToVector2() * HalfShare);
+        Sound.PlayAt(script.PopNumber(), point - Camera - Session.Graphics.ScreenSize.ToVector2() * HalfShare);
     }
 
     private void PlayMusicFile(Script script)
     {
         int loop = script.PopNumber();
-        Sound.PlayMusicFile(script.PopText().Span, loop, _clock.WallTime);
+        Sound.PlayMusicFile(script.PopText().Span, loop, Session.RealCurrentTime);
     }
 
     private int CountGamma(Script script)

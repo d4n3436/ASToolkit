@@ -128,7 +128,7 @@ public sealed class SpriteCollector
 
         if (failed != 0 && sprite != cursor && sprite != cursor.Link)
         {
-            sprite.Error?.Error($"SPRITE {(int)sprite.Vid.Id}", LogError.Text, failed, "hash can't delete"u8);
+            sprite.Map.Session.Error.Error($"SPRITE {(int)sprite.Vid.Id}", LogError.Text, failed, "hash can't delete"u8);
         }
 
         return failed;

@@ -20,8 +20,7 @@ public sealed class ReplayPlayback
 
     private readonly Playthrough _play;
     private readonly RouteAnalysis _analysis;
-    private readonly PlayerLoadout _loadout;
-    private readonly DemoResource _demo;
+    private readonly CampaignState _state;
     private readonly int[] _frameTimes;
     private readonly FramePacer _pacer;
     private Map _map;
@@ -31,14 +30,13 @@ public sealed class ReplayPlayback
     private Bgra32[]? _rendered;
     private int _renderedTime;
 
-    private ReplayPlayback(Playthrough play, RouteAnalysis analysis, PlaythroughResult result)
+    private ReplayPlayback(Playthrough play, RouteAnalysis analysis, CampaignState state, PlaythroughResult result)
     {
         _play = play;
         _pacer = new FramePacer(play.FrameTimes);
         _analysis = analysis;
         Result = result;
-        _loadout = result.StartingLoadout ?? throw new ArgumentException("The playthrough does not include a starting loadout.", nameof(result));
-        _demo = result.Demo ?? throw new ArgumentException("The playthrough does not include a recorded demo.", nameof(result));
+        _state = state;
 
         _map = Load();
         int[] times = _map.EnumerateDemoFrameTimes().ToArray();
@@ -89,9 +87,10 @@ public sealed class ReplayPlayback
         var level = new LevelLoader(objects).Load(map, Path.Combine(mapsPath, map)) ?? throw new InvalidDataException($"Could not find a route through the map '{map}'.");
         var table = GameTable.Load(tablePath);
         var play = new Playthrough(game, objects, table);
-        var result = PlayLevel(play, level.Analysis, map, table);
+        var state = CreateState(map, table);
+        var result = play.PlayCampaign([level.Analysis], [], 1, state, record: true).Levels[0];
 
-        return new ReplayPlayback(play, level.Analysis, result);
+        return new ReplayPlayback(play, level.Analysis, state, result);
     }
 
     /// <summary>
@@ -146,7 +145,7 @@ public sealed class ReplayPlayback
         return StepFrame(!isFull);
     }
 
-    private static PlaythroughResult PlayLevel(Playthrough play, RouteAnalysis selected, string map, GameTable table)
+    private static CampaignState CreateState(string map, GameTable table)
     {
         string stem = Path.GetFileNameWithoutExtension(map);
         int number = 1;
@@ -158,9 +157,7 @@ public sealed class ReplayPlayback
         string folder = Path.GetDirectoryName(map) ?? "";
         var rewards = table.GetArray(GameTable.GetLevelMoneyName(folder));
         int money = CampaignState.StartingMoney + (number > 1 && number <= rewards.Count ? rewards[number - 1] : 0);
-        var state = CampaignState.CreateInitial(money);
-
-        return play.PlayCampaign([selected], [], 1, state, record: true).Levels[0];
+        return CampaignState.CreateInitial(money);
     }
 
     private Map Load()
@@ -169,9 +166,9 @@ public sealed class ReplayPlayback
         _isStepped = false;
         _shownTime = 0;
         _rendered = null;
-        var map = _play.LoadReplay(_analysis, _loadout, _demo);
+        var map = _play.LoadReplay([_analysis], [], 1, _state, true, null, 0, Result);
         _pacer.Restart();
-        map.Session.Graphics.Screen = new Screen(Size.Round(map.Session.ScreenSize), true);
+        map.Session.Graphics.Screen = new Screen(Size.Round(map.Session.Graphics.ScreenSize), true);
 
         return map;
     }

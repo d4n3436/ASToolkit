@@ -16,10 +16,10 @@ public class DrawingTests
     {
         var drawn = Load();
         var plain = Load();
-        drawn.Session.Graphics.Screen = new Screen(Size.Round(drawn.Session.ScreenSize), true);
+        drawn.Session.Graphics.Screen = new Screen(Size.Round(drawn.Session.Graphics.ScreenSize), true);
 
         Step(drawn, Frames / 2);
-        var view = new Rectangle(Point.Round(new PointF(drawn.Camera.X, drawn.Camera.Y)), Size.Round(drawn.Session.ScreenSize));
+        var view = new Rectangle(Point.Round(new PointF(drawn.Camera.X, drawn.Camera.Y)), Size.Round(drawn.Session.Graphics.ScreenSize));
         using (MapImage.Render(drawn, view, 1f))
         {
         }

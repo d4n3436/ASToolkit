@@ -80,8 +80,7 @@ public class MyErrorTests
     public void Map_LoadAndEnd_LogTheScriptAndTheDefinitionsLeft()
     {
         var fileSystem = new MemoryWriteOverlay();
-        var registry = new Registry("");
-        using (var session = new GameSession(registry, fileSystem, new LoadingRedrawClock(new FakeTimeProvider(StartTime))))
+        using (var session = new GameSession(EngineTestMap.CreateRegistry(), fileSystem, new LoadingRedrawClock(new FakeTimeProvider(StartTime))))
         {
             using var map = EngineTestMap.CreateMap(session: session);
             var scriptFileSystem = new MemoryWriteOverlay(new GameFolder(TestGameFolder.RequireFolder()));

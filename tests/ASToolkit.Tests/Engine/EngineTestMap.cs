@@ -39,30 +39,34 @@ internal static class EngineTestMap
         sprite.Vid.Class is not (SpriteClass.Man or SpriteClass.Frame or SpriteClass.Text) && sprite.Vid.Id is not (Map.HardwareGroundId or KnownObject.SmallShadow) &&
         !SpriteCollector.IsListed(sprite.Vid) && sprite.Owner?.Vid.Class != SpriteClass.Man);
 
-    public static Map CreateMap(PlayerLoadout? loadout = null, IReadOnlyList<MergedMapSprite>? sprites = null, int frameTime = FramePacer.DefaultFrameTime,
-        MapEnvironment environment = MapEnvironment.None, DemoResource? demo = null, string? blood = null, GameSession? session = null, string script = Script, Gamma ambient = default, bool placePlayer = true, Vector2 camera = default)
+    public static Registry CreateRegistry(PlayerLoadout? loadout = null, string? blood = null)
     {
-        var files = CreateFiles(sprites, environment, script, ambient, placePlayer, camera);
-
-        loadout ??= new PlayerLoadout(0, new Dictionary<KnownObject, int>(), default);
-
-        var registry = Playthrough.CreateRegistry(TestGameFolder.RequireFolder(), "Level_02.map", loadout);
+        var registry = Playthrough.CreateRegistry(TestGameFolder.RequireFolder(), "Level_02.map", loadout ?? new PlayerLoadout(0, new Dictionary<KnownObject, int>(), default));
         if (blood is not null)
         {
             registry.Set("Blood", blood);
         }
 
-        var map = new MapSteam(TestGameFolder.RequireFolder(), TestGameFolder.Objects, files, registry: registry, session: session ?? new GameSession(registry, time: new LoadingRedrawClock()));
+        return registry;
+    }
+
+    public static Map CreateMap(PlayerLoadout? loadout = null, IReadOnlyList<MergedMapSprite>? sprites = null, int frameTime = FramePacer.DefaultFrameTime,
+        MapEnvironment environment = MapEnvironment.None, DemoResource? demo = null, string? blood = null, GameSession? session = null, string script = Script, Gamma ambient = default, bool placePlayer = true, Vector2 camera = default, bool recordDemo = false)
+    {
+        var files = CreateFiles(sprites, environment, script, ambient, placePlayer, camera);
+
+        var map = new MapSteam(TestGameFolder.RequireFolder(), TestGameFolder.Objects, files, session ?? new GameSession(CreateRegistry(loadout, blood), time: new LoadingRedrawClock()));
         map.Pace([frameTime]);
         map.Input.PostMessage(WindowMessageId.ActivateApp, 1, 0);
+        map.IsRecordingNextMap = recordDemo;
         if (demo is null)
         {
-            map.Load(MapName, GameClock.StartWallTime);
+            map.Load(MapName, Map.StartWallTime);
         }
         else
         {
             files.Set(DemoPath, demo.Value.Data);
-            map.Load(Encoding.ASCII.GetBytes(DemoPath), GameClock.StartWallTime);
+            map.Load(Encoding.ASCII.GetBytes(DemoPath), Map.StartWallTime);
         }
 
         if (placePlayer)

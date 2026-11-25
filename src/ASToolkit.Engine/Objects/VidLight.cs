@@ -43,20 +43,20 @@ public sealed class VidLight : Vid
     internal override Vid CreateMirror() => new VidLight(this);
 
     [EngineRoutine(0x00414c10)]
-    internal override void Destruct(MyError? error)
+    internal override void Destruct(GameSession session)
     {
         if (NextMirror == this)
         {
             _colors = [];
-            MemoryInUse -= _dataSize;
+            session.VidMemoryInUse -= _dataSize;
             _dataSize = 0;
         }
 
-        base.Destruct(error);
+        base.Destruct(session);
     }
 
     [EngineRoutine(0x00414c60)]
-    internal override void Load(in VidResource file, ReadOnlyMemory<byte> data, MyError? error)
+    internal override void Load(in VidResource file, ReadOnlyMemory<byte> data, GameSession session)
     {
         var resource = default(Resource);
         resource.Open(null, data.Span, Resource.AnyTag);
@@ -64,17 +64,17 @@ public sealed class VidLight : Vid
         resource.Read(stackalloc byte[HeadFieldsSize]);
         if (resource.GoNext("DATA"u8) != Resource.Found)
         {
-            Report(error, LogError.Load, 0, "DATA"u8);
+            Report(session.Error, LogError.Load, 0, "DATA"u8);
         }
 
         FrameSize = new Size((short)(int)Size.X, (short)(int)Size.Y);
         _dataSize = resource.Load(null, out _colors);
         if (_dataSize == 0)
         {
-            Report(error, LogError.Load, 0, "cadr"u8);
+            Report(session.Error, LogError.Load, 0, "cadr"u8);
         }
 
-        MemoryInUse += _dataSize;
+        session.VidMemoryInUse += _dataSize;
     }
 
     /// <summary>

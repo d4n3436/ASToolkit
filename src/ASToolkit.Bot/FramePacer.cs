@@ -8,6 +8,11 @@ namespace ASToolkit.Bot;
 public sealed class FramePacer
 {
     /// <summary>
+    /// Represents the milliseconds in a second.
+    /// </summary>
+    public const int MillisecondsPerSecond = 1000;
+
+    /// <summary>
     /// Represents the frame length of a 60 Hz display in milliseconds.
     /// </summary>
     public const int DefaultFrameTime = 16;
@@ -39,7 +44,7 @@ public sealed class FramePacer
         int[] times = new int[refreshRate];
         for (int frame = 0; frame < refreshRate; frame++)
         {
-            times[frame] = (frame + 1) * GameClock.MillisecondsPerSecond / refreshRate - frame * GameClock.MillisecondsPerSecond / refreshRate;
+            times[frame] = (frame + 1) * FramePacer.MillisecondsPerSecond / refreshRate - frame * FramePacer.MillisecondsPerSecond / refreshRate;
         }
 
         return times;

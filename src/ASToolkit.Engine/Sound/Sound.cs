@@ -8,7 +8,7 @@ using ASToolkit.Formats;
 namespace ASToolkit.Engine;
 
 /// <summary>
-/// Represents the sound effects and music of a game session.
+/// Represents the sound effects and music of the game.
 /// </summary>
 public sealed class Sound
 {

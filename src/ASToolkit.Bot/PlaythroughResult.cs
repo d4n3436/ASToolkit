@@ -13,13 +13,14 @@ namespace ASToolkit.Bot;
 /// <param name="Kills">The number of monsters killed.</param>
 /// <param name="Respawns">The number of extra lives used during the level.</param>
 /// <param name="MinHealth">The lowest health the player had.</param>
-/// <param name="Money">The money the player picked up.</param>
+/// <param name="Money">The money the player held when the run ended, including the money carried into the level.</param>
 /// <param name="Implants">The implants the player carries at the end.</param>
 /// <param name="Pickups">The pickups the player took, in order.</param>
 /// <param name="Items">The retained utility items at the end of the level.</param>
 /// <param name="Ammo">The ammunition left for each weapon other than the pistols that the player holds at the end, keyed by the weapon pickup.</param>
 /// <param name="Script">The times of the level script's events in the playthrough.</param>
 /// <param name="Demo">The demo the run recorded, or null when the run didn't keep a demo.</param>
+/// <param name="Attempt">The zero-based attempt of the level this run was, counting the failed runs before it.</param>
 public sealed record PlaythroughResult(
     PlayerLoadout? StartingLoadout,
     bool Survived,
@@ -34,4 +35,5 @@ public sealed record PlaythroughResult(
     IReadOnlyDictionary<KnownObject, int> Items,
     IReadOnlyDictionary<KnownObject, int> Ammo,
     ScriptTimeline Script,
-    DemoResource? Demo);
+    DemoResource? Demo,
+    int Attempt = 0);

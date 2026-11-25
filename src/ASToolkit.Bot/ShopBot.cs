@@ -63,7 +63,7 @@ internal sealed class ShopBot
             if (torso is null || damage <= 0 || money + reward < cost)
                 continue;
 
-            float value = damage * GameClock.MillisecondsPerSecond /
+            float value = damage * FramePacer.MillisecondsPerSecond /
                 (float)Math.Max(FramePacer.DefaultFrameTime, torso.AttackTime) / _weaponPrices[slot];
 
             if (money < cost)

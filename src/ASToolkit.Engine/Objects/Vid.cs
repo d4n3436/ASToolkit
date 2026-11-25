@@ -152,8 +152,6 @@ public class Vid
         FrameSize = source.FrameSize;
     }
 
-    internal static int MemoryInUse { get; set; }
-
     /// <summary>
     /// Gets or sets the object ID that sprites of this object ID report.
     /// </summary>
@@ -602,13 +600,6 @@ public class Vid
     public void SetHeightFrameStarts(ReadOnlyMemory<int> starts) => _heightFrameStarts = starts;
 
     /// <summary>
-    /// Loads the frames of the sprite file.
-    /// </summary>
-    /// <param name="file">The sprite file.</param>
-    /// <param name="data">The bytes of the sprite file.</param>
-    public void Load(in VidResource file, ReadOnlyMemory<byte> data) => Load(file, data, null);
-
-    /// <summary>
     /// Draws a sprite with the frames of this object ID.
     /// </summary>
     /// <param name="screen">The screen to draw to.</param>
@@ -902,12 +893,12 @@ public class Vid
     internal static Vid CreateDefault() => CreateEmpty(KnownObject.None, new GameObject(SpriteClass.Primitive, DefaultSize), Map.DefaultSpriteSpeed, ObjectLayer.Menu);
 
     [EngineRoutine(0x004138b0)]
-    internal virtual void Destruct(MyError? error)
+    internal virtual void Destruct(GameSession session)
     {
         int count = _counts[3] + _counts[2] + _counts[1] + _counts[0];
         if (count != 0)
         {
-            Report(error, LogError.Text, count, "Not all sprites with this VID deleted"u8);
+            Report(session.Error, LogError.Text, count, "Not all sprites with this VID deleted"u8);
         }
 
         var next = NextMirror;
@@ -950,11 +941,11 @@ public class Vid
 
     internal int GetFramesPerDirection(SpriteAnimation state) => _framesPerDirection[(int)state];
 
-    internal virtual void Load(in VidResource file, ReadOnlyMemory<byte> data, MyError? error)
+    internal virtual void Load(in VidResource file, ReadOnlyMemory<byte> data, GameSession session)
     {
     }
 
-    internal virtual void SetGamma(Gamma gamma, int army, Gamma ambient, MyError? error) => StoreGamma(gamma, army, error);
+    internal virtual void SetGamma(Gamma gamma, int army, Gamma ambient, GameSession session) => StoreGamma(gamma, army, session.Error);
 
     [EngineRoutine(0x00413c30)]
     internal void LoadParameters(in GameObject record, MyError? error, Sound? sound, bool resetBuiltTerrain)

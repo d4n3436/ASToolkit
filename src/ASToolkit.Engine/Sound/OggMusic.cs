@@ -118,7 +118,7 @@ internal sealed class OggMusic
         if (!HasBuffer)
             return;
 
-        int playCursor = _device?.GetMusicPlayCursor() ?? (int)((long)_buffer.GetPosition(wallTime) * _format.BytesPerSecond / MillisecondsPerSecond % RingSize);
+        int playCursor = _device?.GetMusicPlayCursor() ?? (int)(_buffer.GetPosition(wallTime) * _format.BytesPerSecond / MillisecondsPerSecond % RingSize);
 
         while (_endState == Streaming)
         {

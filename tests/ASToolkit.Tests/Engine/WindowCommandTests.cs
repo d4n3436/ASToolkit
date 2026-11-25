@@ -24,7 +24,7 @@ public class WindowCommandTests
 
         Assert.True(files.TryRead(ScreenshotPath, out var written));
         byte[] data = written.ToArray();
-        var size = Size.Truncate(map.Session.ScreenSize);
+        var size = Size.Truncate(map.Session.Graphics.ScreenSize);
         Assert.Equal(2, data[2]);
         Assert.Equal(size.Width, BinaryPrimitives.ReadUInt16LittleEndian(data.AsSpan(12)));
         Assert.Equal(size.Height, BinaryPrimitives.ReadUInt16LittleEndian(data.AsSpan(14)));
@@ -60,22 +60,22 @@ public class WindowCommandTests
     public void Step_F3WithACanceledDialog_KeepsTheMap()
     {
         var (map, _) = CreateMap();
-        var before = map.Session.MapName.ToArray();
+        byte[] before = map.MapName.ToArray();
         map.Input.PostMessage(WindowMessageId.KeyDown, (int)VirtualKey.F3, 0);
         map.Step();
 
-        Assert.Equal(before, map.Session.MapName.ToArray());
+        Assert.Equal(before, map.MapName.ToArray());
     }
 
     private static (Map Map, MemoryWriteOverlay Files) CreateMap()
     {
         var files = EngineTestMap.CreateFiles();
         var registry = Playthrough.CreateRegistry(TestGameFolder.RequireFolder(), "Level_02.map", new PlayerLoadout(0, new Dictionary<KnownObject, int>(), default));
-        var map = new MapSteam(TestGameFolder.RequireFolder(), TestGameFolder.Objects, files, registry: registry, session: new GameSession(registry, time: new LoadingRedrawClock(new FakeTimeProvider(StartTime))));
+        var map = new MapSteam(TestGameFolder.RequireFolder(), TestGameFolder.Objects, files, new GameSession(registry, time: new LoadingRedrawClock(new FakeTimeProvider(StartTime))));
         map.Input.PostMessage(WindowMessageId.ActivateApp, 1, 0);
         map.Pace([FramePacer.DefaultFrameTime]);
-        map.Load(EngineTestMap.MapName, GameClock.StartWallTime);
-        map.Session.Graphics.Screen = new Screen(Size.Ceiling(map.Session.ScreenSize), true);
+        map.Load(EngineTestMap.MapName, Map.StartWallTime);
+        map.Session.Graphics.Screen = new Screen(Size.Ceiling(map.Session.Graphics.ScreenSize), true);
         map.Step();
 
         return (map, files);

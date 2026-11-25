@@ -33,10 +33,9 @@ public sealed class MapSteam : Map
     /// <param name="gameFolder">The game folder that holds the sprite files of the object IDs.</param>
     /// <param name="objects">The object table.</param>
     /// <param name="fileSystem">The file system that holds the game's files.</param>
-    /// <param name="registry">The registry of the level scripts, or null for an empty one.</param>
-    /// <param name="session">The session the map belongs to, or null to create one.</param>
-    public MapSteam(string gameFolder, ObjectTable objects, IGameFileSystem fileSystem, Registry? registry = null, GameSession? session = null)
-        : base(gameFolder, objects, fileSystem, registry, session)
+    /// <param name="session">The session the map belongs to, or null to start one.</param>
+    public MapSteam(string gameFolder, ObjectTable objects, IGameFileSystem fileSystem, GameSession? session = null)
+        : base(gameFolder, objects, fileSystem, session)
     {
         _mouseTips = new MouseTips(this);
     }
@@ -87,7 +86,7 @@ public sealed class MapSteam : Map
                     _flags ^= MapFlags.DrawRails;
                     break;
                 case ReloadKey:
-                    ReloadVid(Session.Error, Sound);
+                    ReloadVid();
                     break;
             }
         }
@@ -96,11 +95,11 @@ public sealed class MapSteam : Map
 
         if (!isActive && !_debug.HasFlag(StepFlags.RunInBackground) || Session.Graphics.IsMenuLoopActive || Constant.IsDebugMode && _debug.HasFlag(StepFlags.SingleStep) && Input.Key != StepKey)
         {
-            _clock.Rewind();
+            Session.CurrentTime = Session.PrevCurrentTime;
             return false;
         }
 
-        bool canDraw = !(!isActive && Session.IsFullScreen || Session.Graphics.Movie.IsOpen);
+        bool canDraw = !(!isActive && Session.Graphics.IsFullScreen || Session.Graphics.Movie.IsOpen);
         if (canDraw && Session.Graphics.PreTact() != 0)
             return false;
 
@@ -153,11 +152,11 @@ public sealed class MapSteam : Map
 
         if (!isPaused && _flags.HasFlag(MapFlags.PlayerControlled))
         {
-            if (_flags.HasFlag(MapFlags.DrawPresentation) && _clock.WallTime - _presentationShownAt > PresentationPeriod)
+            if (_flags.HasFlag(MapFlags.DrawPresentation) && Session.RealCurrentTime - _presentationShownAt > PresentationPeriod)
             {
                 var vid = FindVid(KnownObject.Font) ?? EmptyVid;
-                var banner = CreateSprite(vid, new Vector3(Session.ScreenSize.Width * HalfShare, PresentationTop, 0), default)!;
-                _presentationShownAt = _clock.WallTime;
+                var banner = CreateSprite(vid, new Vector3(Session.Graphics.ScreenSize.Width * HalfShare, PresentationTop, 0), default)!;
+                _presentationShownAt = Session.RealCurrentTime;
                 Action(banner, ActionCode.SetBehave, 1);
                 banner.SetTextItems("Presentation version. Not for sale!"u8.ToArray());
                 Action(banner, ActionCode.Pause, PresentationDuration);
@@ -180,7 +179,7 @@ public sealed class MapSteam : Map
             Session.Graphics.PostTact(true);
         }
 
-        Sound.Tact(_rng, Time, _clock.WallTime);
+        Sound.Tact(_rng, Time, Session.RealCurrentTime);
 
         return false;
     }

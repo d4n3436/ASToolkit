@@ -61,8 +61,8 @@ public partial class Map
             _vidCount = (int)HardwareGroundId + 1;
         }
 
-        _vids[(int)HardwareGroundId]?.Destruct(Session.Error);
-        var vid = new VidHardware(HardwareGroundId, System.Drawing.Size.Truncate(Size), _weapons!, Session.Error);
+        _vids[(int)HardwareGroundId]?.Destruct(Session);
+        var vid = new VidHardware(HardwareGroundId, System.Drawing.Size.Truncate(Size), _weapons!, Session);
         _vids[(int)HardwareGroundId] = vid;
         CreateSprite(vid, new Vector3(Size.ToVector2() * HalfShare, 0), default);
         Session.Error.Write("Create Empty Hardware Ground"u8);

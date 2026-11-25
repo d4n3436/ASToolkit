@@ -52,7 +52,7 @@ public partial class Map
         {
             for (float column = left; column <= right; column += 1)
             {
-                ground = Math.Max(ground, (int)GetGridZCell((int)row, (int)column));
+                ground = Math.Max(ground, GetGridZCell((int)row, (int)column));
             }
         }
 

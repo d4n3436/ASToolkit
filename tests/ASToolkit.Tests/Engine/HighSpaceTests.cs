@@ -99,7 +99,7 @@ public class HighSpaceTests
 
     private static byte[] Join(ReadOnlySpan<byte> before, byte middle, ReadOnlySpan<byte> after)
     {
-        var bytes = new byte[before.Length + 1 + after.Length];
+        byte[] bytes = new byte[before.Length + 1 + after.Length];
         before.CopyTo(bytes);
         bytes[before.Length] = middle;
         after.CopyTo(bytes.AsSpan(before.Length + 1));

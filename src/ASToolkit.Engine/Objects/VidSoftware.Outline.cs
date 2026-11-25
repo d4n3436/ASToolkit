@@ -21,7 +21,9 @@ public partial class VidSoftware
         if (Frames.IsEmpty || FrameOffsets.Length == 0 || IsHidden)
             return;
 
-        var origin = new Vector2(sprite.Position.X - camera.X - (float)(FrameSize.Width / 2), sprite.Position.Y - sprite.Position.Z - camera.Y - (float)(FrameSize.Height / 2));
+        int halfWidth = FrameSize.Width / 2;
+        int halfHeight = FrameSize.Height / 2;
+        var origin = new Vector2(sprite.Position.X - camera.X - halfWidth, sprite.Position.Y - sprite.Position.Z - camera.Y - halfHeight);
         var viewport = screen.Viewport;
         if ((int)origin.X + FrameSize.Width + OutlineMargin.Width < viewport.Left || (int)origin.X >= viewport.Right)
             return;

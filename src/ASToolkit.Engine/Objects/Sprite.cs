@@ -110,7 +110,6 @@ public partial class Sprite
         CreatedAt = Map.Time;
         IsInvisible = vid.Properties.HasFlag(ObjectProperties.InvisibleForEnemy) && (int)Army != Map.ControlledPlayer;
         Hp = vid.ArmyMaxHp[(int)Army & Vid.ArmyMask];
-        Error = Map.Session.Error;
         var state = Map.GetInitialAnimation(vid);
         Start(state, direction, Map.Time, Map.Random);
 
@@ -285,7 +284,7 @@ public partial class Sprite
                 {
                     if (count < 0)
                     {
-                        Error?.Error($"SPRITE {(int)previous.Vid.Id}", LogError.Invalid, count, "noRef at Release"u8);
+                        Map.Session.Error.Error($"SPRITE {(int)previous.Vid.Id}", LogError.Invalid, count, "noRef at Release"u8);
                     }
                     else
                     {
@@ -453,8 +452,6 @@ public partial class Sprite
     /// Gets this sprite's link if it's the armed object linked by the sprite's object ID; otherwise, <see langword="null"/>.
     /// </summary>
     public Sprite? ArmedLink => Link is not null && Link.Vid == Vid.LinkVid && Link.Vid.CanFight() ? Link : null;
-
-    internal MyError? Error { get; set; }
 
     internal Map Map { get; }
 
@@ -673,7 +670,7 @@ public partial class Sprite
     {
         if ((int)state > MaxAnimation)
         {
-            Error?.Error($"SPRITE {(int)Vid.Id}", LogError.Invalid, (int)state, "new_animation in ChangeAnimation"u8);
+            Map.Session.Error.Error($"SPRITE {(int)Vid.Id}", LogError.Invalid, (int)state, "new_animation in ChangeAnimation"u8);
 
             return;
         }
@@ -1593,7 +1590,7 @@ public partial class Sprite
     [EngineRoutine(0x00445470)]
     public void PlaySfx(int id)
     {
-        Map.Sound.PlayAt(id, Position.ToDrawPosition() - Map.Camera - Map.Session.ScreenSize.ToVector2() * Map.HalfShare);
+        Map.Sound.PlayAt(id, Position.ToDrawPosition() - Map.Camera - Map.Session.Graphics.ScreenSize.ToVector2() * Map.HalfShare);
     }
 
     [EngineRoutine(0x00445fb0)]

@@ -45,7 +45,7 @@ public sealed class VidHardwareLayer : Vid
     internal override Vid CreateMirror() => new VidHardwareLayer(this);
 
     [EngineRoutine(0x0041b990)]
-    internal override void Destruct(MyError? error)
+    internal override void Destruct(GameSession session)
     {
         if (NextMirror == this)
         {
@@ -55,14 +55,14 @@ public sealed class VidHardwareLayer : Vid
                 if (texture.IsEmpty || IsRepeatedTexture(frame))
                     continue;
 
-                Texture.Release(texture.Size, texture.Format);
+                Texture.Release(session, texture.Size, texture.Format);
             }
 
             Textures = [];
             Meshes = [];
         }
 
-        base.Destruct(error);
+        base.Destruct(session);
     }
 
     /// <summary>
@@ -164,7 +164,7 @@ public sealed class VidHardwareLayer : Vid
     public override void SetLayer() => Layer = ObjectLayer.Hardware;
 
     [EngineRoutine(0x0041baf0)]
-    internal override void Load(in VidResource file, ReadOnlyMemory<byte> data, MyError? error)
+    internal override void Load(in VidResource file, ReadOnlyMemory<byte> data, GameSession session)
     {
         Format = file.Format;
         ReadOnlySpan<uint> palette = default;
@@ -172,7 +172,7 @@ public sealed class VidHardwareLayer : Vid
         {
             if (file.Palette.IsEmpty)
             {
-                Report(error, LogError.Load, 0, "PAL "u8);
+                Report(session.Error, LogError.Load, 0, "PAL "u8);
             }
 
             palette = MemoryMarshal.Cast<byte, uint>(file.Palette.Span[..Math.Min(file.Palette.Length, PaletteSize)]);
@@ -181,7 +181,7 @@ public sealed class VidHardwareLayer : Vid
         var records = file.FrameRecords;
         if (records.IsEmpty)
         {
-            Report(error, LogError.Load, 0, "DATA"u8);
+            Report(session.Error, LogError.Load, 0, "DATA"u8);
         }
 
         int frameCount = Math.Min(FileFrameCount, records.Length);
@@ -203,7 +203,7 @@ public sealed class VidHardwareLayer : Vid
                 flags |= TextureFlags.AlphaPalette;
             }
 
-            Textures[frame] = Texture.Create(texels.Span, size, Format, palette, flags, error);
+            Textures[frame] = Texture.Create(texels.Span, size, Format, palette, flags, session);
             size = Textures[frame].Size;
             ref readonly var mesh = ref MemoryMarshal.AsRef<VidLayerMeshHeader>(record[position..]);
             position += Unsafe.SizeOf<VidLayerMeshHeader>();

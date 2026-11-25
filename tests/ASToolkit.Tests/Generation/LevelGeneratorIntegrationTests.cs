@@ -366,8 +366,8 @@ public class LevelGeneratorIntegrationTests
                 .Concat(level.Map.Sprites
                     .Where(sprite => sprite.Id == KnownObject.Spawner)
                     .Select(sprite => SpawnerProgram.Parse(sprite.Payload))
-                    .Where(program => program?.Trigger is not null)
-                    .Select(program => (Phase: GetPhase(program!.Trigger!.Value.Center.X, program.Trigger.Value.Center.Y), HitPoints: program.Monsters.Sum(GetHitPoints))))
+                    .Where(session => session?.Trigger is not null)
+                    .Select(session => (Phase: GetPhase(session!.Trigger!.Value.Center.X, session.Trigger.Value.Center.Y), HitPoints: session.Monsters.Sum(GetHitPoints))))
                 .GroupBy(pair => pair.Phase)
                 .ToDictionary(phase => phase.Key, phase => phase.Sum(pair => pair.HitPoints));
 
@@ -594,8 +594,8 @@ public class LevelGeneratorIntegrationTests
 
     private static bool IsAmbushSpawner(KnownObject id, ReadOnlyMemory<byte> payload)
     {
-        var program = id == KnownObject.Spawner ? SpawnerProgram.Parse(payload.Span) : null;
-        return id == KnownObject.Spawner && (program is null || !program.Monsters.Any() || program.Monsters.Any(monster => !monster.IsEndlessGenerator));
+        var session = id == KnownObject.Spawner ? SpawnerProgram.Parse(payload.Span) : null;
+        return id == KnownObject.Spawner && (session is null || !session.Monsters.Any() || session.Monsters.Any(monster => !monster.IsEndlessGenerator));
     }
 
     private static void FindFaults(GeneratedLevel level, string name, ConcurrentBag<string> faults)

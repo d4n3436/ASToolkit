@@ -346,7 +346,7 @@ public partial class Picture
         {
             for (int i = start; i < end; i++)
             {
-                Append(buffer, ref length, (short)GetDepth(new Point(i, y)));
+                Append(buffer, ref length, GetDepth(new Point(i, y)));
             }
         }
 

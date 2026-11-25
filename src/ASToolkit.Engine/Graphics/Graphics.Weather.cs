@@ -104,7 +104,7 @@ public sealed partial class Graphics
                 int column = x >> 2;
                 int row = y >> 2;
 
-                texture[row * SnowTextureSize + column] = level < 0 ? (ushort)0 : isPalette ? (ushort)(byte)level : ramp[level];
+                texture[row * SnowTextureSize + column] = level < 0 ? (ushort)0 : isPalette ? (byte)level : ramp[level];
             }
         }
 
@@ -242,7 +242,7 @@ public sealed partial class Graphics
             return;
 
         var view = map.Session.Graphics.Viewport;
-        float screenWidth = map.Session.ScreenSize.Width;
+        float screenWidth = ScreenSize.Width;
         float screenBottom = view.Bottom;
         var drops = _raindrops.AsSpan();
 

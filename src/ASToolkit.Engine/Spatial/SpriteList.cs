@@ -58,7 +58,7 @@ public class SpriteList : MyList<Sprite>
         int references = sprite.Release();
         if (references < 0)
         {
-            sprite.Error?.Error($"SPRITE {(int)sprite.Vid.Id}", LogError.Invalid, references, "noRef at Release"u8);
+            sprite.Map.Session.Error.Error($"SPRITE {(int)sprite.Vid.Id}", LogError.Invalid, references, "noRef at Release"u8);
 
             return 0;
         }
@@ -111,7 +111,7 @@ public class SpriteList : MyList<Sprite>
             int references = sprite.Release();
             if (references < 0)
             {
-                sprite.Error?.Error($"SPRITE {(int)sprite.Vid.Id}", LogError.Invalid, references, "noRef at Release"u8);
+                sprite.Map.Session.Error.Error($"SPRITE {(int)sprite.Vid.Id}", LogError.Invalid, references, "noRef at Release"u8);
             }
             else if (references == 0)
             {

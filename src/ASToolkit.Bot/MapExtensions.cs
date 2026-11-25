@@ -79,7 +79,7 @@ public static class MapExtensions
         /// <returns><see langword="true"/> when the game is quitting; otherwise, <see langword="false"/>.</returns>
         public bool StepAimed(uint wallTime, uint now, Vector2 cursor, out uint waitUntil)
         {
-            var screen = map.Session.Graphics.Screen ??= new Screen(Size.Round(map.Session.ScreenSize), true);
+            var screen = map.Session.Graphics.Screen ??= new Screen(Size.Round(map.Session.Graphics.ScreenSize), true);
             var fullViewport = new Rectangle(Point.Empty, screen.Size);
             var pixel = cursor - map.Camera;
             var corner = new Point(Math.Clamp((int)pixel.X - AimWindow / 2, 0, screen.Size.Width - AimWindow), Math.Clamp((int)pixel.Y - AimWindow / 2, 0, screen.Size.Height - AimWindow));

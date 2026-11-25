@@ -39,14 +39,14 @@ public sealed class VidFont : Vid
     internal override Vid CreateMirror() => new VidFont(this);
 
     [EngineRoutine(0x00415100)]
-    internal override void Destruct(MyError? error)
+    internal override void Destruct(GameSession session)
     {
         if (NextMirror == this)
         {
             Font = null;
         }
 
-        base.Destruct(error);
+        base.Destruct(session);
     }
 
     /// <summary>
@@ -93,7 +93,7 @@ public sealed class VidFont : Vid
     public override void SetLayer() => Layer = ObjectLayer.Cursor;
 
     [EngineRoutine(0x00415140)]
-    internal override void Load(in VidResource file, ReadOnlyMemory<byte> data, MyError? error)
+    internal override void Load(in VidResource file, ReadOnlyMemory<byte> data, GameSession session)
     {
         FileFrameCount = GlyphCount;
         FrameSize = new Size((short)(int)Size.X, (short)(int)Size.Y);

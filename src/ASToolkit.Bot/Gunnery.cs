@@ -76,11 +76,11 @@ internal sealed class Gunnery
             float harm = profile.BlastRadius > _map.Player.Vid.Half.Length() ? MeasureHarm(target, profile) * chance
                 : profile.Rounds > 1 ? MeasureSpreadHarm(target, weapon, profile)
                 : Math.Min(target.Hp, profile.Damage * chance);
-            float rate = harm * GameClock.MillisecondsPerSecond / Math.Max(_map.FrameTime, weapon.AttackTime);
+            float rate = harm * FramePacer.MillisecondsPerSecond / Math.Max(_map.FrameTime, weapon.AttackTime);
 
             if (slot == Sprite.Pistols)
             {
-                pistolRate = profile.Damage * chance * GameClock.MillisecondsPerSecond / Math.Max(_map.FrameTime, weapon.AttackTime);
+                pistolRate = profile.Damage * chance * FramePacer.MillisecondsPerSecond / Math.Max(_map.FrameTime, weapon.AttackTime);
             }
 
             if (rate > bestRate)
@@ -90,7 +90,7 @@ internal sealed class Gunnery
             }
         }
 
-        return best != Sprite.Pistols && pistolRate > 0 && target.Hp * GameClock.MillisecondsPerSecond <= PistolKillTime * pistolRate &&
+        return best != Sprite.Pistols && pistolRate > 0 && target.Hp * FramePacer.MillisecondsPerSecond <= PistolKillTime * pistolRate &&
             IsCalm(target) ? Sprite.Pistols : best;
     }
 

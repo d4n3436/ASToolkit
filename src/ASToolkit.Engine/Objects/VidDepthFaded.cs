@@ -183,5 +183,5 @@ public sealed class VidDepthFaded : VidSoftware
     }
 
     [EngineRoutine(0x004127e0)]
-    internal override void SetGamma(Gamma gamma, int army, Gamma ambient, MyError? error) => StoreGamma(gamma, army, error);
+    internal override void SetGamma(Gamma gamma, int army, Gamma ambient, GameSession session) => StoreGamma(gamma, army, session.Error);
 }

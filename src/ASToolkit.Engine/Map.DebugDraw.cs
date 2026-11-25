@@ -30,7 +30,7 @@ public partial class Map
 
         if (_flags.HasFlag(MapFlags.DrawFps) && screen is not null)
         {
-            graphics.DrawFormattedText(new Vector2(screen.Viewport.Left, screen.Viewport.Top + TextLineOffset), $"{_clock.FramesPerSecond}");
+            graphics.DrawFormattedText(new Vector2(screen.Viewport.Left, screen.Viewport.Top + TextLineOffset), $"{_framesPerSecond}");
         }
 
         if (!Constant.IsDebugMode || screen is null)

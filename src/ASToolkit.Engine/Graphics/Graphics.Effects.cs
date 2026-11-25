@@ -210,7 +210,7 @@ public sealed partial class Graphics
                 float width = left + CaptureTileSize < viewport.Right ? CaptureTileSize : viewport.Right - left;
                 float height = top + CaptureTileSize < viewport.Bottom ? CaptureTileSize : viewport.Bottom - top;
                 var area = Rectangle.FromLTRB((int)(left - viewport.Left), (int)(top - viewport.Top), (int)(left + width - viewport.Left), (int)(height + top - viewport.Top));
-                if (texture.CopyFromSurface(capture, area, Point.Empty, Error) == 0)
+                if (texture.CopyFromSurface(capture, area, Point.Empty, _session.Error) == 0)
                 {
                     texture.DrawFlatQuad(Screen, area, new Rectangle(0, 0, (int)width, (int)height), gamma, Blend, true);
                 }

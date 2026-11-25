@@ -20,7 +20,7 @@ public class KeyframeTests
         var weapons = new AlienShooterWeaponRecord[record.WeaponIndex + 1];
         weapons[record.WeaponIndex] = CreateWeapon(source.Weapon);
         var vid = new Vid(source.Id, record, weapons, source.SpriteSpeed) { HasTimers = true };
-        map.SetChildAndLink(vid, null);
+        map.SetChildAndLink(vid);
         var sprite = map.CreateSprite(vid, map.Player.Position + new Vector3(600, 0, 0), default)!;
         int start = map.Time;
 

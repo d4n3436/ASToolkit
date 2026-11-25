@@ -12,6 +12,16 @@ namespace ASToolkit.Engine;
 public sealed partial class Graphics
 {
     /// <summary>
+    /// Represents the screen width used when the registry doesn't hold one.
+    /// </summary>
+    public const int DefaultScreenWidth = 1024;
+
+    /// <summary>
+    /// Represents the screen height used when the registry doesn't hold one.
+    /// </summary>
+    public const int DefaultScreenHeight = 768;
+
+    /// <summary>
     /// Represents the number of screen effects.
     /// </summary>
     public const int EffectCount = 16;
@@ -25,6 +35,23 @@ public sealed partial class Graphics
 
     private float _squallBaseSpeed = NoSquall;
     private int _squallStart;
+    private readonly GameSession _session;
+
+    internal Graphics(GameSession session)
+    {
+        _session = session;
+    }
+
+    /// <summary>
+    /// Gets the size of the screen in pixels.
+    /// </summary>
+    public SizeF ScreenSize { get; internal set; }
+
+    /// <summary>
+    /// Gets a value indicating whether the game is running full screen.
+    /// </summary>
+    /// <remarks>When running in a window, the screen size is limited to the desktop size.</remarks>
+    public bool IsFullScreen { get; internal set; }
 
     /// <summary>
     /// Gets the wall time each effect started at, or zero for an effect that isn't running.
@@ -104,7 +131,7 @@ public sealed partial class Graphics
         }
     }
 
-    internal MyError? Error { get; set; }
+    internal MyError Error => _session.Error;
 
     internal GraphicsFlags Flags { get; set; }
 

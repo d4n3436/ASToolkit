@@ -37,6 +37,31 @@ public class CampaignTests
     }
 
     [Fact]
+    public void LoadReplay_LevelRecordedMidCampaign_EndsLikeTheCampaign()
+    {
+        string game = TestGameFolder.RequireFolder();
+        var objects = TestGameFolder.Objects;
+        RouteAnalysis[] levels = [Analyze(game, "Level_01.map"), Analyze(game, "Level_02.map")];
+        int[] endMoney = [100, 0];
+        var play = new Playthrough(game, objects, TestGameFolder.Table);
+        var result = play.PlayCampaign(levels, endMoney, 1, record: true, recordedLevel: 1);
+        var recorded = result.Levels[1];
+        Assert.True(recorded.Survived);
+
+        var replay = play.LoadReplay(levels, endMoney, 1, null, true, 1, 1, recorded);
+        uint now = 0;
+        while (replay.TryGetNextDemoTime(out int next))
+        {
+            if (replay.StepAimed(replay.WallTime + (uint)(next - replay.Time), now, out now) || !replay.IsPlayingDemo)
+                break;
+        }
+
+        Assert.Equal(recorded.Time, replay.Time);
+        Assert.Equal(recorded.Money, replay.ReadScriptNumber("PlayerMoney"u8));
+        Assert.Equal(recorded.Ammo, new PlayerState(replay).GetRemainingAmmo());
+    }
+
+    [Fact]
     public void LoadReplay_RecordedRun_PlaysTheSameFramesFromItsDemo()
     {
         string game = TestGameFolder.RequireFolder();
@@ -110,6 +135,13 @@ public class CampaignTests
 
         Assert.Contains(aims, aim => aim > 0);
         Assert.Equal(aims.Select(aim => Enumerable.Range(0, accuracyImplants).Aggregate(aim, (scaled, _) => scaled * 6 / 10)), weapons.Select(id => (int)implanted.Map.FindVid(id)!.Weapon.Aim));
+    }
+
+    private static RouteAnalysis Analyze(string game, string name)
+    {
+        string path = Path.Combine(game, "Maps", name);
+
+        return RouteAnalyzer.Analyze(name, MapResourceBuilder.Load(path), LevelScriptReader.Read(Path.ChangeExtension(path, ".lgc"), TestGameFolder.Objects.ScriptVersion), TestGameFolder.Objects)!;
     }
 
     private static RouteAnalysis EmptyLevel(params KnownObject[] pickups)

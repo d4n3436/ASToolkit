@@ -64,7 +64,7 @@ public sealed class MapImage : IDisposable
             throw new ArgumentOutOfRangeException(nameof(area), area, "The area must not be empty.");
 
         var bounds = System.Drawing.Rectangle.Intersect(area, GetMapBounds(map));
-        var tile = System.Drawing.Size.Round(map.Session.ScreenSize);
+        var tile = System.Drawing.Size.Round(map.Session.Graphics.ScreenSize);
         var screen = new Screen(tile, true);
         var pixels = new Bgra32[tile.Width * tile.Height];
         var image = new Image<Rgb24>(PngConfiguration, Math.Max(1, (int)MathF.Ceiling(area.Width * scale)), Math.Max(1, (int)MathF.Ceiling(area.Height * scale)));

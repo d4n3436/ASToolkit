@@ -326,8 +326,8 @@ public class ExecFuncTests
             }
             """);
 
-        Assert.Equal((int)(320 + 192 - 512 + map.Session.ScreenSize.Width / 2), Read(script, "x"));
-        Assert.Equal((int)(254 + 144 - 384 + map.Session.ScreenSize.Height / 2), Read(script, "y"));
+        Assert.Equal((int)(320 + 192 - 512 + map.Session.Graphics.ScreenSize.Width / 2), Read(script, "x"));
+        Assert.Equal((int)(254 + 144 - 384 + map.Session.Graphics.ScreenSize.Height / 2), Read(script, "y"));
         Assert.Equal(0, Read(script, "released"));
         Assert.NotEqual(0, Read(script, "kept"));
     }
@@ -352,7 +352,7 @@ public class ExecFuncTests
     [Fact]
     public void ExecFunc_VidData_WeaponValuesReachEveryObjectIdSharingTheWeapon()
     {
-        var (first, second) = FindWeaponPair(EngineTestMap.CreateMap());
+        (int first, int second) = FindWeaponPair(EngineTestMap.CreateMap());
         var (map, script) = Run($$"""
             int detect, aim, build, ammo, damage;
             main()

@@ -69,20 +69,19 @@ public partial class Map
     [EngineRoutine(0x00411510)]
     private void LoadVid(ref Resource resource)
     {
-        var error = Session.Error;
         int start = Environment.TickCount;
         if (_weapons is null)
         {
             LoadWeaponRecords(ref resource);
             if (_weaponCount != 0)
             {
-                error.Write($"LoadWeapon::No={_weaponCount,-5}             sizeof(WEAPON)={WeaponRecordSize,-4}");
+                Session.Error.Write($"LoadWeapon::No={_weaponCount,-5}             sizeof(WEAPON)={WeaponRecordSize,-4}");
             }
         }
 
         if (resource.GoBegin(ObjectChunkTag) != Resource.Found)
         {
-            error.Error(MapLogTag, LogError.Section, 0, "load 'VID'"u8);
+            Session.Error.Error(MapLogTag, LogError.Section, 0, "load 'VID'"u8);
             return;
         }
 
@@ -96,18 +95,18 @@ public partial class Map
             int id = resource.Read<int>();
             if (id > MaxId)
             {
-                error.Error(MapLogTag, LogError.Invalid, id, "nvid > MAX_VID"u8);
+                Session.Error.Error(MapLogTag, LogError.Invalid, id, "nvid > MAX_VID"u8);
                 throw new InvalidDataException($"The object ID {id} is past the end of the VID table.");
             }
 
             if (_vids[id] is not null)
             {
-                _vids[id]!.Destruct(error);
+                _vids[id]!.Destruct(Session);
                 _vids[id] = null;
-                error.Error(MapLogTag, LogError.Load, id, "this VID already loaded"u8);
+                Session.Error.Error(MapLogTag, LogError.Load, id, "this VID already loaded"u8);
             }
 
-            var vid = CreateVid(ref resource, (KnownObject)id, isTrueColor, format, error, sound);
+            var vid = CreateVid(ref resource, (KnownObject)id, isTrueColor, format, sound);
             _vids[id] = vid;
             if (vid is null)
                 continue;
@@ -124,7 +123,7 @@ public partial class Map
 
             if (vid.WeaponIndex >= _weaponCount)
             {
-                vid.Report(error, LogError.Text, vid.WeaponIndex, "nWeapon > noWeapon"u8);
+                vid.Report(Session.Error, LogError.Text, vid.WeaponIndex, "nWeapon > noWeapon"u8);
             }
 
             Session.Graphics.DrawLoadBar(this, _vids[0]);
@@ -136,12 +135,12 @@ public partial class Map
         {
             if (vid is not null)
             {
-                SetChildAndLink(vid, error);
+                SetChildAndLink(vid);
                 largest = new System.Drawing.Size(Math.Max(largest.Width, vid.FrameSize.Width), Math.Max(largest.Height, vid.FrameSize.Height));
             }
         }
 
-        error.Write($"LoadVid::No   ={_vidCount,-15}   sizeof(VID)   ={VidSize,-5}    load time     ={Environment.TickCount - start}ms   MaxSizeX,Y={largest.Width},{largest.Height}");
+        Session.Error.Write($"LoadVid::No   ={_vidCount,-15}   sizeof(VID)   ={VidSize,-5}    load time     ={Environment.TickCount - start}ms   MaxSizeX,Y={largest.Width},{largest.Height}");
     }
 
     /// <summary>
@@ -199,11 +198,6 @@ public partial class Map
     }
 
     /// <summary>
-    /// Undoes the level script's exchanges and reloads the record of every object ID.
-    /// </summary>
-    public void ReloadVid() => ReloadVid(null, null);
-
-    /// <summary>
     /// Clears the counts and script handlers of every object ID for a new level.
     /// </summary>
     public void ResetVidLevelState()
@@ -229,7 +223,7 @@ public partial class Map
     {
         foreach (var vid in Vids)
         {
-            vid?.SetGamma(ambient, ASToolkit.Engine.Vid.AllArmies, ambient, Session.Error);
+            vid?.SetGamma(ambient, ASToolkit.Engine.Vid.AllArmies, ambient, Session);
         }
     }
 
@@ -272,8 +266,11 @@ public partial class Map
         }
     }
 
+    /// <summary>
+    /// Undoes the level script's exchanges and reloads the record of every object ID.
+    /// </summary>
     [EngineRoutine(0x00411920)]
-    internal void ReloadVid(MyError? error, Sound? sound)
+    public void ReloadVid()
     {
         foreach (var vid in Vids)
         {
@@ -290,18 +287,18 @@ public partial class Map
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
-            error?.Error(MapLogTag, LogError.Open, 0);
+            Session.Error.Error(MapLogTag, LogError.Open, 0);
             return;
         }
 
         if (!container.TryGetChunk(ObjectChunkTag, out _))
         {
-            error?.Error(MapLogTag, LogError.Section, 0);
+            Session.Error.Error(MapLogTag, LogError.Section, 0);
             return;
         }
 
         var objectsFile = new Resource();
-        if (OpenObjects(FileSystem, error, ref objectsFile) == 0)
+        if (OpenObjects(FileSystem, Session.Error, ref objectsFile) == 0)
         {
             LoadWeaponRecords(ref objectsFile);
         }
@@ -312,7 +309,7 @@ public partial class Map
         {
             if ((int)id > MaxId)
             {
-                error?.Error(MapLogTag, LogError.Invalid, 0);
+                Session.Error.Error(MapLogTag, LogError.Invalid, 0);
                 continue;
             }
 
@@ -325,13 +322,13 @@ public partial class Map
             _objects.TryFind(id, out var gameObject);
             target.SetWeapons(_weapons!);
             target.Name = GetVidName(target);
-            target.LoadParameters(gameObject, error, sound, ShouldResetBuiltTerrain);
+            target.LoadParameters(gameObject, Session.Error, Sound, ShouldResetBuiltTerrain);
         }
 
-        ResolveLinks(error, true);
+        ResolveLinks(true);
     }
 
-    internal void LogCounts(MyError error)
+    internal void LogCounts()
     {
         for (int i = 0; i < _vidCount; i++)
         {
@@ -344,12 +341,12 @@ public partial class Map
             if (counts[0] + counts[1] + counts[2] + counts[3] == 0)
                 continue;
 
-            error.Write($"NoVid[{i,3}]={counts[0]} {counts[1]} {counts[2]} {counts[3]} {vid.Name} Layer={(int)vid.Layer} {vid.Path}");
+            Session.Error.Write($"NoVid[{i,3}]={counts[0]} {counts[1]} {counts[2]} {counts[3]} {vid.Name} Layer={(int)vid.Layer} {vid.Path}");
         }
     }
 
     [EngineRoutine(0x00413a60)]
-    internal void SetChildAndLink(Vid vid, MyError? error)
+    internal void SetChildAndLink(Vid vid)
     {
         int link = (int)vid.Link;
         if (link != 0)
@@ -391,19 +388,16 @@ public partial class Map
             }
         }
 
-        if (error is null)
-            return;
-
         if (link != 0 && !IsVidDefined(link))
         {
-            vid.Report(error, LogError.Invalid, link, "LinkVid"u8);
+            vid.Report(Session.Error, LogError.Invalid, link, "LinkVid"u8);
         }
 
         foreach (int child in vid.Children)
         {
             if (child != 0 && !IsVidDefined(Math.Abs(child)))
             {
-                vid.Report(error, LogError.Invalid, child, "child"u8);
+                vid.Report(Session.Error, LogError.Invalid, child, "child"u8);
             }
         }
     }
@@ -475,14 +469,14 @@ public partial class Map
     }
 
     [EngineRoutine(0x00411b50)]
-    private Vid? CreateVid(ref Resource resource, KnownObject id, bool isTrueColor, HighColorFormat format, MyError? error, Sound? sound)
+    private Vid? CreateVid(ref Resource resource, KnownObject id, bool isTrueColor, HighColorFormat format, Sound? sound)
     {
         string name = GameTextEncoding.Cyrillic.GetString(resource.ReadText());
         var gameObject = _objects.ReadObject(resource.Read<byte>(_objects.ObjectSize));
         string path = Encoding.ASCII.GetString(resource.ReadText());
         string gameFolder = _gameFolder;
         var temporary = ASToolkit.Engine.Vid.CreateEmpty(KnownObject.None, gameObject, DefaultSpriteSpeed, ObjectLayer.Menu);
-        temporary.LoadParameters(gameObject, error, sound, ShouldResetBuiltTerrain);
+        temporary.LoadParameters(gameObject, Session.Error, sound, ShouldResetBuiltTerrain);
         var source = FindCopySource(path, temporary);
         if (source is not null)
         {
@@ -491,7 +485,7 @@ public partial class Map
             mirror.RecordId = id;
             mirror.Name = name;
             mirror.Path = path;
-            mirror.LoadParameters(gameObject, error, sound, ShouldResetBuiltTerrain);
+            mirror.LoadParameters(gameObject, Session.Error, sound, ShouldResetBuiltTerrain);
             mirror.SetLayer();
 
             return mirror;
@@ -504,8 +498,8 @@ public partial class Map
             if (path.Contains(FontExtension, StringComparison.Ordinal) || path.Contains(TrueTypeExtension, StringComparison.Ordinal))
             {
                 var font = new VidFont(id, gameObject, _weapons!, DefaultMaxTextureSize);
-                PrepareVid(font, gameObject, name, path, error, sound);
-                font.Load(default, default, error);
+                PrepareVid(font, gameObject, name, path, sound);
+                font.Load(default, default, Session);
                 font.SetLayer();
                 return font;
             }
@@ -513,14 +507,10 @@ public partial class Map
             {
                 bool isText = gameObject.SpriteClass == SpriteClass.Text;
                 data = ConvertedPictures.GetOrAdd((Path.GetFullPath(Path.Combine(gameFolder, path)), isText), key => new(() => ConvertPicture(gameFolder, path, key.IsText, null))).Value;
-                if (data.IsEmpty && error is not null)
-                {
-                    ConvertPicture(gameFolder, path, isText, error);
-                }
-
                 if (data.IsEmpty)
                 {
-                    LogUnopened(error, path);
+                    ConvertPicture(gameFolder, path, isText, Session.Error);
+                    LogUnopened(Session.Error, path);
                 }
             }
         }
@@ -532,12 +522,9 @@ public partial class Map
 
         if (file is null)
         {
-            if (error is not null)
-            {
-                new Resource().Open(new GameFolder(gameFolder), error, Encoding.ASCII.GetBytes(path), Resource.AnyTag);
-            }
+            new Resource().Open(new GameFolder(gameFolder), Session.Error, Encoding.ASCII.GetBytes(path), Resource.AnyTag);
 
-            LogUnopened(error, path);
+            LogUnopened(Session.Error, path);
             return null;
         }
 
@@ -577,8 +564,8 @@ public partial class Map
             }
         }
 
-        PrepareVid(vid, gameObject, name, path, error, sound);
-        vid.Load(sprite, bytes, error);
+        PrepareVid(vid, gameObject, name, path, sound);
+        vid.Load(sprite, bytes, Session);
         if (vid is VidHardware hardware)
         {
             for (int surface = 0; surface < hardware.SurfaceCount; surface++)
@@ -610,20 +597,20 @@ public partial class Map
         return null;
     }
 
-    private void PrepareVid(Vid vid, in GameObject record, string name, string path, MyError? error, Sound? sound)
+    private void PrepareVid(Vid vid, in GameObject record, string name, string path, Sound? sound)
     {
         vid.Name = name;
         vid.Path = path;
-        vid.LoadParameters(record, error, sound, ShouldResetBuiltTerrain);
+        vid.LoadParameters(record, Session.Error, sound, ShouldResetBuiltTerrain);
     }
 
-    private void ResolveLinks(MyError? error, bool isReload)
+    private void ResolveLinks(bool isReload)
     {
         foreach (var vid in Vids)
         {
             if (vid is not null && !(isReload && vid.FileType.HasFlag(VidType.FrameVector)))
             {
-                SetChildAndLink(vid, error);
+                SetChildAndLink(vid);
             }
         }
     }

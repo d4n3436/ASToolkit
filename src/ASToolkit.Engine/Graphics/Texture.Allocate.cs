@@ -24,16 +24,13 @@ public readonly ref partial struct Texture
     private static bool _isDxt1Supported;
     private static bool _isDxt3Supported;
     private static bool _isDxt5Supported;
-    private static int _memoryInUse;
 
     internal static string CapabilitiesText { get; } = ReadCapabilities();
-
-    internal static int MemoryInUse => _memoryInUse;
 
     private static ReadOnlySpan<byte> TextureLogTag => "TEXTURE"u8;
 
     [EngineRoutine(0x004036b0)]
-    internal static ushort[] Allocate(ref Size size, VidPixelFormat format, TextureFlags flags, MyError? error, out TextureFlags stored, out VidPixelFormat result)
+    internal static ushort[] Allocate(ref Size size, VidPixelFormat format, TextureFlags flags, GameSession session, out TextureFlags stored, out VidPixelFormat result)
     {
         result = VidPixelFormat.None;
         stored = default;
@@ -42,7 +39,7 @@ public readonly ref partial struct Texture
             flags &= ~TextureFlags.Dynamic;
         }
 
-        if (!TryFitSize(size, error, out var fitted))
+        if (!TryFitSize(size, session.Error, out var fitted))
             return [];
 
         size = fitted;
@@ -67,7 +64,7 @@ public readonly ref partial struct Texture
             if (!TryGetFallbackFormat(format, stored, out var fallback))
             {
                 result = format;
-                error?.Error(TextureLogTag, LogError.Create, InvalidCall);
+                session.Error.Error(TextureLogTag, LogError.Create, InvalidCall);
 
                 return [];
             }
@@ -76,7 +73,7 @@ public readonly ref partial struct Texture
         }
 
         result = format;
-        _memoryInUse += GetTexelBytes(format) * width * height;
+        session.TextureMemoryInUse += GetTexelBytes(format) * width * height;
 
         return IsDxt(format)
             ? new ushort[GetCompressedPitch(format, width) * ((height + BlockSize - 1) / BlockSize) / sizeof(ushort)]
@@ -84,11 +81,11 @@ public readonly ref partial struct Texture
     }
 
     [EngineRoutine(0x00403620)]
-    internal static void Release(Size size, VidPixelFormat format)
+    internal static void Release(GameSession session, Size size, VidPixelFormat format)
     {
         if (format != VidPixelFormat.D16)
         {
-            _memoryInUse -= GetTexelBytes(format) * size.Width * size.Height;
+            session.TextureMemoryInUse -= GetTexelBytes(format) * size.Width * size.Height;
         }
     }
 

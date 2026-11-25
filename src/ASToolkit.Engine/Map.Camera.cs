@@ -20,12 +20,12 @@ public partial class Map
     /// <summary>
     /// Gets the center of the screen on the map.
     /// </summary>
-    public Vector2 ViewCenter => Session.ScreenSize.ToVector2() * HalfShare + Camera;
+    public Vector2 ViewCenter => Session.Graphics.ScreenSize.ToVector2() * HalfShare + Camera;
 
     [EngineRoutine(0x0040bc20)]
     internal void SetPosition(Vector2 center, CameraMove move)
     {
-        var corner = center - Session.ScreenSize.ToVector2() * HalfShare;
+        var corner = center - Session.Graphics.ScreenSize.ToVector2() * HalfShare;
 
         if (!move.HasFlag(CameraMove.Unclamped))
         {
@@ -88,7 +88,7 @@ public partial class Map
     [EngineRoutine(0x0040bed0)]
     private protected void Scroll()
     {
-        var screen = Session.ScreenSize.ToVector2();
+        var screen = Session.Graphics.ScreenSize.ToVector2();
         var cursor = Input.ScreenCursor;
         var flags = Input.Flags;
         var speed = Session.ScrollSpeed;
