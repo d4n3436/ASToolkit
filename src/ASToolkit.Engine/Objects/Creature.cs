@@ -132,11 +132,10 @@ public class Creature : Unit
     [EngineRoutine(0x0044d7b0)]
     internal Region? FindRegion(Vector2 point)
     {
-        var list = Map.GetLayer((int)ObjectLayer.Region);
-
-        for (int i = list.Count - 1; i >= 0; i--)
+        int index = Map.GetLayer((int)ObjectLayer.Region).Count;
+        for (var found = Map.NextDrawingSpriteOfType((int)ObjectLayer.Region, ref index, OldSpriteType.Region); found is not null; found = Map.NextDrawingSpriteOfType((int)ObjectLayer.Region, ref index, OldSpriteType.Region))
         {
-            if (list[i] is not Region sprite || !sprite.Vid.SpriteType.HasFlag(OldSpriteType.Region) || sprite.Vid.Class != SpriteClass.Region)
+            if (found is not Region sprite || sprite.Vid.Class != SpriteClass.Region)
                 continue;
 
             float halfWidth = sprite.Size.X * 0.5f;

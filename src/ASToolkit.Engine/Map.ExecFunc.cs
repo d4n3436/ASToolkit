@@ -515,7 +515,7 @@ public partial class Map : IScriptFunctionHost
                         setVid.Children[childState] = setValue;
                         setVid.ChildVids[childState] = childVid;
 
-                        if (childVid.IsBirthAsSmoke())
+                        if (childVid.IsBirthAsSmoke)
                         {
                             setVid.HasTimers = true;
                         }
@@ -1061,6 +1061,21 @@ public partial class Map : IScriptFunctionHost
 
     [EngineRoutine(0x00405a90)]
     internal Vid Vid(int id) => ValidateVid(id) ? _vids[id]! : EmptyVid;
+
+    [EngineRoutine(0x0040fb40)]
+    internal Sprite? NextDrawingSpriteOfType(int layer, ref int index, OldSpriteType type)
+    {
+        var list = _layers[layer];
+        for (index--; index >= 0; index--)
+        {
+            var sprite = list[index];
+
+            if (sprite is not null && (sprite.Vid.SpriteType & type) != 0)
+                return sprite;
+        }
+
+        return null;
+    }
 
     [EngineRoutine(0x0040fc40)]
     internal Sprite? GetSpriteScr(SpriteSearch search, Vector2 point)

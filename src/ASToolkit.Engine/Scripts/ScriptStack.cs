@@ -133,12 +133,6 @@ public struct ScriptStack
     }
 
     /// <summary>
-    /// Determines whether the value is nonzero as a number.
-    /// </summary>
-    /// <returns><see langword="true"/> if the value is nonzero; otherwise, <see langword="false"/>.</returns>
-    public readonly bool IsTrue() => GetValue() != 0;
-
-    /// <summary>
     /// Returns the value as a number, parsing the text when the value is text.
     /// </summary>
     /// <returns>The number.</returns>

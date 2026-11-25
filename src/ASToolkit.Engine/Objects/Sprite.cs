@@ -156,7 +156,12 @@ public partial class Sprite
     /// <summary>
     /// Gets the shared data and frames of the sprite's object ID.
     /// </summary>
-    public Vid Vid { get; private set; }
+    public Vid Vid
+    {
+        [EngineRoutine(0x0043a850)]
+        get;
+        private set;
+    }
 
     /// <summary>
     /// Gets or sets the speed of the sprite in pixels per millisecond.
@@ -264,6 +269,7 @@ public partial class Sprite
     /// </summary>
     public Sprite? Goal
     {
+        [EngineRoutine(0x004429e0)]
         get;
         [EngineRoutine(0x00444650)]
         set
@@ -297,7 +303,12 @@ public partial class Sprite
     /// <summary>
     /// Gets or sets the next sprite of this sprite's link chain.
     /// </summary>
-    public Sprite? Link { get; set; }
+    public Sprite? Link
+    {
+        [EngineRoutine(0x0043f180)]
+        get;
+        set;
+    }
 
     /// <summary>
     /// Gets or sets the sprite this sprite is linked to.
@@ -312,7 +323,12 @@ public partial class Sprite
     /// <summary>
     /// Gets the direction the sprite faces.
     /// </summary>
-    public Angle Direction { get => _direction; init => _direction = value; }
+    public Angle Direction
+    {
+        [EngineRoutine(0x0043a840)]
+        get => _direction;
+        init => _direction = value;
+    }
 
     /// <summary>
     /// Gets or sets the sprite's countdown timer in milliseconds.
@@ -445,7 +461,16 @@ public partial class Sprite
     /// <summary>
     /// Gets this sprite's link if it's the armed object linked by the sprite's object ID; otherwise, <see langword="null"/>.
     /// </summary>
-    public Sprite? ArmedLink => Link is not null && Link.Vid == Vid.LinkVid && Link.Vid.CanFight() ? Link : null;
+    public Sprite? ArmedLink => HasLink && Link!.Vid.CanFight() ? Link : null;
+
+    /// <summary>
+    /// Gets a value indicating whether this sprite's link is the object linked by the sprite's object ID.
+    /// </summary>
+    public bool HasLink
+    {
+        [EngineRoutine(0x0044e1b0)]
+        get => Link is not null && Link.Vid == Vid.LinkVid;
+    }
 
     internal ExtraSpriteData? ExtraData { get; private set; }
 

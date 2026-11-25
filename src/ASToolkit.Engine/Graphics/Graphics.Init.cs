@@ -83,7 +83,22 @@ public sealed partial class Graphics
 
         Error.Log($"SetViewPort ({Viewport.Left:F0},{Viewport.Top:F0}) - ({Viewport.Right:F0},{Viewport.Bottom:F0})");
         Error.Log(DescribeTextureStage());
-        SetDefaultState();
+        SetTextureStageState(0, TextureStageState.ColorArgument1, (int)TextureArgument.Texture);
+        SetTextureStageState(0, TextureStageState.ColorArgument2, (int)TextureArgument.Diffuse);
+        SetTextureStageState(0, TextureStageState.ColorOperation, (int)TextureOperation.Modulate);
+        SetTextureStageState(0, TextureStageState.AlphaArgument1, (int)TextureArgument.Texture);
+        SetTextureStageState(0, TextureStageState.AlphaArgument2, (int)TextureArgument.Diffuse);
+        SetTextureStageState(0, TextureStageState.AlphaOperation, (int)TextureOperation.Modulate);
+        SetTextureStageState(0, TextureStageState.MinFilter, 1);
+        SetTextureStageState(0, TextureStageState.MagFilter, 1);
+        Flags &= ~GraphicsFlags.SpecularEnabled;
+        Flags &= ~GraphicsFlags.AlphaBlendEnabled;
+        SetRenderState(RenderState.DitherEnable, 1);
+        SetRenderState(RenderState.LocalViewer, 0);
+        SetRenderState(RenderState.Lighting, 0);
+        SetRenderState(RenderState.AlphaTestEnable, 0);
+        SetRenderState(RenderState.DepthEnable, 1);
+        SetRenderState(RenderState.DepthFunction, 7);
         Error.Log(DescribeTextureStage());
         Error.Log(Texture.SetDeviceCapabilities(_session));
         Buffers.IsCreated = true;
@@ -185,25 +200,5 @@ public sealed partial class Graphics
         Error.Log($"Pitch={bytesPerPixel * pitch} zPitch={DepthWidth * sizeof(ushort)}");
         ReloadPalettes();
         return 0;
-    }
-
-    private void SetDefaultState()
-    {
-        SetTextureStageState(0, TextureStageState.ColorArgument1, (int)TextureArgument.Texture);
-        SetTextureStageState(0, TextureStageState.ColorArgument2, (int)TextureArgument.Diffuse);
-        SetTextureStageState(0, TextureStageState.ColorOperation, (int)TextureOperation.Modulate);
-        SetTextureStageState(0, TextureStageState.AlphaArgument1, (int)TextureArgument.Texture);
-        SetTextureStageState(0, TextureStageState.AlphaArgument2, (int)TextureArgument.Diffuse);
-        SetTextureStageState(0, TextureStageState.AlphaOperation, (int)TextureOperation.Modulate);
-        SetTextureStageState(0, TextureStageState.MinFilter, 1);
-        SetTextureStageState(0, TextureStageState.MagFilter, 1);
-        Flags &= ~GraphicsFlags.SpecularEnabled;
-        Flags &= ~GraphicsFlags.AlphaBlendEnabled;
-        SetRenderState(RenderState.DitherEnable, 1);
-        SetRenderState(RenderState.LocalViewer, 0);
-        SetRenderState(RenderState.Lighting, 0);
-        SetRenderState(RenderState.AlphaTestEnable, 0);
-        SetRenderState(RenderState.DepthEnable, 1);
-        SetRenderState(RenderState.DepthFunction, 7);
     }
 }

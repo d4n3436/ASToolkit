@@ -71,6 +71,34 @@ public sealed class Region : Sprite
     internal Span<Vid?> To => _to;
 
     /// <summary>
+    /// Returns the left edge of the region on screen.
+    /// </summary>
+    /// <returns>The left edge, in screen pixels.</returns>
+    [EngineRoutine(0x00449790)]
+    public float ScreenLeft() => Position.X - Size.X * Half - Map.Shift.X;
+
+    /// <summary>
+    /// Returns the top edge of the region on screen.
+    /// </summary>
+    /// <returns>The top edge, in screen pixels.</returns>
+    [EngineRoutine(0x004497b0)]
+    public float ScreenTop() => Position.Y - Position.Z - Size.Y * Half - Map.Shift.Y;
+
+    /// <summary>
+    /// Returns the right edge of the region on screen.
+    /// </summary>
+    /// <returns>The right edge, in screen pixels.</returns>
+    [EngineRoutine(0x004497d0)]
+    public float ScreenRight() => Size.X * Half + Position.X - Map.Shift.X;
+
+    /// <summary>
+    /// Returns the bottom edge of the region on screen.
+    /// </summary>
+    /// <returns>The bottom edge, in screen pixels.</returns>
+    [EngineRoutine(0x004497f0)]
+    public float ScreenBottom() => Size.Y * Half + (Position.Y - Position.Z) - Map.Shift.Y;
+
+    /// <summary>
     /// Draws the region's picture tiled over its area, then its fog, and advances the fog's level.
     /// </summary>
     /// <param name="screen">The screen to draw to.</param>
@@ -166,10 +194,7 @@ public sealed class Region : Sprite
             return;
         }
 
-        float centerY = position.Y - position.Z;
-        var topLeft = new Vector2(position.X - half.X - shift.X, centerY - half.Y - shift.Y);
-        var bottomRight = new Vector2(half.X + position.X - shift.X, half.Y + centerY - shift.Y);
-        map.Session.Graphics.DrawFog(screen, topLeft, bottomRight, FogNear, FogFar, FogColor, FogTable.Span, FogLevel, Flags.HasFlag(RegionFlags.LightFog));
+        map.Session.Graphics.DrawFog(screen, new Vector2(ScreenLeft(), ScreenTop()), new Vector2(ScreenRight(), ScreenBottom()), FogNear, FogFar, FogColor, FogTable.Span, FogLevel, Flags.HasFlag(RegionFlags.LightFog));
     }
 
     [EngineRoutine(0x00449be0)]
@@ -211,13 +236,7 @@ public sealed class Region : Sprite
     [EngineRoutine(0x00449730)]
     internal override void DrawSecondaryInfo()
     {
-        var position = Position;
-        var size = Size;
-        float left = position.X - size.X * Map.HalfShare - Map.Shift.X;
-        float top = position.Y - position.Z - size.Y * Map.HalfShare - Map.Shift.Y;
-        float right = size.X * Map.HalfShare + position.X - Map.Shift.X;
-        float bottom = size.Y * Map.HalfShare + (position.Y - position.Z) - Map.Shift.Y;
-        Map.Session.Graphics.Box(Map, new Vector2(left - RegionBoxMargin, top - RegionBoxMargin), new Vector2(right + RegionBoxMargin, bottom + RegionBoxMargin), Map.White);
+        Map.Session.Graphics.Box(Map, new Vector2(ScreenLeft() - RegionBoxMargin, ScreenTop() - RegionBoxMargin), new Vector2(ScreenRight() + RegionBoxMargin, ScreenBottom() + RegionBoxMargin), Map.White);
     }
 
     [EngineRoutine(0x00449e20)]

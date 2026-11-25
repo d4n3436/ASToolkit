@@ -38,8 +38,6 @@ internal ref struct Resource
 
     public readonly ReadOnlySpan<byte> Record => _data.Slice(_recordOffset + sizeof(int), _recordLength);
 
-    public static Resource FromRecord(ReadOnlySpan<byte> data) => new() { _data = data, _isOpen = true };
-
     [EngineRoutine(0x00406590)]
     public static ReadOnlySpan<byte> ReadText(ReadOnlySpan<byte> data, scoped ref int position)
     {

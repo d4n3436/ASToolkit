@@ -105,6 +105,7 @@ public sealed partial class Script
     [EngineRoutine(0x0041f450)]
     private void LoadLgc(IGameFileSystem fileSystem, string path, ReadOnlySpan<byte> file)
     {
+        Release();
         FileName = path;
         _fileSystem = fileSystem;
         _codeBuffer = ArrayPool<byte>.Shared.Rent(CodeCapacity);

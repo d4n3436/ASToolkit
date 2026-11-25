@@ -344,7 +344,46 @@ public sealed class Sound
     [EngineRoutine(0x0041d770)]
     public void Tact(GameRandom random, int time, uint realTime)
     {
-        MusicTact(random, realTime);
+        var music = _music;
+        if (music is not null)
+        {
+            music.Update(realTime);
+            bool isNextTrack;
+
+            if (_fade < 0)
+            {
+                if (_fadeStartedAt == 0 || realTime - _fadeStartedAt > FadeWindow)
+                {
+                    _fadeStartedAt = realTime;
+                }
+
+                music.SetVolume(_fade + (_musicVolume >= 0 ? (_musicVolume - FullVolume) * VolumeScale : 0));
+                _fade -= (int)((realTime - _fadeStartedAt) / 2);
+                isNextTrack = _fade < QuietestVolume;
+
+                if (isNextTrack)
+                {
+                    _fade = 0;
+                    _fadeStartedAt = 0;
+                }
+            }
+            else
+            {
+                isNextTrack = (random.Next() & TrackCheckMask) == 0 && !music.IsPlaying(realTime);
+            }
+
+            if (isNextTrack)
+            {
+                if (_trackName.Length == 0)
+                {
+                    StopMusic(realTime);
+                }
+                else
+                {
+                    PlayFile(_trackName, _loop, realTime);
+                }
+            }
+        }
 
         if (_deviceState != DeviceReady)
             return;
@@ -933,51 +972,6 @@ public sealed class Sound
         }
 
         return true;
-    }
-
-    private void MusicTact(GameRandom random, uint realTime)
-    {
-        var music = _music;
-
-        if (music is null)
-            return;
-
-        music.Update(realTime);
-        bool isNextTrack;
-
-        if (_fade < 0)
-        {
-            if (_fadeStartedAt == 0 || realTime - _fadeStartedAt > FadeWindow)
-            {
-                _fadeStartedAt = realTime;
-            }
-
-            music.SetVolume(_fade + (_musicVolume >= 0 ? (_musicVolume - FullVolume) * VolumeScale : 0));
-            _fade -= (int)((realTime - _fadeStartedAt) / 2);
-            isNextTrack = _fade < QuietestVolume;
-
-            if (isNextTrack)
-            {
-                _fade = 0;
-                _fadeStartedAt = 0;
-            }
-        }
-        else
-        {
-            isNextTrack = (random.Next() & TrackCheckMask) == 0 && !music.IsPlaying(realTime);
-        }
-
-        if (isNextTrack)
-        {
-            if (_trackName.Length == 0)
-            {
-                StopMusic(realTime);
-            }
-            else
-            {
-                PlayFile(_trackName, _loop, realTime);
-            }
-        }
     }
 
     [EngineRoutine(0x0041db80)]

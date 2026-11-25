@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using System.Text;
 using ASToolkit.Core;
 using ASToolkit.Engine.IO;
@@ -36,7 +35,6 @@ public partial class Map
     private const string AnimationExtension = ".flc";
     private const string HardwareGroundName = "Self Created Hardware Prerendered Ground ";
 
-    private readonly ConcurrentDictionary<(KnownObject Id, int Frame), FrameMask?> _masks = new();
 
     /// <summary>
     /// Gets a value indicating whether object IDs of the built terrain class are loaded as terrain.
@@ -194,22 +192,6 @@ public partial class Map
     /// <returns>The name.</returns>
     public string GetVidName(Vid vid) => vid.RecordId == HardwareGroundId ? HardwareGroundName : _objects.GetName(vid.RecordId);
 
-    internal FrameMask? GetFrameMask(Vid vid, int frame)
-    {
-        if (_masks.TryGetValue((vid.Id, frame), out var mask))
-            return mask;
-
-        VidResource? file;
-        lock (Parts)
-        {
-            file = Parts.GetFile(vid.Path);
-        }
-
-        mask = file is null || frame < 0 || frame >= file.Value.FrameCount ? null : FrameMask.Read(file.Value, frame);
-
-        return _masks.GetOrAdd((vid.Id, frame), mask);
-    }
-
     [EngineRoutine(0x00413a60)]
     internal void SetChildAndLink(Vid vid)
     {
@@ -286,7 +268,7 @@ public partial class Map
                 continue;
 
             vid.ChildVids[state] = target.Identity;
-            if (target.Identity.IsBirthAsSmoke())
+            if (target.Identity.IsBirthAsSmoke)
             {
                 vid.HasTimers = true;
             }

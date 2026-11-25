@@ -587,6 +587,15 @@ public class Vid
     /// </summary>
     public bool IsArmed => Weapon.BattleRange > 0;
 
+    /// <summary>
+    /// Gets a value indicating whether sprites of this object ID are born as smoke.
+    /// </summary>
+    public bool IsBirthAsSmoke
+    {
+        [EngineRoutine(0x0043a320)]
+        get => Properties.HasFlag(ObjectProperties.BirthAsSmoke);
+    }
+
     internal int Directions { get; private set; }
 
     internal int TotalFrames { get; }
@@ -821,13 +830,6 @@ public class Vid
     /// <returns>The count.</returns>
     [EngineRoutine(0x0043a2e0)]
     public int GetTotalRecolored() => _recolored[3] + _recolored[2] + _recolored[1] + _recolored[0];
-
-    /// <summary>
-    /// Determines whether sprites of this object ID are born as smoke.
-    /// </summary>
-    /// <returns><see langword="true"/> if the object is born as smoke; otherwise, <see langword="false"/>.</returns>
-    [EngineRoutine(0x0043a320)]
-    public bool IsBirthAsSmoke() => Properties.HasFlag(ObjectProperties.BirthAsSmoke);
 
     /// <summary>
     /// Returns the direction of the direction frame a sprite of this object ID shows for a direction.
