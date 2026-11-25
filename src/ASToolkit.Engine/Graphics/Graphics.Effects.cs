@@ -27,7 +27,6 @@ public sealed partial class Graphics
     private const int GammaChannels = 4;
     private const int CaptureTileSize = 256;
 
-    private readonly ushort[] _captureTexels = new ushort[CaptureTileSize * CaptureTileSize];
 
     /// <summary>
     /// Gets the copy of the screen that an alpha appearance fades from, or <see langword="null"/> until one has started.
@@ -200,7 +199,7 @@ public sealed partial class Graphics
     private void DrawAlphaAppear(Screen capture, uint appeared, uint length)
     {
         var gamma = new Gamma(~PackColor((int)((appeared << 8) / length), byte.MaxValue, byte.MaxValue, byte.MaxValue), Gamma.OpaqueAlpha);
-        var texture = new Texture(_captureTexels, new Size(CaptureTileSize, CaptureTileSize), VidPixelFormat.R5G6B5);
+        var texture = HighTexture;
         var viewport = Screen!.Viewport;
         SetAlphaBlend(BlendFactor.InverseSourceAlpha, BlendFactor.SourceAlpha);
         for (float top = viewport.Top; top < viewport.Bottom; top += CaptureTileSize)

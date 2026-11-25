@@ -231,7 +231,7 @@ public class Unit : Terrain
         if (next == Position)
             return;
 
-        if (CanPlaceWithCrush(ref next) is null)
+        if (CanPlaceWithCrushAndGlide(ref next) is null)
         {
             MoveTactMapLimit(next.AsVector2(), elapsed);
             ChangeCoor(next);

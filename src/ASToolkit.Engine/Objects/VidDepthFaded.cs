@@ -149,8 +149,9 @@ public sealed class VidDepthFaded : VidSoftware
 
         var runs = new RunWalker(Frames, rows, origin.X, FrameSize.Width, viewport, FadedPixelSize);
         int rowCount = runs.End - runs.Top;
-        int scratchWidth = map.Session.Graphics.ScratchSize.Width;
-        var scratch = map.Session.Graphics.Scratch;
+        var alpha = map.Session.Graphics.AlphaTexture;
+        int scratchWidth = alpha.Size.Width;
+        var scratch = alpha.Texels;
         scratch[..(rowCount * scratchWidth)].Clear();
         short key = (short)z;
         bool additive = !FileType.HasFlag(VidType.Blended) || !FileType.HasFlag(VidType.Runs8Bit);
@@ -178,7 +179,7 @@ public sealed class VidDepthFaded : VidSoftware
         var source = new Rectangle(0, 0, FrameSize.Width, rowCount);
         var graphics = map.Session.Graphics;
         graphics.SetAlphaBlend(BlendFactor.SourceAlpha, BlendFactor.One);
-        new Texture(scratch, map.Session.Graphics.ScratchSize, VidPixelFormat.A4R4G4B4).DrawFlatQuad(screen, destination, source, gamma, graphics.Blend);
+        alpha.DrawFlatQuad(screen, destination, source, gamma, graphics.Blend);
     }
 
     [EngineRoutine(0x004127e0)]

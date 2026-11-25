@@ -48,7 +48,7 @@ internal sealed class ScriptFile : IDisposable
 
             character = ReadChar();
 
-            if (character < 0 || character == LineFeed)
+            if (character is < 0 or LineFeed)
             {
                 character = 0;
             }

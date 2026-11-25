@@ -56,8 +56,9 @@ public sealed partial class Graphics
         int nearLevel = level + (near - far) * FogDepthPerLevel;
         int columns = width + FogCellMask >> 2;
         int rows = height + FogCellMask >> 2;
-        var buffer = TextureBuffer;
-        var format = TextureFormat;
+        var light = LightTexture;
+        var buffer = light.Texels;
+        var format = light.Format;
         bool isPalette = format == VidPixelFormat.P8;
         var depth = screen.Depth;
         ushort last = 0;
@@ -92,6 +93,6 @@ public sealed partial class Graphics
         }
 
         SetAlphaBlend(isLight ? BlendFactor.Zero : BlendFactor.One, BlendFactor.InverseSourceColor);
-        new Texture(buffer, new Size(FogBufferSize, FogBufferSize), format, TexturePalette).DrawQuad(screen, new Rectangle(left, top, width, height), new Rectangle(0, 0, columns, rows), new Gamma(~color, Gamma.OpaqueAlpha), Blend, topDepth: (level + FogDepthOffset) * FogDepthScale, bottomDepth: (level + FogDepthOffset) * FogDepthScale);
+        light.DrawQuad(screen, new Rectangle(left, top, width, height), new Rectangle(0, 0, columns, rows), new Gamma(~color, Gamma.OpaqueAlpha), Blend, topDepth: (level + FogDepthOffset) * FogDepthScale, bottomDepth: (level + FogDepthOffset) * FogDepthScale);
     }
 }

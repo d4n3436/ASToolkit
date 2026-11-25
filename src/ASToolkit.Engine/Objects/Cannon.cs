@@ -216,7 +216,7 @@ public sealed class Cannon : Sprite
         if (next.AsVector2() == Position.AsVector2())
             return;
 
-        if (CanPlace(next) is not null)
+        if (CanPlaceWithCrush(next) is not null)
         {
             if (Animation < SpriteAnimation.Death)
             {

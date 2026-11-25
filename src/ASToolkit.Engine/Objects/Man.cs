@@ -106,7 +106,7 @@ public sealed class Man : Unit
 
         if (Position.AsVector2() != next.AsVector2() && IsInsideMap(next.AsVector2()))
         {
-            if (CanPlaceWithCrush(ref next) is null)
+            if (CanPlaceWithCrushAndGlide(ref next) is null)
             {
                 ChangeCoor(next);
             }

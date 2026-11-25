@@ -5,9 +5,9 @@ using ASToolkit.Formats;
 
 namespace ASToolkit.Engine;
 
-public readonly ref partial struct Texture
+public readonly ref partial struct Direct3DTexture
 {
-    private const uint DefaultFilter = 0xffffffff;
+    internal const uint DefaultFilter = 0xffffffff;
     private const uint DitherFilter = 0x80000;
     private const uint RgbMask = 0x00ffffff;
     private const ushort HighColorAlpha = 0x8000;
@@ -15,7 +15,7 @@ public readonly ref partial struct Texture
 
     private static uint KeyOpaqueBlack(uint texel, uint colorKey) => texel == colorKey ? 0 : texel;
 
-    private int LoadTexels(Rectangle destination, ReadOnlySpan<byte> data, VidPixelFormat format, int pitch, Size sourceSize, Rectangle source, uint filter, uint colorKey, ReadOnlySpan<uint> sourcePalette = default)
+    internal int LoadTexels(Rectangle destination, ReadOnlySpan<byte> data, VidPixelFormat format, int pitch, Size sourceSize, Rectangle source, uint filter, uint colorKey, ReadOnlySpan<uint> sourcePalette = default)
     {
         if (source.Left < 0 || sourceSize.Width < source.Right || source.Right < source.Left || source.Top < 0 || sourceSize.Height < source.Bottom || source.Bottom < source.Top)
             return InvalidCall;

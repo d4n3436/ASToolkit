@@ -144,7 +144,7 @@ public class Creature : Unit
             next.Z = Map.GetGroundZForMoveTo(Vid, next.AsVector2());
         }
 
-        if (CanPlace(next) is null && StaysInRegion(next.AsVector2()))
+        if (CanPlaceWithCrush(next) is null && StaysInRegion(next.AsVector2()))
         {
             MoveTactMapLimit(next.AsVector2(), elapsed);
             ChangeCoor(next);

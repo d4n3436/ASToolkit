@@ -116,9 +116,11 @@ public partial class Map : IDisposable
         _levelStartTime = (int)Session.RealCurrentTime;
         SetFlag(MapFlags.AppMenu, Session.HasAppMenu);
         _flags |= MapFlags.PlayerControlled | MapFlags.DrawFlagman | MapFlags.DrawSoundCount | MapFlags.MouseTips;
-        int fontHeight = Profile.GetInteger(fileSystem, ConfigFile, GraphSection, "FontSizeY"u8, DefaultFontHeight);
-        int fontWidth = Profile.GetInteger(fileSystem, ConfigFile, GraphSection, "FontSizeX"u8, DefaultFontWidth);
-        string font = Profile.TryGetString(fileSystem, ConfigFile, GraphSection, "Font"u8, out var fontName) ? Encoding.ASCII.GetString(fontName.Span) : DefaultFont;
+        var config = new Profile(fileSystem);
+        config.Load(ConfigFile);
+        int fontHeight = config.GetInt(GraphSection, "FontSizeY"u8, DefaultFontHeight);
+        int fontWidth = config.GetInt(GraphSection, "FontSizeX"u8, DefaultFontWidth);
+        string font = config.TryGetString(GraphSection, "Font"u8, out var fontName) ? Encoding.ASCII.GetString(fontName.Span) : DefaultFont;
         Session.Graphics.CreateDeviceFont(font, new Size(fontWidth, fontHeight), DefaultMaxTextureSize);
         _hasWindow = true;
         FileSystem = fileSystem;
@@ -142,9 +144,11 @@ public partial class Map : IDisposable
 
         Session.Sound ??= new Sound(ref objectsFile, fileSystem, Session.Error, isHighQuality: Session.Registry.GetInt("SoundHighQuality", 0) != 0, time: Session.Time);
         Session.Constant ??= new Constant(ref objectsFile, Session.Error);
-        Constant.IsDebugMode = Profile.GetInteger(fileSystem, ConfigFile, GameSection, "DebugMode"u8, 0) != 0;
-        SetFlag(MapFlags.DrawFps, Profile.GetInteger(fileSystem, ConfigFile, GameSection, "DrawFPS"u8, 0) != 0);
-        SetFlag(MapFlags.DrawPresentation, Profile.GetInteger(fileSystem, ConfigFile, GameSection, "DrawPresentation"u8, 1) != 0);
+        Constant.IsDebugMode = config.GetInt(GameSection, "DebugMode"u8, 0) != 0;
+        SetFlag(MapFlags.DrawFps, config.GetInt(GameSection, "DrawFPS"u8, 0) != 0);
+        SetFlag(MapFlags.DrawPresentation, config.GetInt(GameSection, "DrawPresentation"u8, 1) != 0);
+        Session.Strings = new Profile(fileSystem);
+        Session.Strings.Load(StringsFile);
         Sprites = new SpriteCollector(this);
         LoadVid(ref objectsFile);
 
@@ -946,7 +950,9 @@ public partial class Map : IDisposable
 
     internal static int OpenObjects(IGameFileSystem fileSystem, MyError? error, ref Resource resource)
     {
-        var name = Profile.TryGetString(fileSystem, ConfigFile, GameSection, "Resource"u8, out var configured) ? configured.Span : "objects.res"u8;
+        var config = new Profile(fileSystem);
+        config.Load(ConfigFile);
+        var name = config.TryGetString(GameSection, "Resource"u8, out var configured) ? configured.Span : "objects.res"u8;
 
         return resource.Open(fileSystem, error, name, "DATA"u8);
     }

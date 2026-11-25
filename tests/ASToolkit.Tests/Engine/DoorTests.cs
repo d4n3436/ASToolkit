@@ -35,7 +35,7 @@ public class DoorTests
         _ = new Sprite(vid, position.AsVector3(), default, null, map);
 
         var next = (position + Vector2.UnitX).AsVector3();
-        Assert.Null(sprite.CanPlaceWithCrush(ref next));
+        Assert.Null(sprite.CanPlaceWithCrushAndGlide(ref next));
         sprite.ChangeCoor(next);
         Assert.Equal(position + Vector2.UnitX, sprite.Position.AsVector2());
     }

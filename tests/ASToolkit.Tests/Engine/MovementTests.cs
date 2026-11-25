@@ -166,7 +166,7 @@ public class MovementTests
         var crushed = new Sprite(crusher, new Vector3(50, 50, 0), default, null, map) { Army = Army.Monsters, Hp = 10 };
         _ = new Sprite(wall, new Vector3(52, 50, 0), default, null, map) { Army = Army.Monsters, Hp = 10 };
 
-        Assert.NotNull(new Sprite(mover, new Vector3(50, 50, 0), default, null, map) { Army = Army.Monsters, Hp = 10 }.CanPlace(new Vector3(50, 50, 0)));
+        Assert.NotNull(new Sprite(mover, new Vector3(50, 50, 0), default, null, map) { Army = Army.Monsters, Hp = 10 }.CanPlaceWithCrush(new Vector3(50, 50, 0)));
         Assert.Equal(5, crushed.Hp);
     }
 

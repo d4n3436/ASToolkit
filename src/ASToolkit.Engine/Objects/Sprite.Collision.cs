@@ -17,7 +17,7 @@ public partial class Sprite
     private const int OppositeDirectionTolerance = 16;
 
     [EngineRoutine(0x00443c40)]
-    internal Sprite? CanPlaceWithCrush(ref Vector3 next, int depth = 0)
+    internal Sprite? CanPlaceWithCrushAndGlide(ref Vector3 next, int depth = 0)
     {
         if (Vid.MoveMask == 0)
             return null;
@@ -39,7 +39,7 @@ public partial class Sprite
             {
                 var pushed = new Vector3(other.Position.X + next.X - start.X, other.Position.Y + next.Y - start.Y, other.Position.Z);
 
-                if (other.CanPlaceWithCrush(ref pushed, depth + 1) is null)
+                if (other.CanPlaceWithCrushAndGlide(ref pushed, depth + 1) is null)
                 {
                     bool opposite = Vid.CanBePushed && other.Direction.MeasureTurnTo(Direction.Opposite) < OppositeDirectionTolerance;
 
@@ -144,7 +144,7 @@ public partial class Sprite
     internal bool DirectRouteIntersection(ref Vector3 target) => Map.Sprites.CheckLine(Vid, Position, ref target);
 
     [EngineRoutine(0x00443810)]
-    internal Sprite? CanPlace(Vector3 point)
+    internal Sprite? CanPlaceWithCrush(Vector3 point)
     {
         var vid = Vid;
 
@@ -188,13 +188,13 @@ public partial class Sprite
 
     private bool FindCollision(Vector3 position, [NotNullWhen(true)] out Sprite? collision)
     {
-        collision = FindOverlap(position);
+        collision = CanPlace(position);
 
         return collision is not null;
     }
 
     [EngineRoutine(0x004433f0)]
-    private Sprite? FindOverlap(Vector3 position)
+    private Sprite? CanPlace(Vector3 position)
     {
         var vid = Vid;
 

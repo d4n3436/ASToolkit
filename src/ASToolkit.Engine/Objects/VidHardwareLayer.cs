@@ -52,10 +52,10 @@ public sealed class VidHardwareLayer : Vid
             for (int frame = 0; frame < Textures.Length; frame++)
             {
                 var texture = Textures[frame];
-                if (texture.IsEmpty || IsRepeatedTexture(frame))
+                if (texture is null || texture.IsEmpty || IsRepeatedTexture(frame))
                     continue;
 
-                Texture.Release(session, texture.Size, texture.Format);
+                texture.Destruct(session);
             }
 
             Textures = [];
@@ -73,7 +73,7 @@ public sealed class VidHardwareLayer : Vid
     /// <summary>
     /// Gets the texture of each frame, in the order of the records of the sprite file.
     /// </summary>
-    public TextureData[] Textures { get; private set; } = [];
+    public Texture?[] Textures { get; private set; } = [];
 
     /// <summary>
     /// Gets the pixel format of the frames' texels in the sprite file.
@@ -156,7 +156,7 @@ public sealed class VidHardwareLayer : Vid
         }
 
         var transform = world * Graphics.CreateView(shift, viewport) * map.Session.Graphics.Projection;
-        Meshes[sprite.Frame].Draw(screen, Textures[sprite.Frame].View, transform, graphics.Blend, ~gamma.Negative);
+        Meshes[sprite.Frame].Draw(screen, Textures[sprite.Frame]!.View, transform, graphics.Blend, ~gamma.Negative);
     }
 
     /// <inheritdoc/>
@@ -185,7 +185,7 @@ public sealed class VidHardwareLayer : Vid
         }
 
         int frameCount = Math.Min(FileFrameCount, records.Length);
-        Textures = new TextureData[frameCount];
+        Textures = new Texture[frameCount];
         Meshes = new HardwareLayerMesh[frameCount];
         for (int frame = 0; frame < frameCount; frame++)
         {
@@ -203,8 +203,9 @@ public sealed class VidHardwareLayer : Vid
                 flags |= TextureFlags.AlphaPalette;
             }
 
-            Textures[frame] = Texture.Create(texels.Span, size, Format, palette, flags, session);
-            size = Textures[frame].Size;
+            var texture = new Texture(texels.Span, size, Format, palette, flags, session);
+            Textures[frame] = texture;
+            size = texture.Size;
             ref readonly var mesh = ref MemoryMarshal.AsRef<VidLayerMeshHeader>(record[position..]);
             position += Unsafe.SizeOf<VidLayerMeshHeader>();
             var vertices = new HardwareLayerVertex[Math.Max(mesh.VertexCount, 0)];
@@ -237,7 +238,7 @@ public sealed class VidHardwareLayer : Vid
     {
         for (int earlier = 0; earlier < frame; earlier++)
         {
-            if (ReferenceEquals(Textures[earlier].Texels, Textures[frame].Texels))
+            if (ReferenceEquals(Textures[earlier], Textures[frame]))
                 return true;
         }
 

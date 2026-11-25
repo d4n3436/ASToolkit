@@ -1682,7 +1682,7 @@ public partial class Map : IScriptFunctionHost
     private void GetString(Script script)
     {
         var keyword = script.PopText();
-        script.PushText(Profile.GetString(FileSystem, StringsFile, script.PopText().Span, keyword.Span));
+        script.PushText(Session.Strings?.GetString(script.PopText().Span, keyword.Span) ?? default);
     }
 
     private void FClose()

@@ -82,35 +82,13 @@ public sealed partial class Graphics
 
     internal static ReadOnlySpan<ushort> DefaultColorTable => DefaultTable;
 
-    internal Size ScratchSize => new(TextureSide, TextureSide);
+    internal Texture LightTexture => EnsureBuffers().Light!;
 
-    internal Span<ushort> Scratch => EnsureBuffers().Alpha;
+    internal Texture HighTexture => EnsureBuffers().High!;
 
-    internal Span<ushort> TextureBuffer => EnsureBuffers().Light;
+    internal Texture AlphaTexture => EnsureBuffers().Alpha!;
 
-    internal VidPixelFormat TextureFormat => EnsureBuffers().LightFormat;
-
-    internal ReadOnlySpan<uint> TexturePalette => EnsureBuffers().LightFormat == VidPixelFormat.P8 ? GrayPalette : default;
-
-    internal Span<ushort> LightBuffer
-    {
-        get
-        {
-            var textures = EnsureBuffers();
-
-            return LightPhase == 0 ? textures.Light : textures.High;
-        }
-    }
-
-    internal VidPixelFormat LightFormat
-    {
-        get
-        {
-            var textures = EnsureBuffers();
-
-            return LightPhase == 0 ? textures.LightFormat : textures.HighFormat;
-        }
-    }
+    internal Texture LightPhaseTexture => LightPhase == 0 ? LightTexture : HighTexture;
 
     internal int LightPhase { get; set; }
 
@@ -129,13 +107,6 @@ public sealed partial class Graphics
         0, 0, -2,
         0, 0, 0
     ];
-
-    [EngineRoutine(0x00403290)]
-    internal static ushort[] CreateTexture(GameSession session, VidPixelFormat format, out VidPixelFormat result)
-    {
-        var size = new Size(TextureSide, TextureSide);
-        return Texture.Allocate(ref size, format, TextureFlags.None, session, out _, out result);
-    }
 
     internal static int GetDisplayBits(VidPixelFormat format) => format switch
     {
@@ -245,13 +216,13 @@ public sealed partial class Graphics
     [EngineRoutine(0x00430650)]
     internal void ReloadPalettes()
     {
-        if (Buffers.Light.Length == 0 || Buffers.LightFormat != VidPixelFormat.P8)
+        var light = Buffers.Light;
+        if (light is null || light.IsEmpty || light.Format != VidPixelFormat.P8)
             return;
 
-        Texture.Release(_session, new Size(TextureSide, TextureSide), Buffers.LightFormat);
-        Buffers.Light = CreateTexture(_session, VidPixelFormat.P8, out var format);
-        Buffers.LightFormat = format;
-        if (Buffers.Light.Length == 0)
+        light.Destruct(_session);
+        Buffers.Light = CreateBufferTexture(VidPixelFormat.P8);
+        if (Buffers.Light.IsEmpty)
         {
             Error?.Error(GraphicsLogTag, LogError.Create, 0, "Light at RelodPalette"u8);
         }
@@ -396,32 +367,41 @@ public sealed partial class Graphics
             return Buffers;
 
         Buffers.IsCreated = true;
-        Buffers.Light = CreateBufferTexture(VidPixelFormat.P8, "light buffer"u8, out var format);
-        Buffers.LightFormat = format;
-        if (Buffers.Light.Length == 0)
+        Buffers.Light = CreateBufferTexture(VidPixelFormat.P8, "light buffer"u8);
+        if (Buffers.Light.IsEmpty)
             return Buffers;
 
-        Buffers.High = CreateBufferTexture(VidPixelFormat.R5G6B5, "hiBuffer"u8, out format);
-        Buffers.HighFormat = format;
-        if (Buffers.High.Length == 0)
+        Buffers.High = CreateBufferTexture(VidPixelFormat.R5G6B5, "hiBuffer"u8);
+        if (Buffers.High.IsEmpty)
             return Buffers;
 
-        Buffers.Alpha = CreateBufferTexture(VidPixelFormat.A4R4G4B4, "alphaBuffer"u8, out _);
-        if (Buffers.Alpha.Length == 0)
+        Buffers.Alpha = CreateBufferTexture(VidPixelFormat.A4R4G4B4, "alphaBuffer"u8);
+        if (Buffers.Alpha.IsEmpty)
             return Buffers;
 
-        Buffers.ColorTable = CreateColorTable(Buffers.HighFormat == VidPixelFormat.R5G6B5 ? HighColorFormat.Rgb565 : HighColorFormat.Rgb555);
+        Buffers.ColorTable = CreateColorTable(Buffers.High.Format == VidPixelFormat.R5G6B5 ? HighColorFormat.Rgb565 : HighColorFormat.Rgb555);
         return Buffers;
     }
 
-    private ushort[] CreateBufferTexture(VidPixelFormat format, ReadOnlySpan<byte> name, out VidPixelFormat result)
+    private Texture CreateBufferTexture(VidPixelFormat format, ReadOnlySpan<byte> name)
     {
-        ushort[] texels = CreateTexture(_session, format, out result);
-        if (texels.Length == 0)
+        var texture = CreateBufferTexture(format);
+        if (texture.IsEmpty)
         {
             Error?.Error("GRAPH"u8, LogError.Create, 0, name);
         }
 
-        return texels;
+        return texture;
+    }
+
+    private Texture CreateBufferTexture(VidPixelFormat format)
+    {
+        var texture = new Texture(new Size(TextureSide, TextureSide), format, TextureFlags.None, _session);
+        if (texture.Format == VidPixelFormat.P8)
+        {
+            texture.Palette = GrayPalette;
+        }
+
+        return texture;
     }
 }

@@ -630,7 +630,7 @@ public class Vid
     /// <param name="colorTexture">The color texture of <paramref name="tile"/>.</param>
     /// <param name="depthTexture">The depth texture of <paramref name="tile"/>.</param>
     /// <param name="tileViewport">The area of the textures that is drawn to, in texels.</param>
-    public virtual void DrawToVid(Map map, Sprite sprite, HardwareTile tile, TextureData colorTexture, TextureData depthTexture, Rectangle tileViewport)
+    public virtual void DrawToVid(Map map, Sprite sprite, HardwareTile tile, Texture colorTexture, Texture depthTexture, Rectangle tileViewport)
     {
     }
 

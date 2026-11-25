@@ -1,18 +1,12 @@
-using ASToolkit.Formats;
-
 namespace ASToolkit.Engine;
 
 internal sealed class DeviceBuffers
 {
-    public ushort[] Light { get; set; } = [];
+    public Texture? Light { get; set; }
 
-    public VidPixelFormat LightFormat { get; set; }
+    public Texture? High { get; set; }
 
-    public ushort[] High { get; set; } = [];
-
-    public VidPixelFormat HighFormat { get; set; }
-
-    public ushort[] Alpha { get; set; } = [];
+    public Texture? Alpha { get; set; }
 
     public ushort[] ColorTable { get; set; } = new ushort[Graphics.ColorTableLength];
 

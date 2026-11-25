@@ -77,8 +77,9 @@ public sealed partial class Graphics
         var size = Screen.Size;
         var start = new Point(-(int)map.Shift.X & SnowCellMask, -(int)map.Shift.Y & SnowCellMask);
         var ramp = EnsureBuffers().ColorTable;
-        var texture = TextureBuffer;
-        var format = TextureFormat;
+        var light = LightTexture;
+        var texture = light.Texels;
+        var format = light.Format;
         bool isPalette = format == VidPixelFormat.P8;
         var depth = Screen.Depth;
         int depthWidth = Screen.DepthWidth;
@@ -110,7 +111,7 @@ public sealed partial class Graphics
 
         SetRenderState(RenderState.SpecularEnable, 0);
         SetAlphaBlend(BlendFactor.One, BlendFactor.InverseSourceColor);
-        new Texture(texture, new Size(SnowTextureSize, SnowTextureSize), format, TexturePalette).DrawFlatQuad(Screen, new Rectangle(Point.Empty, Screen.Size),
+        light.DrawFlatQuad(Screen, new Rectangle(Point.Empty, Screen.Size),
             new Rectangle(0, 0, size.Width / SnowCell, size.Height / SnowCell), default, Blend);
     }
 

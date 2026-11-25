@@ -252,7 +252,7 @@ public sealed class Region : Sprite
         var fog = default(RegionFog);
         stream.ReadInto(ref fog);
         Flags = fog.Flags;
-        SetFogParameters(fog.Near, fog.Far, fog.Color, Map.Session.Graphics.ColorTable, (Map.Session.Graphics.Screen is not null ? Map.Session.Graphics.TextureFormat : Map.Session.Graphics.Buffers.LightFormat) == VidPixelFormat.P8);
+        SetFogParameters(fog.Near, fog.Far, fog.Color, Map.Session.Graphics.ColorTable, (Map.Session.Graphics.Screen is not null ? Map.Session.Graphics.LightTexture : Map.Session.Graphics.Buffers.Light)?.Format == VidPixelFormat.P8);
         if (version < FloatRegionSizeVersion)
         {
             var size = default(Size);

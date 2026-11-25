@@ -21,7 +21,7 @@ public readonly record struct HardwareLayerMesh(HardwareLayerVertex[] Vertices, 
     /// <param name="blend">How the mesh combines with the colors underneath.</param>
     /// <param name="factor">The texture factor, a color multiplied with the texels.</param>
     [EngineRoutine(0x0041f120)]
-    public void Draw(Screen screen, Texture texture, in Matrix4x4 transform, QuadBlend blend, uint factor)
+    public void Draw(Screen screen, Direct3DTexture texture, in Matrix4x4 transform, QuadBlend blend, uint factor)
     {
         if (Indexes.Length == 0)
         {

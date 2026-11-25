@@ -1,5 +1,4 @@
 using System.Text.Unicode;
-using ASToolkit.Engine.IO;
 
 namespace ASToolkit.Engine;
 
@@ -19,13 +18,13 @@ public partial class Map
         int id = Menu.GetIdUnderCursor();
         Span<byte> key = stackalloc byte[MouseTipKeyLength];
         Utf8.TryWrite(key, $"MenuVid{id}AllDir", out int written);
-        text = Profile.GetString(FileSystem, StringsFile, MouseTipsSection, key[..written]);
+        text = Session.Strings?.GetString(MouseTipsSection, key[..written]) ?? default;
 
         if (!text.IsEmpty)
             return text;
 
         Utf8.TryWrite(key, $"MenuVid{id}Dir{Menu.GetDirectionUnderCursor()}", out written);
 
-        return Profile.GetString(FileSystem, StringsFile, MouseTipsSection, key[..written]);
+        return Session.Strings?.GetString(MouseTipsSection, key[..written]) ?? default;
     }
 }

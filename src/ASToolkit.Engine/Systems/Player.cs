@@ -343,6 +343,6 @@ internal sealed class Player
         Span<byte> key = stackalloc byte[UnitKeyLength];
         ((int)Hovered.Vid.Id).TryFormat(key, out int written, provider: CultureInfo.InvariantCulture);
 
-        return Profile.GetString(_map.FileSystem, Map.StringsFile, "Units"u8, key[..written]);
+        return _map.Session.Strings?.GetString("Units"u8, key[..written]) ?? default;
     }
 }

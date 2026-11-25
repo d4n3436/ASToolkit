@@ -61,17 +61,19 @@ public sealed class ControlSettings
     /// <returns>The controls.</returns>
     public static ControlSettings Read(IGameFileSystem fileSystem)
     {
+        var config = new Profile(fileSystem);
+        config.Load(ConfigFile);
         return new ControlSettings
         {
-            Left = new ControlBinding(VirtualKey.Left, GetFirstCharacter(fileSystem, "Left"u8, "%"u8)),
-            Right = new ControlBinding(VirtualKey.Right, GetFirstCharacter(fileSystem, "Right"u8, "'"u8)),
-            Up = new ControlBinding(VirtualKey.Up, GetFirstCharacter(fileSystem, "Up"u8, "&"u8)),
-            Down = new ControlBinding(VirtualKey.Down, GetFirstCharacter(fileSystem, "Down"u8, "\u00048"u8)),
-            IsMovementRelativeToCursor = Profile.GetInteger(fileSystem, ConfigFile, Section, "Relative"u8, 0) != 0,
-            First = new ControlBinding(ParseKey(GetString(fileSystem, "First"u8, "LBUTTON"u8)), VirtualKey.LeftButton),
-            Second = new ControlBinding(ParseKey(GetString(fileSystem, "Second"u8, "RBUTTON"u8)), VirtualKey.RightButton),
-            Prev = ParseKey(GetString(fileSystem, "Prev"u8, "["u8)),
-            Next = ParseKey(GetString(fileSystem, "Next"u8, "]"u8))
+            Left = new ControlBinding(VirtualKey.Left, GetFirstCharacter(config, "Left"u8, "%"u8)),
+            Right = new ControlBinding(VirtualKey.Right, GetFirstCharacter(config, "Right"u8, "'"u8)),
+            Up = new ControlBinding(VirtualKey.Up, GetFirstCharacter(config, "Up"u8, "&"u8)),
+            Down = new ControlBinding(VirtualKey.Down, GetFirstCharacter(config, "Down"u8, "\u00048"u8)),
+            IsMovementRelativeToCursor = config.GetInt(Section, "Relative"u8, 0) != 0,
+            First = new ControlBinding(ParseKey(GetString(config, "First"u8, "LBUTTON"u8)), VirtualKey.LeftButton),
+            Second = new ControlBinding(ParseKey(GetString(config, "Second"u8, "RBUTTON"u8)), VirtualKey.RightButton),
+            Prev = ParseKey(GetString(config, "Prev"u8, "["u8)),
+            Next = ParseKey(GetString(config, "Next"u8, "]"u8))
         };
     }
 
@@ -119,12 +121,12 @@ public sealed class ControlSettings
         };
     }
 
-    private static ReadOnlySpan<byte> GetString(IGameFileSystem fileSystem, ReadOnlySpan<byte> key, ReadOnlySpan<byte> defaultValue) =>
-        Profile.TryGetString(fileSystem, ConfigFile, Section, key, out var value) ? value.Span : defaultValue;
+    private static ReadOnlySpan<byte> GetString(Profile config, ReadOnlySpan<byte> key, ReadOnlySpan<byte> defaultValue) =>
+        config.TryGetString(Section, key, out var value) ? value.Span : defaultValue;
 
-    private static VirtualKey GetFirstCharacter(IGameFileSystem fileSystem, ReadOnlySpan<byte> key, ReadOnlySpan<byte> defaultValue)
+    private static VirtualKey GetFirstCharacter(Profile config, ReadOnlySpan<byte> key, ReadOnlySpan<byte> defaultValue)
     {
-        var value = GetString(fileSystem, key, defaultValue);
+        var value = GetString(config, key, defaultValue);
 
         return value.IsEmpty ? VirtualKey.None : (VirtualKey)(sbyte)value[0];
     }

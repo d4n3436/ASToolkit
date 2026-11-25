@@ -42,7 +42,7 @@ public class EnemyMotionTests
         var obstacle = MakeUnit(map, new UnitBody(60, 60), 1, SpriteClass.Unit);
 
         var next = new Vector3(51, 51, 0);
-        Assert.Null(sprite.CanPlaceWithCrush(ref next));
+        Assert.Null(sprite.CanPlaceWithCrushAndGlide(ref next));
         sprite.ChangeCoor(next);
         Assert.Equal(new Vector2(50, 51), sprite.Position.AsVector2());
     }
@@ -55,7 +55,7 @@ public class EnemyMotionTests
         var pushed = MakeUnit(map, new UnitBody(60, 50, Push: 1), 1, SpriteClass.Unit);
 
         var next = new Vector3(51, 50, 0);
-        Assert.Null(sprite.CanPlaceWithCrush(ref next));
+        Assert.Null(sprite.CanPlaceWithCrushAndGlide(ref next));
         sprite.ChangeCoor(next);
         Assert.Equal(new Vector2(61, 50), pushed.Position.AsVector2());
         Assert.Equal(new Vector2(50, 50), sprite.Position.AsVector2());

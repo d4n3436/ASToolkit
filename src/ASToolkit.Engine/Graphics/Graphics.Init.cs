@@ -30,7 +30,7 @@ public sealed partial class Graphics
 
     private static void FillColorTable(DeviceBuffers textures)
     {
-        var highColor = textures.HighFormat == VidPixelFormat.R5G6B5 ? HighColorFormat.Rgb565 : HighColorFormat.Rgb555;
+        var highColor = textures.High!.Format == VidPixelFormat.R5G6B5 ? HighColorFormat.Rgb565 : HighColorFormat.Rgb555;
         int index = 0;
         for (int top = ColorTableGroup; top <= byte.MaxValue + 1; top += ColorTableGroup)
         {
@@ -157,23 +157,21 @@ public sealed partial class Graphics
     private bool CreateBuffers(DeviceBuffers textures)
     {
         textures.IsCreated = true;
-        textures.Light = CreateTexture(_session, VidPixelFormat.P8, out var format);
-        textures.LightFormat = format;
+        textures.Light = CreateBufferTexture(VidPixelFormat.P8);
         if (!HasBuffer(textures.Light, "light buffer"u8))
             return false;
 
-        textures.High = CreateTexture(_session, VidPixelFormat.R5G6B5, out format);
-        textures.HighFormat = format;
+        textures.High = CreateBufferTexture(VidPixelFormat.R5G6B5);
         if (!HasBuffer(textures.High, "hiBuffer"u8))
             return false;
 
-        textures.Alpha = CreateTexture(_session, VidPixelFormat.A4R4G4B4, out _);
+        textures.Alpha = CreateBufferTexture(VidPixelFormat.A4R4G4B4);
         return HasBuffer(textures.Alpha, "alphaBuffer"u8);
     }
 
-    private bool HasBuffer(ReadOnlySpan<ushort> buffer, ReadOnlySpan<byte> name)
+    private bool HasBuffer(Texture texture, ReadOnlySpan<byte> name)
     {
-        if (buffer.Length != 0)
+        if (!texture.IsEmpty)
             return true;
 
         Error.Error("GRAPH"u8, LogError.Create, 0, name);

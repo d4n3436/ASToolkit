@@ -74,10 +74,9 @@ public sealed partial class Graphics
     /// <param name="screen">The screen to write to.</param>
     /// <param name="destination">The area of the depth buffer.</param>
     /// <param name="source">The area of the texture.</param>
-    /// <param name="texels">The depth values of the texture.</param>
-    /// <param name="width">The width of the texture, in texels.</param>
+    /// <param name="texture">The depth texture.</param>
     [EngineRoutine(0x00402820)]
-    public static void CopyDepth(Screen screen, Rectangle destination, Rectangle source, Span<ushort> texels, int width)
+    public static void CopyDepth(Screen screen, Rectangle destination, Rectangle source, Texture texture)
     {
         if (screen.Viewport.Left > destination.Right || destination.Left >= screen.Viewport.Right || screen.Viewport.Top > destination.Bottom || destination.Top >= screen.Viewport.Bottom)
             return;
@@ -110,7 +109,7 @@ public sealed partial class Graphics
             bottom = screen.Viewport.Bottom;
         }
 
-        var texture = new Texture(texels, new Size(width, texels.Length / width), VidPixelFormat.R5G6B5).Lock(null, out int texturePitch);
+        var texels = texture.Lock(null, out int texturePitch);
         int end = (bottom - 1) * screen.DepthWidth + right;
         int i = top * screen.DepthWidth + left;
         int sourceIndex = sourceTop * (texturePitch / sizeof(ushort)) + sourceLeft;
@@ -119,7 +118,7 @@ public sealed partial class Graphics
         while (i < end)
         {
             int copied = Math.Max(rowWidth, 0);
-            texture.Slice(sourceIndex, copied).CopyTo(depth.Slice(i));
+            texels.Slice(sourceIndex, copied).CopyTo(depth[i..]);
             i += copied + screen.DepthWidth - rowWidth;
             sourceIndex += copied + texturePitch / sizeof(ushort) - rowWidth;
         }

@@ -75,7 +75,7 @@ public sealed class VidHighColor : VidSoftware
     /// <param name="depthTexture">The depth texture of <paramref name="tile"/>.</param>
     /// <param name="tileViewport">The area of the textures that is drawn to, in texels.</param>
     [EngineRoutine(0x00418940)]
-    public override void DrawToVid(Map map, Sprite sprite, HardwareTile tile, TextureData colorTexture, TextureData depthTexture, Rectangle tileViewport)
+    public override void DrawToVid(Map map, Sprite sprite, HardwareTile tile, Texture colorTexture, Texture depthTexture, Rectangle tileViewport)
     {
         if (IsHidden)
             return;

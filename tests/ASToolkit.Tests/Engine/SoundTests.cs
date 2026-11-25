@@ -129,7 +129,7 @@ public class SoundTests
     }
 
     [Fact]
-    public void Stop_SoundOnTwoVoices_LeavesTheOriginalBufferPlaying()
+    public void StopSfx_SoundOnTwoVoices_LeavesTheOriginalBufferPlaying()
     {
         var records = TestGameFolder.Objects.Sounds;
         int id = Enumerable.Range(0, records.Count).First(i => records[i].VoiceLimit is >= 20 and < 100 && records[i].SampleCount == 1);

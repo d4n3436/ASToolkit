@@ -148,7 +148,7 @@ public sealed class D3DFont
 
         bool wasLinearFiltered = screen.IsLinearFiltered;
         screen.IsLinearFiltered = flags.HasFlag(TextDrawFlags.Filtered);
-        var texture = new Texture(_texels, TextureSize, VidPixelFormat.A4R4G4B4);
+        var texture = new Direct3DTexture(_texels, TextureSize, VidPixelFormat.A4R4G4B4);
         var gamma = new Gamma(~color, 0);
         float startX = position.X;
         for (int i = 0; i < text.Length && text[i] != 0; i++)

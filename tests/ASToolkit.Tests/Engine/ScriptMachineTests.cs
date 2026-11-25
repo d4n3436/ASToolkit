@@ -116,7 +116,7 @@ public class ScriptMachineTests
     }
 
     [Fact]
-    public void ReadState_WrittenState_RestoresTheInitialValues()
+    public void LoadVar_WrittenState_RestoresTheInitialValues()
     {
         var (script, _) = Compile("""
             string name = "abc";

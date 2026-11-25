@@ -1,60 +1,236 @@
 using System.Drawing;
 using System.Numerics;
-using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Text;
 using ASToolkit.Engine.IO;
 using ASToolkit.Formats;
 
 namespace ASToolkit.Engine;
 
 /// <summary>
-/// Represents a texture that is drawn to the back buffer in software.
+/// Represents a texture that holds its texels in the layout the device stores them in.
 /// </summary>
-public readonly ref partial struct Texture
+public sealed class Texture
 {
-    private const int RedShift = 16;
-    private const float TexelCenter = 0.5f;
-    private const int GreenShift = 8;
-    private const int ChannelMax = byte.MaxValue;
-    private const int NibbleScale = 17;
-    private const int AlphaShift = 24;
-    private const uint OpaqueBlack = 0xff000000;
-    private const int NibbleShift = 4;
-    private const float HalfStep = 0.5f;
+    private const int PaletteTexelBytes = 1;
+    private const int ColorTexelBytes = 2;
+    private const int BlockSize = 4;
 
-    private readonly Span<ushort> _texels;
-    private readonly Span<uint> _texels32;
-    private readonly ReadOnlySpan<uint> _palette;
+    private ushort[] _systemTexels = [];
+    private ushort[] _deviceTexels = [];
 
-    /// <summary>
-    /// Initializes a new instance of the <see cref="Texture"/> structure.
-    /// </summary>
-    /// <param name="texels">The texels of the texture.</param>
-    /// <param name="size">The size of the texture, in texels.</param>
-    /// <param name="format">The layout of the texels.</param>
-    /// <param name="palette">The colors of a P8 texture, packed as 0xAARRGGBB.</param>
-    public Texture(Span<ushort> texels, Size size, VidPixelFormat format, ReadOnlySpan<uint> palette = default)
+    [EngineRoutine(0x00403290)]
+    internal Texture(Size size, VidPixelFormat format, TextureFlags flags, GameSession session)
     {
-        _texels = texels;
-        _texels32 = Is32Bit(format) ? MemoryMarshal.Cast<ushort, uint>(texels) : default;
-        _palette = palette;
-        Size = size;
-        Format = format;
+        Create(size, format, flags, session);
     }
 
-    /// <summary>
-    /// Gets the size of the texture, in texels.
-    /// </summary>
-    public Size Size { get; }
+    [EngineRoutine(0x004032e0)]
+    internal Texture(ReadOnlySpan<byte> source, Size size, VidPixelFormat format, ReadOnlySpan<uint> palette, TextureFlags flags, GameSession session)
+    {
+        Create(size, format, flags, session);
+        Palette = Format == VidPixelFormat.P8 ? palette.ToArray() : [];
+        uint colorKey = Flags.HasFlag(TextureFlags.AlphaPalette) ? 0 : Direct3DTexture.OpaqueKey;
+        var area = new Rectangle(Point.Empty, size);
+        View.LoadTexels(area, source, format, GetSourcePitch(format, size.Width), size, area, 1, colorKey, palette);
+    }
 
     /// <summary>
     /// Gets the layout of the texels.
     /// </summary>
-    public VidPixelFormat Format { get; }
+    public VidPixelFormat Format { get; private set; }
 
-    private static Vector4 MaxChannels => new(ChannelMax);
+    /// <summary>
+    /// Gets the size of the texture, in texels.
+    /// </summary>
+    public Size Size { get; private set; }
 
-    private static Vector4 Doubled => new(2, 2, 2, 1);
+    /// <summary>
+    /// Gets the flags the texture was created with.
+    /// </summary>
+    public TextureFlags Flags { get; private set; }
+
+    /// <summary>
+    /// Gets the colors a P8 texture indexes, packed as 0xAARRGGBB, or an empty array.
+    /// </summary>
+    public uint[] Palette { get; internal set; } = [];
+
+    /// <summary>
+    /// Gets the texels, where a texel of a 32-bit layout takes two elements and the blocks of a compressed layout are packed.
+    /// </summary>
+    public Span<ushort> Texels => _deviceTexels.Length != 0 ? _deviceTexels : _systemTexels;
+
+    /// <summary>
+    /// Gets a value indicating whether the texture doesn't have any texels.
+    /// </summary>
+    public bool IsEmpty => _deviceTexels.Length == 0 && _systemTexels.Length == 0;
+
+    /// <summary>
+    /// Gets a view of the texture for drawing.
+    /// </summary>
+    public Direct3DTexture View => new(Texels, Size, Format, Palette);
+
+    private static ReadOnlySpan<byte> TextureLogTag => "TEXTURE"u8;
+
+    [EngineRoutine(0x00402fa0)]
+    internal static string SetDeviceCapabilities(GameSession session)
+    {
+        session.TextureMaxSize = Graphics.DeviceMaxTextureSize;
+        session.IsTextureSquareRequired = Graphics.AreSquareTexturesRequired;
+        session.IsTextureConditionalNonPowerOfTwoSupported = Graphics.IsConditionalNonPowerOfTwoSupported;
+        session.IsTextureDynamicSupported = false;
+        session.IsTexturePowerOfTwoRequired = Graphics.IsPowerOfTwoRequired;
+        session.IsTextureAlphaPaletteSupported = Graphics.IsAlphaPaletteSupported;
+        var formats = Graphics.DeviceTextureFormats;
+        if (formats.Contains(VidPixelFormat.P8))
+        {
+            session.IsTexturePaletteSupported = true;
+        }
+        else
+        {
+            session.IsTextureAlphaPaletteSupported = false;
+        }
+
+        if (formats.Contains(VidPixelFormat.Dxt1))
+        {
+            session.IsTextureDxt1Supported = true;
+        }
+
+        if (formats.Contains(VidPixelFormat.Dxt3))
+        {
+            session.IsTextureDxt3Supported = true;
+        }
+
+        if (formats.Contains(VidPixelFormat.Dxt5))
+        {
+            session.IsTextureDxt5Supported = true;
+        }
+
+        session.IsTexturePaletteSupported = false;
+        session.IsTextureAlphaPaletteSupported = false;
+        var text = new List<byte>();
+        if (session.IsTextureSquareRequired)
+        {
+            text.AddRange("SQUARE "u8);
+        }
+
+        text.AddRange(session.IsTexturePowerOfTwoRequired ? "POWER2 "u8 : "NOTPOWER2 "u8);
+        if (session.IsTextureConditionalNonPowerOfTwoSupported)
+        {
+            text.AddRange("COND_NON_POW2 "u8);
+        }
+
+        if (session.IsTextureDynamicSupported)
+        {
+            text.AddRange("DYNAMIC "u8);
+        }
+
+        if (session.IsTexturePaletteSupported)
+        {
+            text.AddRange("PALETTE "u8);
+        }
+
+        if (session.IsTextureAlphaPaletteSupported)
+        {
+            text.AddRange("ALPHA_PALETTE "u8);
+        }
+
+        if (session.IsTextureDxt1Supported)
+        {
+            text.AddRange("DXT1 "u8);
+        }
+
+        if (session.IsTextureDxt3Supported)
+        {
+            text.AddRange("DXT3 "u8);
+        }
+
+        if (session.IsTextureDxt5Supported)
+        {
+            text.AddRange("DXT5 "u8);
+        }
+
+        text.AddRange(Encoding.ASCII.GetBytes($"MAXSIZE={session.TextureMaxSize.Width},{session.TextureMaxSize.Height}"));
+        string line = $"TextureCaps={MyError.Decode(CollectionsMarshal.AsSpan(text))}";
+        session.IsTexturePowerOfTwoRequired = true;
+        return line;
+    }
+
+    [EngineRoutine(0x00403620)]
+    internal void Destruct(GameSession session)
+    {
+        if (_deviceTexels.Length != 0)
+        {
+            session.TextureMemoryInUse -= GetTexelBytes(Format) * Size.Width * Size.Height;
+            _deviceTexels = [];
+        }
+
+        _systemTexels = [];
+    }
+
+    [EngineRoutine(0x004036b0)]
+    private void Create(Size size, VidPixelFormat format, TextureFlags flags, GameSession session)
+    {
+        _systemTexels = [];
+        _deviceTexels = [];
+        if (!session.IsTextureDynamicSupported)
+        {
+            flags &= ~TextureFlags.Dynamic;
+        }
+
+        if (!TryFitSize(size, session, out var fitted))
+            return;
+
+        Size = fitted;
+        int width = fitted.Width;
+        int height = fitted.Height;
+        Flags = flags;
+        if (format is VidPixelFormat.A8R8G8B8 or VidPixelFormat.A4R4G4B4 or VidPixelFormat.A1R5G5B5 or VidPixelFormat.Dxt3 or VidPixelFormat.Dxt5)
+        {
+            Flags |= TextureFlags.AlphaPalette;
+        }
+
+        format = ChooseFormat(format, flags, Flags, session);
+        if (flags.HasFlag(TextureFlags.SystemMemory) && format == VidPixelFormat.D16)
+        {
+            Format = format;
+            _systemTexels = new ushort[width * height];
+            return;
+        }
+
+        while (!IsSupported(format))
+        {
+            if (!TryGetFallbackFormat(format, Flags, out var fallback))
+            {
+                Format = format;
+                session.Error.Error(TextureLogTag, LogError.Create, Direct3DTexture.InvalidCall);
+                return;
+            }
+
+            format = fallback;
+        }
+
+        Format = format;
+        session.TextureMemoryInUse += GetTexelBytes(format) * width * height;
+        _deviceTexels = Direct3DTexture.IsDxt(format)
+            ? new ushort[GetCompressedPitch(format, width) * ((height + BlockSize - 1) / BlockSize) / sizeof(ushort)]
+            : new ushort[width * height * (Direct3DTexture.Is32Bit(format) ? 2 : 1)];
+    }
+
+    [EngineRoutine(0x00403970)]
+    internal int CopyFromSurface(Screen surface, Rectangle source, Point destination, MyError? error)
+    {
+        var view = View;
+        int result = surface.IsTrueColor
+            ? view.LoadTexels(new Rectangle(destination, source.Size), MemoryMarshal.AsBytes(surface.TrueColorPixels), VidPixelFormat.X8R8G8B8, surface.Pitch * sizeof(uint), surface.Size, source, Direct3DTexture.DefaultFilter, 0)
+            : view.LoadTexels(new Rectangle(destination, source.Size), MemoryMarshal.AsBytes(surface.HighColorPixels), surface.Format.IsRgb555 ? VidPixelFormat.X1R5G5B5 : VidPixelFormat.R5G6B5, surface.Pitch * sizeof(ushort), surface.Size, source, Direct3DTexture.DefaultFilter, 0);
+        if (result != 0)
+        {
+            error?.Error(TextureLogTag, LogError.Copy, result);
+        }
+
+        return result;
+    }
 
     /// <summary>
     /// Returns the texels of the texture from a given texel to its end.
@@ -63,11 +239,22 @@ public readonly ref partial struct Texture
     /// <param name="pitch">The number of bytes from the start of one row to the next.</param>
     /// <returns>The texels from the first texel of the area to the end of the texture.</returns>
     [EngineRoutine(0x00403a40)]
-    public Span<ushort> Lock(Point? origin, out int pitch)
-    {
-        pitch = Size.Width * sizeof(ushort);
-        return origin.HasValue ? _texels[(origin.Value.Y * Size.Width + origin.Value.X)..] : _texels;
-    }
+    public Span<ushort> Lock(Point? origin, out int pitch) => View.Lock(origin, out pitch);
+
+    /// <summary>
+    /// Draws a rectangle of the texture to the screen as a quad that lies in front of everything, with a gamma applied.
+    /// </summary>
+    /// <param name="screen">The screen to draw to.</param>
+    /// <param name="destination">The area of the screen.</param>
+    /// <param name="source">The area of the texture.</param>
+    /// <param name="gamma">The gamma that darkens the texels and then brightens them.</param>
+    /// <param name="blend">How the quad combines with the colors underneath.</param>
+    /// <param name="isAlphaModulated">Whether the alpha of the texels is multiplied by the alpha of the gamma's inverted reductions.</param>
+    /// <param name="minimumAlpha">The alpha that a texel needs to be drawn, after the modulation.</param>
+    /// <exception cref="NotSupportedException">The texture is DXT-compressed.</exception>
+    [EngineRoutine(0x00403ae0)]
+    public void DrawFlatQuad(Screen screen, Rectangle destination, Rectangle source, Gamma gamma, QuadBlend blend, bool isAlphaModulated = false, int minimumAlpha = 0) =>
+        View.DrawFlatQuad(screen, destination, source, gamma, blend, isAlphaModulated, minimumAlpha);
 
     /// <summary>
     /// Draws a rectangle of the texture to the screen as a quad, with a gamma applied.
@@ -82,308 +269,98 @@ public readonly ref partial struct Texture
     /// <param name="bottomDepth">The depth of the vertices on the bottom edge of the quad.</param>
     /// <exception cref="NotSupportedException">The texture is DXT-compressed.</exception>
     [EngineRoutine(0x00403dd0)]
-    public void DrawQuad(Screen screen, Rectangle destination, Rectangle source, Gamma gamma, QuadBlend blend, bool isDoubled = false, float topDepth = 0, float bottomDepth = 0)
-    {
-        screen.IsLinearFiltered = destination.Size != source.Size;
-        BlitQuad(screen, destination, source, gamma, blend, isDoubled, false, 0);
-    }
+    public void DrawQuad(Screen screen, Rectangle destination, Rectangle source, Gamma gamma, QuadBlend blend, bool isDoubled = false, float topDepth = 0, float bottomDepth = 0) =>
+        View.DrawQuad(screen, destination, source, gamma, blend, isDoubled, topDepth, bottomDepth);
 
-    /// <summary>
-    /// Draws a rectangle of the texture to the screen as a quad that lies in front of everything, with a gamma applied.
-    /// </summary>
-    /// <param name="screen">The screen to draw to.</param>
-    /// <param name="destination">The area of the screen.</param>
-    /// <param name="source">The area of the texture.</param>
-    /// <param name="gamma">The gamma that darkens the texels and then brightens them.</param>
-    /// <param name="blend">How the quad combines with the colors underneath.</param>
-    /// <param name="isAlphaModulated">Whether the alpha of the texels is multiplied by the alpha of the gamma's inverted reductions.</param>
-    /// <param name="minimumAlpha">The alpha that a texel needs to be drawn, after the modulation.</param>
-    /// <exception cref="NotSupportedException">The texture is DXT-compressed.</exception>
-    [EngineRoutine(0x00403ae0)]
-    public void DrawFlatQuad(Screen screen, Rectangle destination, Rectangle source, Gamma gamma, QuadBlend blend, bool isAlphaModulated = false, int minimumAlpha = 0)
+    private static int GetSourcePitch(VidPixelFormat format, int width) => format switch
     {
-        screen.IsLinearFiltered = destination.Size != source.Size;
-        BlitQuad(screen, destination, source, gamma, blend, false, isAlphaModulated, minimumAlpha);
-    }
+        VidPixelFormat.R8G8B8 => 24 * width >> 3,
+        VidPixelFormat.A8R8G8B8 or VidPixelFormat.X8R8G8B8 => 32 * width >> 3,
+        VidPixelFormat.R5G6B5 or VidPixelFormat.X1R5G5B5 or VidPixelFormat.A1R5G5B5 or VidPixelFormat.A4R4G4B4 => 16 * width >> 3,
+        VidPixelFormat.P8 => 8 * width >> 3,
+        VidPixelFormat.Dxt1 => 4 * width >> 1,
+        VidPixelFormat.Dxt2 or VidPixelFormat.Dxt3 or VidPixelFormat.Dxt4 or VidPixelFormat.Dxt5 => 8 * width >> 1,
+        _ => 0
+    };
 
-    /// <summary>
-    /// Draws a list of textured triangles to the screen with a transform and without a depth test.
-    /// </summary>
-    /// <param name="screen">The screen to draw to.</param>
-    /// <param name="vertices">The vertices.</param>
-    /// <param name="indexes">The vertex indexes, three for each triangle.</param>
-    /// <param name="transform">The world, view and projection transforms, multiplied in this order.</param>
-    /// <param name="blend">How the triangles combine with the colors underneath.</param>
-    /// <param name="factor">The texture factor, a color multiplied with the texels.</param>
-    /// <param name="alphaReference">The alpha that a texel must exceed to be drawn.</param>
-    /// <exception cref="NotSupportedException">The texture is DXT-compressed.</exception>
-    public void DrawTriangles(Screen screen, ReadOnlySpan<HardwareLayerVertex> vertices, ReadOnlySpan<ushort> indexes, in Matrix4x4 transform, QuadBlend blend, uint factor, int alphaReference)
+    private static int GetCompressedPitch(VidPixelFormat format, int width) => (width + BlockSize - 1) / BlockSize * (format == VidPixelFormat.Dxt1 ? 8 : 16);
+
+    private static int GetTexelBytes(VidPixelFormat format) => format == VidPixelFormat.P8 ? PaletteTexelBytes : ColorTexelBytes;
+
+    private static VidPixelFormat ReplacePalette(VidPixelFormat format, GameSession session) => format == VidPixelFormat.P8 && !session.IsTexturePaletteSupported ? VidPixelFormat.R5G6B5 : format;
+
+    private static bool IsSupported(VidPixelFormat format) => Graphics.DeviceTextureFormats.Contains(format);
+
+    private static bool TryFitSize(Size size, GameSession session, out Size fitted)
     {
-        if (IsDxt(Format))
-            throw new NotSupportedException($"Could not draw a {Format} texture.");
-
-        var viewport = screen.Viewport;
-        var projected = vertices.Length <= 256 ? stackalloc Vector3[vertices.Length] : new Vector3[vertices.Length];
-        for (int i = 0; i < vertices.Length; i++)
+        int width = size.Width;
+        int height = size.Height;
+        if (session.IsTextureSquareRequired)
         {
-            var position = Vector4.Transform(new Vector4(vertices[i].Position, 1f), transform);
-            projected[i] = new Vector3(
-                viewport.Left + (position.X / position.W + 1f) * viewport.Width * 0.5f,
-                viewport.Top + (1f - position.Y / position.W) * viewport.Height * 0.5f,
-                position.Z / position.W);
+            width = Math.Max(width, height);
+            height = width;
         }
 
-        for (int i = 0; i + 2 < indexes.Length; i += 3)
+        if (session.IsTexturePowerOfTwoRequired)
         {
-            if (indexes[i] >= vertices.Length || indexes[i + 1] >= vertices.Length || indexes[i + 2] >= vertices.Length)
-                continue;
-
-            RasterizeTriangle(screen, vertices, projected, indexes.Slice(i, 3), blend, factor, alphaReference);
-        }
-    }
-
-    [EngineRoutine(0x00403970)]
-    internal int CopyFromSurface(Screen surface, Rectangle source, Point destination, MyError? error)
-    {
-        int result = surface.IsTrueColor
-            ? LoadTexels(new Rectangle(destination, source.Size), MemoryMarshal.AsBytes(surface.TrueColorPixels), VidPixelFormat.X8R8G8B8, surface.Pitch * sizeof(uint), surface.Size, source, DefaultFilter, 0)
-            : LoadTexels(new Rectangle(destination, source.Size), MemoryMarshal.AsBytes(surface.HighColorPixels), surface.Format.IsRgb555 ? VidPixelFormat.X1R5G5B5 : VidPixelFormat.R5G6B5, surface.Pitch * sizeof(ushort), surface.Size, source, DefaultFilter, 0);
-        if (result != 0)
-        {
-            error?.Error(TextureLogTag, LogError.Copy, result);
+            width = (int)BitOperations.RoundUpToPowerOf2((uint)Math.Max(width, 1));
+            height = (int)BitOperations.RoundUpToPowerOf2((uint)Math.Max(height, 1));
         }
 
-        return result;
-    }
-
-    internal void BlitQuad(Screen screen, Rectangle destination, Rectangle source, Gamma gamma, QuadBlend blend, bool isDoubled, bool isAlphaModulated, int minimumAlpha)
-    {
-        if (IsDxt(Format))
-            throw new NotSupportedException($"Could not draw a {Format} texture.");
-
-        if (destination.Width <= 0 || destination.Height <= 0)
-            return;
-
-        var area = Rectangle.Intersect(Rectangle.Intersect(destination, screen.Viewport), new Rectangle(Point.Empty, screen.Size));
-        if (area.IsEmpty)
-            return;
-
-        bool hasGamma = gamma.Negative != 0 || gamma.Positive != 0;
-        var table = hasGamma ? screen.GammaTable.For(gamma) : null;
-        var reds = table is null ? default : table.Reds;
-        var greens = table is null ? default : table.Greens;
-        var blues = table is null ? default : table.Blues;
-
-        bool isFiltered = screen.IsLinearFiltered;
-        var writer = new ScreenWriter(screen);
-        int lastColumn = Size.Width - 1;
-        int lastRow = Size.Height - 1;
-        if (!isFiltered && blend == QuadBlend.None && !isAlphaModulated && !isDoubled && minimumAlpha <= 0 && screen.IsTrueColor)
+        fitted = new Size(width, height);
+        if (width > session.TextureMaxSize.Width || width < 1)
         {
-            var pixels = screen.TrueColorPixels;
-            for (int y = area.Top; y < area.Bottom; y++)
-            {
-                int row = y * screen.Pitch;
-                int sourceRow = Math.Clamp(source.Top + y - destination.Top, 0, lastRow) * Size.Width;
-                for (int x = area.Left; x < area.Right; x++)
-                {
-                    uint texel = Load(sourceRow + Math.Clamp(source.Left + x - destination.Left, 0, lastColumn));
-                    int red = (int)(texel >> RedShift & ChannelMax);
-                    int green = (int)(texel >> GreenShift & ChannelMax);
-                    int blue = (int)(texel & ChannelMax);
-                    if (hasGamma)
-                    {
-                        red = reds[red];
-                        green = greens[green];
-                        blue = blues[blue];
-                    }
+            session.Error.Error(TextureLogTag, LogError.Invalid, width, "initial sizeX"u8);
 
-                    pixels[row + x] = OpaqueBlack | (uint)red << RedShift | (uint)green << GreenShift | (uint)blue;
-                }
-            }
-
-            return;
+            return false;
         }
 
-        var scale = new Vector4(ChannelMax - gamma.GetNegative(RedShift), ChannelMax - gamma.GetNegative(GreenShift), ChannelMax - gamma.GetNegative(0),
-            isAlphaModulated ? ChannelMax - gamma.GetNegative(AlphaShift) : ChannelMax) / ChannelMax;
-        var offset = new Vector4(gamma.GetPositive(RedShift), gamma.GetPositive(GreenShift), gamma.GetPositive(0), 0);
-        var doubling = isDoubled ? Doubled : Vector4.One;
-        bool isAlphaNeeded = isAlphaModulated || minimumAlpha > 0 || blend.Source is BlendFactor.SourceAlpha or BlendFactor.InverseSourceAlpha ||
-            blend.Destination is BlendFactor.SourceAlpha or BlendFactor.InverseSourceAlpha;
-        for (int y = area.Top; y < area.Bottom; y++)
+        if (height > session.TextureMaxSize.Height || height < 1)
         {
-            int row = y * screen.Pitch;
-            int upperRow;
-            int lowerRow = 0;
-            float weightY = 0;
-            int cachedCorner = int.MinValue;
-            uint upperLeft = 0, upperRight = 0, lowerLeft = 0, lowerRight = 0;
-            if (isFiltered)
-            {
-                float sourceY = source.Top + (y - destination.Top) * (float)source.Height / destination.Height;
-                int cornerY = (int)MathF.Floor(sourceY);
-                weightY = sourceY - cornerY;
-                upperRow = Math.Clamp(cornerY, 0, lastRow) * Size.Width;
-                lowerRow = Math.Clamp(cornerY + 1, 0, lastRow) * Size.Width;
-            }
-            else
-            {
-                upperRow = Math.Clamp(source.Top + y - destination.Top, 0, lastRow) * Size.Width;
-            }
+            session.Error.Error(TextureLogTag, LogError.Invalid, height, "initial sizeY"u8);
 
-            for (int x = area.Left; x < area.Right; x++)
-            {
-                Vector4 texel;
-                if (!isFiltered)
-                {
-                    texel = ToChannels(Load(upperRow + Math.Clamp(source.Left + x - destination.Left, 0, lastColumn)));
-                }
-                else
-                {
-                    float sourceX = source.Left + (x - destination.Left) * (float)source.Width / destination.Width;
-                    int cornerX = (int)MathF.Floor(sourceX);
-                    if (cornerX != cachedCorner)
-                    {
-                        int left = Math.Clamp(cornerX, 0, lastColumn);
-                        int right = Math.Clamp(cornerX + 1, 0, lastColumn);
-                        upperLeft = Load(upperRow + left);
-                        upperRight = Load(upperRow + right);
-                        lowerLeft = Load(lowerRow + left);
-                        lowerRight = Load(lowerRow + right);
-                        cachedCorner = cornerX;
-                    }
-
-                    texel = Filter(upperLeft, upperRight, lowerLeft, lowerRight, sourceX - cornerX, weightY);
-                    if (!isAlphaNeeded)
-                    {
-                        texel.W = ChannelMax;
-                    }
-                }
-
-                uint color = ToColor(Vector4.Min(MaxChannels, Vector4.Min(MaxChannels, texel * scale + offset) * doubling));
-                if ((int)(color >> AlphaShift) < minimumAlpha)
-                    continue;
-
-                writer.Blend(row + x, color, blend.Source, blend.Destination);
-            }
-        }
-    }
-
-    private static int WrapTexel(float coordinate, int size)
-    {
-        int texel = (int)MathF.Floor(coordinate) % size;
-        return texel < 0 ? texel + size : texel;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static Vector4 Filter(uint upperLeft, uint upperRight, uint lowerLeft, uint lowerRight, float weightX, float weightY)
-    {
-        var upper = ToChannels(upperLeft) * (1 - weightX) + ToChannels(upperRight) * weightX;
-        var lower = ToChannels(lowerLeft) * (1 - weightX) + ToChannels(lowerRight) * weightX;
-        return upper * (1 - weightY) + lower * weightY;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static Vector4 ToChannels(uint color) => new(color >> RedShift & ChannelMax, color >> GreenShift & ChannelMax, color & ChannelMax, color >> AlphaShift);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static uint ToColor(Vector4 channels)
-    {
-        var rounded = channels + new Vector4(HalfStep);
-        return (uint)rounded.W << AlphaShift | (uint)rounded.X << RedShift | (uint)rounded.Y << GreenShift | (uint)rounded.Z;
-    }
-
-    private void RasterizeTriangle(Screen screen, ReadOnlySpan<HardwareLayerVertex> vertices, ReadOnlySpan<Vector3> projected, ReadOnlySpan<ushort> corners, QuadBlend blend, uint factor, int alphaReference)
-    {
-        var a = projected[corners[0]];
-        var b = projected[corners[1]];
-        var c = projected[corners[2]];
-        float area = (b.X - a.X) * (c.Y - a.Y) - (b.Y - a.Y) * (c.X - a.X);
-        if (area == 0f || float.IsNaN(area))
-            return;
-
-        var viewport = Rectangle.Intersect(screen.Viewport, new Rectangle(Point.Empty, screen.Size));
-        int left = Math.Max(viewport.Left, (int)MathF.Ceiling(MathF.Min(a.X, MathF.Min(b.X, c.X))));
-        int right = Math.Min(viewport.Right - 1, (int)MathF.Floor(MathF.Max(a.X, MathF.Max(b.X, c.X))));
-        int top = Math.Max(viewport.Top, (int)MathF.Ceiling(MathF.Min(a.Y, MathF.Min(b.Y, c.Y))));
-        int bottom = Math.Min(viewport.Bottom - 1, (int)MathF.Floor(MathF.Max(a.Y, MathF.Max(b.Y, c.Y))));
-        var writer = new ScreenWriter(screen);
-        var uvA = vertices[corners[0]].TextureCoordinate;
-        var uvB = vertices[corners[1]].TextureCoordinate;
-        var uvC = vertices[corners[2]].TextureCoordinate;
-        var modulation = ToChannels(factor) / ChannelMax;
-        for (int y = top; y <= bottom; y++)
-        {
-            for (int x = left; x <= right; x++)
-            {
-                float weightA = ((b.X - x) * (c.Y - y) - (b.Y - y) * (c.X - x)) / area;
-                float weightB = ((c.X - x) * (a.Y - y) - (c.Y - y) * (a.X - x)) / area;
-                float weightC = 1f - weightA - weightB;
-                if (weightA < 0f || weightB < 0f || weightC < 0f)
-                    continue;
-
-                float depth = a.Z * weightA + b.Z * weightB + c.Z * weightC;
-                if (depth is < 0f or > 1f)
-                    continue;
-
-                var uv = uvA * weightA + uvB * weightB + uvC * weightC;
-                var texel = screen.IsLinearFiltered
-                    ? Sample(new PointF(uv.X * Size.Width - TexelCenter, uv.Y * Size.Height - TexelCenter), true)
-                    : ToChannels(Fetch(new Point(WrapTexel(uv.X * Size.Width, Size.Width), WrapTexel(uv.Y * Size.Height, Size.Height))));
-                uint color = ToColor(texel * modulation);
-                if ((int)(color >> AlphaShift) <= alphaReference)
-                    continue;
-
-                writer.Blend(y * screen.Pitch + x, color, blend.Source, blend.Destination);
-            }
-        }
-    }
-
-    private Point Wrap(Point texel) => new(WrapTexel(texel.X, Size.Width), WrapTexel(texel.Y, Size.Height));
-
-    private uint Fetch(Point texel) => Load(Math.Clamp(texel.Y, 0, Size.Height - 1) * Size.Width + Math.Clamp(texel.X, 0, Size.Width - 1));
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private uint Load(int index)
-    {
-        if (_texels32.Length != 0)
-            return Format == VidPixelFormat.X8R8G8B8 ? OpaqueBlack | _texels32[index] : _texels32[index];
-
-        return Decode(_texels[index]);
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private uint Decode(ushort value)
-    {
-        if (Format is VidPixelFormat.A1R5G5B5 or VidPixelFormat.X1R5G5B5)
-        {
-            uint red5 = (uint)(value >> 10 & 0x1f);
-            uint green5 = (uint)(value >> 5 & 0x1f);
-            uint blue5 = (uint)(value & 0x1f);
-            uint alpha = Format == VidPixelFormat.A1R5G5B5 && (value & 0x8000) == 0 ? 0u : 0xffu;
-            return alpha << AlphaShift | (red5 << 3 | red5 >> 2) << RedShift | (green5 << 3 | green5 >> 2) << GreenShift | blue5 << 3 | blue5 >> 2;
+            return false;
         }
 
-        if (Format == VidPixelFormat.P8)
-            return value < _palette.Length ? _palette[value] : OpaqueBlack;
-
-        if (Format == VidPixelFormat.A4R4G4B4)
-            return (uint)((value >> 12) * NibbleScale) << 24 | (uint)((value >> 8 & 0xf) * NibbleScale) << RedShift | (uint)((value >> 4 & 0xf) * NibbleScale) << GreenShift | (uint)((value & 0xf) * NibbleScale);
-
-        uint red = (uint)(value >> 11);
-        uint green = (uint)(value >> 5 & 0x3f);
-        uint blue = (uint)(value & 0x1f);
-        return 0xff000000u | (red << 3 | red >> 2) << RedShift | (green << 2 | green >> 4) << GreenShift | blue << 3 | blue >> 2;
+        return true;
     }
 
-    private Vector4 Sample(PointF point, bool isWrapped)
+    private static VidPixelFormat ChooseFormat(VidPixelFormat format, TextureFlags flags, TextureFlags stored, GameSession session)
     {
-        var corner = new Point((int)MathF.Floor(point.X), (int)MathF.Floor(point.Y));
-        uint upperLeft = Fetch(isWrapped ? Wrap(corner) : corner);
-        uint upperRight = Fetch(isWrapped ? Wrap(corner with { X = corner.X + 1 }) : corner with { X = corner.X + 1 });
-        uint lowerLeft = Fetch(isWrapped ? Wrap(corner with { Y = corner.Y + 1 }) : corner with { Y = corner.Y + 1 });
-        uint lowerRight = Fetch(isWrapped ? Wrap(new Point(corner.X + 1, corner.Y + 1)) : new Point(corner.X + 1, corner.Y + 1));
-        return Filter(upperLeft, upperRight, lowerLeft, lowerRight, point.X - corner.X, point.Y - corner.Y);
+        if (format == VidPixelFormat.P8 && stored.HasFlag(TextureFlags.AlphaPalette) && !session.IsTextureAlphaPaletteSupported)
+        {
+            format = VidPixelFormat.A8R8G8B8;
+        }
+
+        if (!flags.HasFlag(TextureFlags.HasAlpha))
+            return ReplacePalette(format, session);
+
+        if (format == VidPixelFormat.P8)
+            return stored.HasFlag(TextureFlags.AlphaPalette) ? ReplacePalette(format, session) : VidPixelFormat.A1R5G5B5;
+
+        if (format == VidPixelFormat.R5G6B5)
+            return VidPixelFormat.A1R5G5B5;
+
+        if (format == VidPixelFormat.R8G8B8)
+            return VidPixelFormat.A8R8G8B8;
+
+        return ReplacePalette(format, session);
+    }
+
+    private static bool TryGetFallbackFormat(VidPixelFormat format, TextureFlags stored, out VidPixelFormat fallback)
+    {
+        fallback = format switch
+        {
+            VidPixelFormat.P8 => stored.HasFlag(TextureFlags.AlphaPalette) ? VidPixelFormat.A8R8G8B8 : VidPixelFormat.R5G6B5,
+            VidPixelFormat.Dxt1 => VidPixelFormat.R5G6B5,
+            VidPixelFormat.Dxt3 => VidPixelFormat.A4R4G4B4,
+            VidPixelFormat.R5G6B5 => VidPixelFormat.X1R5G5B5,
+            VidPixelFormat.X1R5G5B5 => VidPixelFormat.A1R5G5B5,
+            VidPixelFormat.R8G8B8 => VidPixelFormat.X8R8G8B8,
+            VidPixelFormat.X8R8G8B8 => VidPixelFormat.A8R8G8B8,
+            _ => VidPixelFormat.None
+        };
+
+        return fallback != VidPixelFormat.None;
     }
 }

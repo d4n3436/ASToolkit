@@ -2,27 +2,42 @@ using System.Text;
 
 namespace ASToolkit.Engine.IO;
 
-internal static class Profile
+internal sealed class Profile
 {
     private const int BufferSize = 0x7fff;
     private const byte SectionStart = (byte)'[';
     private const byte SectionEnd = (byte)']';
     private const byte Separator = (byte)'=';
 
+    private readonly IGameFileSystem _fileSystem;
+    private string _path = "";
+
+    public Profile(IGameFileSystem fileSystem)
+    {
+        _fileSystem = fileSystem;
+    }
+
     private static ReadOnlySpan<byte> SpaceTab => " \t"u8;
 
-    public static ReadOnlyMemory<byte> GetString(IGameFileSystem fileSystem, string path, ReadOnlySpan<byte> section, ReadOnlySpan<byte> key) =>
-        TryGetString(fileSystem, path, section, key, out var value) ? value : default;
+    [EngineRoutine(0x00407660)]
+    public int Load(string path)
+    {
+        _path = path;
+        return 0;
+    }
 
     [EngineRoutine(0x00407680)]
-    public static int GetInteger(IGameFileSystem fileSystem, string path, ReadOnlySpan<byte> section, ReadOnlySpan<byte> key, int defaultValue) =>
-        TryGetString(fileSystem, path, section, key, out var value) && !value.IsEmpty ? CRuntime.ParseInteger(value.Span) : defaultValue;
+    public int GetInt(ReadOnlySpan<byte> section, ReadOnlySpan<byte> key, int defaultValue) =>
+        TryGetString(section, key, out var value) && !value.IsEmpty ? CRuntime.ParseInteger(value.Span) : defaultValue;
+
+    public ReadOnlyMemory<byte> GetString(ReadOnlySpan<byte> section, ReadOnlySpan<byte> key) =>
+        TryGetString(section, key, out var value) ? value : default;
 
     [EngineRoutine(0x004076a0)]
-    public static bool TryGetString(IGameFileSystem fileSystem, string path, ReadOnlySpan<byte> section, ReadOnlySpan<byte> key, out ReadOnlyMemory<byte> value)
+    public bool TryGetString(ReadOnlySpan<byte> section, ReadOnlySpan<byte> key, out ReadOnlyMemory<byte> value)
     {
         value = default;
-        if (!fileSystem.TryRead(path, out var data))
+        if (!_fileSystem.TryRead(_path, out var data))
             return false;
 
         bool isInSection = false;

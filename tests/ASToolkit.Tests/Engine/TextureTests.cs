@@ -9,7 +9,7 @@ namespace ASToolkit.Tests.Engine;
 public sealed class TextureTests
 {
     [Fact]
-    public void Create_PaletteTexelsWithAlphaPalette_LookUpThePalette()
+    public void Constructor_PaletteTexelsWithAlphaPalette_LookUpThePalette()
     {
         using var session = new GameSession();
         uint[] palette = new uint[256];
@@ -24,10 +24,10 @@ public sealed class TextureTests
             indexes[i] = (byte)(i * 17);
         }
 
-        var texture = Texture.Create(indexes, new Size(4, 4), VidPixelFormat.P8, palette, TextureFlags.HasAlpha | TextureFlags.AlphaPalette, session);
+        var texture = new Texture(indexes, new Size(4, 4), VidPixelFormat.P8, palette, TextureFlags.HasAlpha | TextureFlags.AlphaPalette, session);
 
         Assert.Equal(VidPixelFormat.A8R8G8B8, texture.Format);
-        var texels = MemoryMarshal.Cast<ushort, uint>(texture.Texels.AsSpan());
+        var texels = MemoryMarshal.Cast<ushort, uint>(texture.Texels);
         for (int i = 0; i < indexes.Length; i++)
         {
             Assert.Equal(palette[indexes[i]], texels[i]);
@@ -35,9 +35,9 @@ public sealed class TextureTests
     }
 
     [Fact]
-    public void Create_PaletteTexelsWithoutPalette_Throws()
+    public void Constructor_PaletteTexelsWithoutPalette_Throws()
     {
         using var session = new GameSession();
-        Assert.Throws<NotSupportedException>(() => Texture.Create(new byte[16], new Size(4, 4), VidPixelFormat.P8, default, TextureFlags.HasAlpha | TextureFlags.AlphaPalette, session));
+        Assert.Throws<NotSupportedException>(() => new Texture(new byte[16], new Size(4, 4), VidPixelFormat.P8, default, TextureFlags.HasAlpha | TextureFlags.AlphaPalette, session));
     }
 }

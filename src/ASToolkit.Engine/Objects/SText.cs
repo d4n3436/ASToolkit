@@ -298,7 +298,7 @@ public sealed class SText : Frame
 
     private static byte GetCharacter(ReadOnlySpan<byte> text, int index) => index < text.Length ? text[index] : (byte)0;
 
-    private ReadOnlyMemory<byte> ReadMenuString(ReadOnlySpan<byte> key) => Profile.GetString(Map.FileSystem, Map.StringsFile, "menu"u8, key);
+    private ReadOnlyMemory<byte> ReadMenuString(ReadOnlySpan<byte> key) => Map.Session.Strings?.GetString("menu"u8, key) ?? default;
 
     private ReadOnlyMemory<byte> ReadTextAddress(int address) => address == 0 ? default : Map.Script.GetSlot(address - 1).Text;
 }

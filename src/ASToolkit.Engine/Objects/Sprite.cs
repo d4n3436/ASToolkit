@@ -1130,7 +1130,7 @@ public partial class Sprite
 
         if (next.AsVector2() != Position.AsVector2())
         {
-            if (CanPlace(next) is not null)
+            if (CanPlaceWithCrush(next) is not null)
             {
                 VerticalSpeed = 0;
                 Speed = 0;

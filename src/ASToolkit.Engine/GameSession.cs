@@ -36,6 +36,7 @@ public sealed class GameSession : IDisposable
     internal uint RealCurrentTime;
     internal uint DemoPacedAt;
     internal int DemoPacedTime;
+    internal Profile? Strings;
     internal uint FrameRateStartedAt;
     internal int VidMemoryInUse;
 
@@ -54,7 +55,15 @@ public sealed class GameSession : IDisposable
         Time = time ?? TimeProvider.System;
         Error = new MyError(fileSystem, Time, ProgramName);
         HasAppMenu = hasAppMenu;
-        bool isVSync = (fileSystem is null ? DefaultVSync : Profile.GetInteger(fileSystem, Map.ConfigFile, Map.GraphSection, "VSync"u8, DefaultVSync)) != 0;
+        int vSync = DefaultVSync;
+        if (fileSystem is not null)
+        {
+            var config = new Profile(fileSystem);
+            config.Load(Map.ConfigFile);
+            vSync = config.GetInt(Map.GraphSection, "VSync"u8, DefaultVSync);
+        }
+
+        bool isVSync = vSync != 0;
         Registry = registry ?? new Registry("");
         var screenSize = new SizeF(Registry.GetInt(ScreenWidthValue, Graphics.DefaultScreenWidth), Registry.GetInt(ScreenHeightValue, Graphics.DefaultScreenHeight));
         bool isColor32 = Registry.GetInt(BitsPerPixelValue, DefaultBitsPerPixel) == 32;

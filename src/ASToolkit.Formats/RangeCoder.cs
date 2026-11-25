@@ -16,14 +16,13 @@ public sealed class RangeCoder
     /// Initializes a new instance of the <see cref="RangeCoder"/> class.
     /// </summary>
     /// <param name="bytesPerValue">The number of bytes of each value of the coded data. With 2, the low bytes of all the values are coded before the high bytes.</param>
-    [EngineRoutine(0x00425690)]
     public RangeCoder(int bytesPerValue)
     {
         BytesPerValue = bytesPerValue;
         _models = new FrequencyModel[RangeDecoder.ModelCount];
         foreach (ref var model in _models.AsSpan())
         {
-            model.Reset();
+            model = new FrequencyModel();
         }
     }
 
@@ -57,13 +56,14 @@ public sealed class RangeCoder
         {
             int symbol = BytesPerValue == 2 ? i < half ? input[2 * i] : input[2 * (i - half) + 1] : input[i];
             ref var model = ref _models[context];
-            encoder.EncodeShift(model.GetStart(symbol), model.GetFrequency(symbol), FrequencyModel.TotalBits);
-            model.Count(symbol);
+            model.GetFrequency(symbol, out int frequency, out int start);
+            encoder.EncodeShift(start, frequency, FrequencyModel.TotalBits);
+            model.Update(symbol);
             context = symbol;
         }
 
-        ref var last = ref _models[context];
-        encoder.EncodeShift(last.GetStart(EndSymbol), last.GetFrequency(EndSymbol), FrequencyModel.TotalBits);
+        _models[context].GetFrequency(EndSymbol, out int endFrequency, out int endStart);
+        encoder.EncodeShift(endStart, endFrequency, FrequencyModel.TotalBits);
         return encoder.EndEncoding();
     }
 

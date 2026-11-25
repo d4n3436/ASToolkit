@@ -43,7 +43,7 @@ public class DemoTests
     }
 
     [Fact]
-    public void StepDemo_PastTheLastFrame_QueuesTheDemosMap()
+    public void DemoTact_PastTheLastFrame_QueuesTheDemosMap()
     {
         var recorder = EngineTestMap.CreateMap(recordDemo: true);
         recorder.DemoTact();

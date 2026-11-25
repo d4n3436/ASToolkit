@@ -15,7 +15,7 @@ public class DemoReplayTests
     [InlineData("addon2-level1-walk")]
     [InlineData("level02-walk")]
     [InlineData("level03-walk")]
-    public void StepDemo_RecordedWalk_MatchesTheGameExactly(string fixture)
+    public void DemoTact_RecordedWalk_MatchesTheGameExactly(string fixture)
     {
         var samples = FixtureReader.Read<WalkSample[]>(fixture + ".json");
         var points = Replay(LoadDemo(fixture), LoadDemo(fixture, isRequested: false));
@@ -41,7 +41,7 @@ public class DemoReplayTests
     }
 
     [Fact]
-    public void StepDemo_RecordedFight_MatchesTheGamesDrawsAndPlayer()
+    public void DemoTact_RecordedFight_MatchesTheGamesDrawsAndPlayer()
     {
         var fixture = FixtureReader.Read<FightFixture>("level09-fire.json");
         var map = LoadDemo("level09-fire", fixture.LoadingScreenRecords);

@@ -49,9 +49,8 @@ internal ref struct RangeDecoder
         while (true)
         {
             ref var model = ref models[context];
-            int symbol = model.FindSymbol(decoder.GetTarget(FrequencyModel.TotalBits));
-            int frequency = model.GetFrequency(symbol);
-            int start = model.GetStart(symbol);
+            int symbol = model.GetSymbol(decoder.GetTarget(FrequencyModel.TotalBits));
+            model.GetFrequency(symbol, out int frequency, out int start);
             if (symbol == EndSymbol || count >= output.Length)
             {
                 if (symbol != EndSymbol)
@@ -60,7 +59,8 @@ internal ref struct RangeDecoder
                     error.Write("!!!ERROR!!! decode"u8);
                 }
 
-                decoder.Consume(model.GetFrequency(EndSymbol), model.GetStart(EndSymbol), 1 << FrequencyModel.TotalBits);
+                model.GetFrequency(EndSymbol, out int endFrequency, out int endStart);
+                decoder.Consume(endFrequency, endStart, 1 << FrequencyModel.TotalBits);
                 decoder.Normalize();
                 break;
             }
@@ -68,7 +68,7 @@ internal ref struct RangeDecoder
             output[planes != 2 ? count : count < half ? 2 * count : 2 * (count - half) + 1] = (byte)symbol;
             count++;
             decoder.Consume(frequency, start, 1 << FrequencyModel.TotalBits);
-            model.Count(symbol);
+            model.Update(symbol);
             context = symbol;
         }
 
