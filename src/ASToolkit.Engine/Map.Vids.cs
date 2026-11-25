@@ -120,7 +120,7 @@ public partial class Map
     /// </summary>
     /// <param name="id">The object ID.</param>
     /// <returns>The shared data of the object ID, or null if the ID isn't loaded.</returns>
-    public Vid? FindVid(KnownObject id) => id >= 0 && (int)id < _vidCount ? _vids[(int)id] : null;
+    public Vid? FindVid(KnownObject id) => ValidateVid((int)id) ? _vids[(int)id] : null;
 
     /// <summary>
     /// Undoes the level script's exchanges and reloads the record of every object ID.
@@ -136,30 +136,27 @@ public partial class Map
             }
         }
 
-        ResContainer container;
-        try
-        {
-            container = new ResContainer(File.ReadAllBytes(_objects.Path));
-        }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
-        {
-            Session.Error.Error(MapLogTag, LogError.Open, 0);
-            return;
-        }
-
-        if (!container.TryGetChunk(ObjectChunkTag, out _))
-        {
-            Session.Error.Error(MapLogTag, LogError.Section, 0);
-            return;
-        }
-
         var objectsFile = new Resource();
-        if (OpenObjects(FileSystem, Session.Error, ref objectsFile) == 0)
+        if (OpenObjects(FileSystem, Session.Error, ref objectsFile) != 0)
         {
-            LoadWeaponRecords(ref objectsFile);
+            Session.Error.Error(MapLogTag, LogError.Open, 0, "resource file"u8);
+            return;
         }
 
-        _objects = ObjectTable.Load(_objects.Path);
+        LoadWeaponRecords(ref objectsFile);
+        if (objectsFile.GoBegin(ObjectChunkTag) != Resource.Found)
+        {
+            Session.Error.Error(MapLogTag, LogError.Section, 0, "load 'VID'"u8);
+            return;
+        }
+
+        if (!FileSystem.TryRead(Encoding.ASCII.GetString(GetObjectsFileName(FileSystem).Span), out var objectsData))
+        {
+            Session.Error.Error(MapLogTag, LogError.Open, 0, "resource file"u8);
+            return;
+        }
+
+        _objects = ObjectTable.Load(objectsData, _objects.Path);
 
         foreach (var id in _objects.Ids)
         {
@@ -295,14 +292,14 @@ public partial class Map
             }
         }
 
-        if (link != 0 && !IsVidDefined(link))
+        if (link != 0 && !ValidateVid(link))
         {
             vid.Report(Session.Error, LogError.Invalid, link, "LinkVid"u8);
         }
 
         foreach (int child in vid.Children)
         {
-            if (child != 0 && !IsVidDefined(Math.Abs(child)))
+            if (child != 0 && !ValidateVid(Math.Abs(child)))
             {
                 vid.Report(Session.Error, LogError.Invalid, child, "child"u8);
             }
@@ -562,6 +559,4 @@ public partial class Map
         vid.Path = path;
         vid.LoadParameters(record, Session.Error, Sound, ShouldResetBuiltTerrain);
     }
-
-    private bool IsVidDefined(int id) => id >= 0 && id < _vidCount && _vids[id] is not null;
 }

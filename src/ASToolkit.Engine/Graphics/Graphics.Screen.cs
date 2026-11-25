@@ -286,33 +286,38 @@ public sealed partial class Graphics
             SetRenderState(RenderState.DepthWrite, 1);
             Screen?.IsLinearFiltered = false;
             IsDepthLocked = false;
-            DrawLayers(map, ObjectLayer.Ground, ObjectLayer.Ground);
+            map.DrawLayer(Screen, map.Shift, ObjectLayer.Ground);
             LockDepth();
-            DrawLayers(map, ObjectLayer.Built, ObjectLayer.SoftwareGround);
+            map.DrawLayer(Screen, map.Shift, ObjectLayer.Built);
+            map.DrawLayer(Screen, map.Shift, ObjectLayer.BuiltAlpha);
+            map.DrawLayer(Screen, map.Shift, ObjectLayer.SoftwareGround);
             IsDepthLocked = false;
-            DrawLayers(map, ObjectLayer.Ground2, ObjectLayer.Ground2);
+            map.DrawLayer(Screen, map.Shift, ObjectLayer.Ground2);
             LockDepth();
-            DrawLayers(map, ObjectLayer.SoftwareGrid, ObjectLayer.SoftwareAlpha);
+            map.DrawLayer(Screen, map.Shift, ObjectLayer.SoftwareGrid);
+            map.DrawLayer(Screen, map.Shift, ObjectLayer.Software);
+            map.DrawLayer(Screen, map.Shift, ObjectLayer.SoftwareAlpha);
             IsDepthLocked = false;
             SetRenderState(RenderState.DepthFunction, 7);
-            DrawLayers(map, ObjectLayer.Hardware, ObjectLayer.Hardware);
+            map.DrawLayer(Screen, map.Shift, ObjectLayer.Hardware);
             SetRenderState(RenderState.DepthWrite, 0);
             SetRenderState(RenderState.AlphaBlendEnable, 1);
             Screen?.IsLinearFiltered = false;
-            DrawLayers(map, ObjectLayer.AlphaGround, ObjectLayer.Region);
+            map.DrawLayer(Screen, map.Shift, ObjectLayer.AlphaGround);
+            map.DrawLayer(Screen, map.Shift, ObjectLayer.Region);
             Screen?.IsLinearFiltered = true;
-            DrawLayers(map, ObjectLayer.Light, ObjectLayer.Light);
+            map.DrawLayer(Screen, map.Shift, ObjectLayer.Light);
             UpdateGroundSnow(map);
             DrawSnow(map);
             Screen?.IsLinearFiltered = false;
-            DrawLayers(map, ObjectLayer.Alpha, ObjectLayer.Alpha);
+            map.DrawLayer(Screen, map.Shift, ObjectLayer.Alpha);
             DrawRain(map);
             SetRenderState(RenderState.DepthWrite, 1);
             Screen?.IsLinearFiltered = false;
             LockDepth();
-            DrawLayers(map, ObjectLayer.SoftwareTop, ObjectLayer.SoftwareTop);
+            map.DrawLayer(Screen, map.Shift, ObjectLayer.SoftwareTop);
             IsDepthLocked = false;
-            DrawLayers(map, ObjectLayer.Cursor, ObjectLayer.Cursor);
+            map.DrawLayer(Screen, map.Shift, ObjectLayer.Cursor);
 
             if (Screen is not null && !map.Mouse.IsHardwareCursor && map.Mouse.Vid.Properties.HasFlag(ObjectProperties.AlwaysTop))
             {
@@ -408,16 +413,5 @@ public sealed partial class Graphics
         }
 
         sprite.Destruct();
-    }
-
-    private void DrawLayers(Map map, ObjectLayer first, ObjectLayer last)
-    {
-        if (Screen is null)
-            return;
-
-        for (var layer = first; layer <= last; layer++)
-        {
-            map.DrawLayer(Screen, map.Shift, layer);
-        }
     }
 }

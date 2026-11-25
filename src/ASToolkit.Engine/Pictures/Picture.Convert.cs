@@ -1,4 +1,5 @@
 using System.Buffers;
+using System.Buffers.Binary;
 using System.Drawing;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -10,9 +11,6 @@ namespace ASToolkit.Engine;
 public partial class Picture
 {
     private const int MaxRunLength = 0xff;
-    private const int BitsPerByte = 8;
-    private const uint CrcPolynomial = 0xedb88320;
-    private const int CrcTableSize = 256;
     private const int StackChecksumCount = 256;
     private const int MaxRecordSize = 0x200000;
     private const int DirectionCount = 8;
@@ -25,8 +23,6 @@ public partial class Picture
     private const uint HalfAlphaLimit = 0xef000000;
     private const int TileSize = 8;
     private const int TileNeighborhood = TileSize + 1;
-
-    private static readonly uint[] CrcTable = BuildCrcTable();
 
     private static readonly Size[] Directions =
     [
@@ -128,23 +124,6 @@ public partial class Picture
         return builder.Build();
     }
 
-    private static uint[] BuildCrcTable()
-    {
-        uint[] table = new uint[CrcTableSize];
-        for (uint i = 0; i < table.Length; i++)
-        {
-            uint value = i;
-            for (int bit = 0; bit < BitsPerByte; bit++)
-            {
-                value = (value & 1) != 0 ? value >> 1 ^ CrcPolynomial : value >> 1;
-            }
-
-            table[i] = value;
-        }
-
-        return table;
-    }
-
     private static void Append<T>(byte[] buffer, ref int length, T value)
         where T : unmanaged
     {
@@ -167,6 +146,7 @@ public partial class Picture
     private uint GetChecksum()
     {
         uint crc = 0;
+        Span<byte> word = stackalloc byte[sizeof(ushort)];
         var size = Colors.Image.Size;
         for (int x = 0; x < size.Width; x++)
         {
@@ -177,8 +157,8 @@ public partial class Picture
                 if (Flags.HasFlag(PictureFlags.Depth))
                 {
                     value = (uint)GetDepth(point);
-                    crc = CrcTable[(crc & 0xff) ^ (byte)value] ^ crc >> BitsPerByte;
-                    crc = CrcTable[(crc & 0xff) ^ (byte)(value >> BitsPerByte)] ^ crc >> BitsPerByte;
+                    BinaryPrimitives.WriteUInt16LittleEndian(word, (ushort)value);
+                    crc = MyLib.UpdateChecksum(crc, word);
                 }
 
                 if (Flags.HasFlag(PictureFlags.Palette))
@@ -192,8 +172,8 @@ public partial class Picture
                     value = GetHighColor(point);
                 }
 
-                crc = CrcTable[(crc & 0xff) ^ (byte)value] ^ crc >> BitsPerByte;
-                crc = CrcTable[(crc & 0xff) ^ (byte)(value >> BitsPerByte)] ^ crc >> BitsPerByte;
+                BinaryPrimitives.WriteUInt16LittleEndian(word, (ushort)value);
+                crc = MyLib.UpdateChecksum(crc, word);
             }
         }
 
@@ -311,22 +291,7 @@ public partial class Picture
                         bool isDeviating = false;
                         for (int between = current + 1; between < end; between++)
                         {
-                            int rootValue = (from.X - to.X) * (from.X - to.X) + (from.Y - to.Y) * (from.Y - to.Y);
-                            int rootBit = 0x40000000;
-                            int length = 0;
-                            do
-                            {
-                                int next = length >> 1;
-                                if (rootBit + length <= rootValue)
-                                {
-                                    rootValue -= rootBit + length;
-                                    next |= rootBit;
-                                }
-
-                                rootBit >>= 2;
-                                length = next;
-                            }
-                            while (rootBit != 0);
+                            int length = MyLib.Sqrt((from.X - to.X) * (from.X - to.X) + (from.Y - to.Y) * (from.Y - to.Y));
 
                             var middle = path[between];
                             int cross = (to.Y - from.Y) * middle.X + middle.Y * (from.X - to.X) - from.X * to.Y + to.X * from.Y;

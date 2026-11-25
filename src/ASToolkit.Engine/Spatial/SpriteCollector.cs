@@ -150,13 +150,6 @@ public sealed class SpriteCollector
         }
     }
 
-    internal Sprite? First(Vector2 min, Vector2 max)
-    {
-        FirstHashInBox(min, max);
-
-        return NextHashInBox();
-    }
-
     [EngineRoutine(0x0042da30)]
     internal Sprite? CanPlace(Vid vid, Vector3 point)
     {
@@ -168,8 +161,7 @@ public sealed class SpriteCollector
 
         var half = vid.Half;
         float height = vid.Size.Z;
-        FirstHashInBox(point.AsVector2() - half, point.AsVector2() + half);
-        for (var other = NextHashInBox(); other is not null; other = NextHashInBox())
+        for (var other = FirstHashInBox(point.AsVector2() - half, point.AsVector2() + half); other is not null; other = NextHashInBox())
         {
             var otherVid = other.Vid;
             if (other.Animation < SpriteAnimation.Death && MathF.Abs(other.Position.X - point.X) < otherVid.Half.X + half.X &&
@@ -244,7 +236,7 @@ public sealed class SpriteCollector
     }
 
     [EngineRoutine(0x0042dd60)]
-    internal void FirstHashInBox(Vector2 min, Vector2 max)
+    internal Sprite? FirstHashInBox(Vector2 min, Vector2 max)
     {
         _firstColumn = GetColumn(min.X - _cell.X);
         _row = GetRow(min.Y - _cell.Y);
@@ -252,6 +244,8 @@ public sealed class SpriteCollector
         _lastRow = GetRow(max.Y + _cell.Y);
         _column = _firstColumn;
         _index = 0;
+
+        return NextHashInBox();
     }
 
     [EngineRoutine(0x0042deb0)]

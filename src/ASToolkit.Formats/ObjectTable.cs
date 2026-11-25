@@ -106,9 +106,17 @@ public sealed class ObjectTable
     /// </summary>
     /// <param name="path">The path of objects.res.</param>
     /// <returns>The table of the entries.</returns>
-    public static ObjectTable Load(string path)
+    public static ObjectTable Load(string path) => Load(File.ReadAllBytes(path), path);
+
+    /// <summary>
+    /// Reads the contents of objects.res.
+    /// </summary>
+    /// <param name="contents">The contents of the file.</param>
+    /// <param name="path">The path the file was read from, kept as the table's <see cref="Path"/>.</param>
+    /// <returns>The table of the entries.</returns>
+    public static ObjectTable Load(ReadOnlyMemory<byte> contents, string path)
     {
-        var container = new ResContainer(File.ReadAllBytes(path));
+        var container = new ResContainer(contents);
         var records = container.Chunks.First().Records;
         int bodySize = FindBodySize(records.First().Span);
         bool anyExtended = bodySize == BodySize || bodySize == ZombieShooter2BodySize;

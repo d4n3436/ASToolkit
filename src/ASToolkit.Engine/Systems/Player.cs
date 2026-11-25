@@ -115,13 +115,12 @@ internal sealed class Player
     {
         foreach (var group in _map.Groups)
         {
-            var members = group.Members;
             Sprite? target = null;
             Sprite? lastTarget = null;
             var command = Command.None;
             bool hasIdle = false;
 
-            foreach (var member in members)
+            foreach (var member in group)
             {
                 if (member.Command == Command.None)
                 {
@@ -140,11 +139,11 @@ internal sealed class Player
             if (target is null || command == Command.None || !hasIdle)
                 continue;
 
-            for (int j = 0; j < members.Count; j++)
+            for (int j = 0; j < group.Count; j++)
             {
-                if (members[j].Command == Command.None)
+                if (group[j].Command == Command.None)
                 {
-                    members[j].SetCommand(command, target);
+                    group[j].SetCommand(command, target);
                 }
             }
         }
@@ -161,7 +160,7 @@ internal sealed class Player
         var flags = input.Flags;
         if (flags.HasFlag(InputFlags.Second))
         {
-            var point = input.Cursor with { Y = input.Cursor.Y + _map.GetGroundZ(input.Cursor) };
+            var point = input.Cursor with { Y = input.Cursor.Y + _map.GetGroundZScr(input.Cursor) };
             Map.Action(player, ActionCode.Move, (int)point.X, (int)point.Y);
         }
 

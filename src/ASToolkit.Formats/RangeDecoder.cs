@@ -76,6 +76,7 @@ internal ref struct RangeDecoder
         return count;
     }
 
+    [EngineRoutine(0x00425570)]
     private bool TryStart()
     {
         int first = ReadByte();
@@ -107,6 +108,7 @@ internal ref struct RangeDecoder
         }
     }
 
+    [EngineRoutine(0x004255d0)]
     private int GetTarget(int bits)
     {
         Normalize();
@@ -115,6 +117,7 @@ internal ref struct RangeDecoder
         return target >> bits != 0 ? (1 << bits) - 1 : (int)target;
     }
 
+    [EngineRoutine(0x00425650)]
     private void Consume(int frequency, int start, int total)
     {
         uint offset = _step * (uint)start;

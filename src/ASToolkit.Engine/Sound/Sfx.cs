@@ -12,9 +12,16 @@ internal sealed class Sfx
 
     public SfxRecord Record { get; private set; }
 
+    [EngineRoutine(0x0041e7e0)]
+    public void Release()
+    {
+        Buffers.AsSpan().Clear();
+    }
+
     [EngineRoutine(0x0041e810)]
     public void Load(Sound sound, int id, SfxRecord record)
     {
+        Release();
         Record = record;
         int variants = 0;
         for (int k = 0; k < SfxRecord.MaxSamples; k++)

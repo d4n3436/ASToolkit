@@ -1,5 +1,4 @@
 using System.Drawing;
-using System.Globalization;
 using ASToolkit.Engine.IO;
 
 namespace ASToolkit.Engine;
@@ -10,8 +9,6 @@ public partial class Map
     private const int AcceleratorSource = 1 << 16;
     private const string ScreenshotFolder = "Screens\\";
     private const string ScreenshotExtension = ".tga";
-    private const string ScreenshotDateFormat = "yyyy-MM-dd";
-    private const string ScreenshotTimeFormat = "HH:mm:ss";
 
     private static readonly Accelerator[] Accelerators =
     [
@@ -46,8 +43,7 @@ public partial class Map
                 Input.PostMessage(WindowMessageId.Close, 0, 0);
                 break;
             case MenuCommand.Screenshot:
-                var now = Session.Time.GetLocalNow();
-                string path = $"{ScreenshotFolder}{now.ToString(ScreenshotDateFormat, CultureInfo.InvariantCulture)} {now.ToString(ScreenshotTimeFormat, CultureInfo.InvariantCulture)}{ScreenshotExtension}";
+                string path = $"{ScreenshotFolder}{MyLib.GetDateString(Session.Time)} {MyLib.GetTimeString(Session.Time)}{ScreenshotExtension}";
                 path = path.ReplaceFirst(':', 'h').ReplaceFirst(':', 'm').ReplaceFirst(':', 's');
                 Session.Graphics.SaveScreen(FileSystem, path, new Rectangle(Point.Empty, System.Drawing.Size.Truncate(Session.Graphics.ScreenSize)));
                 break;

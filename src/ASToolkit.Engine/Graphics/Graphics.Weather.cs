@@ -1,6 +1,7 @@
 using System.Drawing;
 using System.Numerics;
 using ASToolkit.Core;
+using ASToolkit.Engine.IO;
 using ASToolkit.Formats;
 
 namespace ASToolkit.Engine;
@@ -103,7 +104,13 @@ public sealed partial class Graphics
         int columns = width + FogCellMask >> 2;
         int rows = height + FogCellMask >> 2;
         var light = LightTexture;
-        var buffer = light.Texels;
+        var buffer = light.Lock(null, out _);
+        if (buffer.IsEmpty)
+        {
+            Error?.Error(GraphicsLogTag, LogError.Lock, 0, "fog buffer"u8);
+            return;
+        }
+
         var format = light.Format;
         bool isPalette = format == VidPixelFormat.P8;
         var depth = screen.Depth;
@@ -167,7 +174,13 @@ public sealed partial class Graphics
         var start = new Point(-(int)map.Shift.X & SnowCellMask, -(int)map.Shift.Y & SnowCellMask);
         ushort[] ramp = EnsureBuffers().ColorTable;
         var light = LightTexture;
-        var texture = light.Texels;
+        var texture = light.Lock(null, out _);
+        if (texture.IsEmpty)
+        {
+            Error?.Error(GraphicsLogTag, LogError.Lock, 0, "snow buffer"u8);
+            return;
+        }
+
         var format = light.Format;
         bool isPalette = format == VidPixelFormat.P8;
         var depth = Screen.Depth;

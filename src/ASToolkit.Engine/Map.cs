@@ -159,6 +159,7 @@ public partial class Map : IDisposable
         EmptyVid.SetWeapons(_weapons!);
         Sprites = new SpriteCollector(Size, Vids, this);
         Mouse = new Mouse(EmptyVid, new Vector3(Session.Graphics.ScreenSize.ToVector2() * HalfShare, 0), default, null, this);
+        Mouse.Enable(fileSystem);
         _controls = ControlSettings.Read(fileSystem);
         Input = new Input(_controls);
         for (int slot = 0; slot < ASToolkit.Engine.Vid.ArmyCount; slot++)
@@ -754,6 +755,13 @@ public partial class Map : IDisposable
     public Sprite? Flagman(int army) => _players[army & ASToolkit.Engine.Vid.ArmyMask].Flagman;
 
     /// <summary>
+    /// Returns the sprite under the cursor of the controlled player.
+    /// </summary>
+    /// <returns>The sprite, or null if the cursor is over no sprite.</returns>
+    [EngineRoutine(0x0040e640)]
+    public Sprite? SpriteUnderCursor() => _players[ControlledPlayer & ASToolkit.Engine.Vid.ArmyMask].Hovered;
+
+    /// <summary>
     /// Gets the sprites of the update list of a layer.
     /// </summary>
     /// <param name="layer">The layer, from 0 to 16.</param>
@@ -955,11 +963,15 @@ public partial class Map : IDisposable
 
     internal static int OpenObjects(IGameFileSystem fileSystem, MyError? error, ref Resource resource)
     {
+        return resource.Open(fileSystem, error, GetObjectsFileName(fileSystem).Span, "DATA"u8);
+    }
+
+    internal static ReadOnlyMemory<byte> GetObjectsFileName(IGameFileSystem fileSystem)
+    {
         var config = new Profile(fileSystem);
         config.Load(ConfigFile);
-        var name = config.TryGetString(GameSection, "Resource"u8, out var configured) ? configured.Span : "objects.res"u8;
 
-        return resource.Open(fileSystem, error, name, "DATA"u8);
+        return config.TryGetString(GameSection, "Resource"u8, out var configured) ? configured : "objects.res"u8.ToArray();
     }
 
     [EngineRoutine(0x0040b4b0)]
@@ -1332,14 +1344,9 @@ public partial class Map : IDisposable
         {
             var next = group.Next;
 
-            if (group.Remove(sprite))
+            if (group.Delete(sprite) && group.Count == 0)
             {
-                Release(sprite);
-
-                if (group.Members.Count == 0)
-                {
-                    group.Unlink();
-                }
+                group.Unlink();
             }
 
             group = next;

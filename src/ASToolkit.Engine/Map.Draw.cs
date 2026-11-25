@@ -14,17 +14,18 @@ public partial class Map
     /// <summary>
     /// Draws the sprites of one layer, with the sprites of the cursor's link chain that belong to the layer drawn last.
     /// </summary>
-    /// <param name="screen">The screen.</param>
+    /// <param name="screen">The screen, or <see langword="null"/> to draw nothing.</param>
     /// <param name="shift">The top-left corner of the view on the map.</param>
     /// <param name="layer">The layer, from ground to cursor.</param>
     [EngineRoutine(0x0040f7f0)]
-    public void DrawLayer(Screen screen, Vector2 shift, ObjectLayer layer)
+    public void DrawLayer(Screen? screen, Vector2 shift, ObjectLayer layer)
     {
-        int index = 0;
+        if (screen is null)
+            return;
 
         if (layer is ObjectLayer.Ground or ObjectLayer.Region)
         {
-            for (var sprite = FirstDrawingSprite((int)layer, ref index); sprite is not null; sprite = NextDrawingSprite((int)layer, ref index))
+            for (var sprite = FirstDrawingSprite((int)layer, out int index); sprite is not null; sprite = NextDrawingSprite((int)layer, ref index))
             {
                 if (!sprite.IsInvisible)
                 {
@@ -36,7 +37,7 @@ public partial class Map
         {
             var center = new Point((int)(screen.Size.Width * LayerHalf + shift.X), (int)(screen.Size.Height * LayerHalf + shift.Y));
 
-            for (var sprite = FirstDrawingSprite((int)layer, ref index); sprite is not null; sprite = NextDrawingSprite((int)layer, ref index))
+            for (var sprite = FirstDrawingSprite((int)layer, out int index); sprite is not null; sprite = NextDrawingSprite((int)layer, ref index))
             {
                 if (sprite.IsInvisible)
                     continue;

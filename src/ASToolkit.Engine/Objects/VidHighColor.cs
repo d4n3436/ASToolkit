@@ -116,7 +116,7 @@ public sealed class VidHighColor : VidSoftware
         if (!TryLocateFrame(map, sprite, tileViewport, ref origin, out int depth, out var rows))
             return;
 
-        var target = new RunTarget<ushort>(colorTexture.Texels, colorTexture.Size.Width, depthTexture.Texels, depthTexture.Size.Width, tileViewport, Format);
+        var target = new RunTarget<ushort>(colorTexture.Lock(null, out _), colorTexture.Size.Width, depthTexture.Lock(null, out _), depthTexture.Size.Width, tileViewport, Format);
         DrawRuns(target, Palettes[GetPaletteOffset(sprite)..], origin, depth, rows);
     }
 

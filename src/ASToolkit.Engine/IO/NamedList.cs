@@ -42,6 +42,7 @@ public sealed class NamedList<T> : MyList<NamedListEntry<T>>
     /// <param name="value">The value.</param>
     /// <returns>The index of the entry.</returns>
     [EngineRoutine(0x00424a20)]
+    [EngineRoutine(0x00424b70)]
     public int Insert(ReadOnlyMemory<byte> name, T value)
     {
         Insert(new NamedListEntry<T>(name, value));

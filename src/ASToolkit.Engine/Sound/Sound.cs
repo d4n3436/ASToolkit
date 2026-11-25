@@ -813,7 +813,7 @@ public sealed class Sound
 
         for (int id = 0; id < _sfx.Length; id++)
         {
-            _sfx[id].Buffers.AsSpan().Clear();
+            _sfx[id].Release();
         }
 
         int result = _device?.ReleaseDevice() ?? 0;

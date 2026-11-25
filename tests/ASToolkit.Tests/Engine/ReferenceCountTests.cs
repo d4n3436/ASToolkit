@@ -56,7 +56,7 @@ public class ReferenceCountTests
 
         foreach (var group in map.Groups)
         {
-            foreach (var member in group.Members)
+            foreach (var member in group)
             {
                 Hold(expected, member);
             }

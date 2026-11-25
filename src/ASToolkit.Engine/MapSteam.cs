@@ -38,21 +38,6 @@ public sealed class MapSteam : Map
     {
     }
 
-    [EngineRoutine(0x00405130)]
-    private protected override void Destruct()
-    {
-        _mouseTips.Clear();
-        Release();
-        base.Destruct();
-    }
-
-    [EngineRoutine(0x00405160)]
-    internal override void DeletePointerToSprite(Sprite removed)
-    {
-        _mouseTips.DeletePointerToSprite(removed);
-        base.DeletePointerToSprite(removed);
-    }
-
     /// <summary>
     /// Runs one frame of the level, advancing the game time and playing or recording the demo frame first.
     /// </summary>
@@ -155,7 +140,7 @@ public sealed class MapSteam : Map
         {
             if (_flags.HasFlag(MapFlags.DrawPresentation) && Session.RealCurrentTime - _presentationShownAt > PresentationPeriod)
             {
-                var vid = FindVid(KnownObject.Font) ?? EmptyVid;
+                var vid = Vid((int)KnownObject.Font);
                 var banner = CreateSprite(vid, new Vector3(Session.Graphics.ScreenSize.Width * HalfShare, PresentationTop, 0), default)!;
                 _presentationShownAt = Session.RealCurrentTime;
                 Action(banner, ActionCode.SetBehave, 1);
@@ -183,41 +168,6 @@ public sealed class MapSteam : Map
         Sound.Tact(_rng, CurrentTime, Session.RealCurrentTime);
 
         return false;
-    }
-
-    [EngineRoutine(0x00405ac0)]
-    internal override void Release()
-    {
-        _flags &= ~MapFlags.MonstersAttackNeutralTrains;
-        _mouseTips.Clear();
-        base.Release();
-    }
-
-    [EngineRoutine(0x00405af0)]
-    internal override void DrawSecondaryInfo()
-    {
-        base.DrawSecondaryInfo();
-
-        if (_debug.HasFlag(StepFlags.DrawHashedNumbers))
-        {
-            for (int index = Sprites.Listed.Length - 1; index >= 0; index = Math.Min(Sprites.Listed.Length, index) - 1)
-            {
-                var sprite = Sprites.Listed[index];
-
-                if (sprite.Owner is null)
-                {
-                    Session.Graphics.DrawFormattedText(GetScreenPoint(sprite), $"{sprite.Hp}");
-                }
-            }
-        }
-
-        if (_debug.HasFlag(StepFlags.DrawHashedSprites))
-        {
-            for (int index = Sprites.Listed.Length - 1; index >= 0; index = Math.Min(Sprites.Listed.Length, index) - 1)
-            {
-                Sprites.Listed[index].DrawGoalLine();
-            }
-        }
     }
 
     /// <summary>
@@ -283,6 +233,56 @@ public sealed class MapSteam : Map
         return sprite;
     }
 
+    [EngineRoutine(0x00405160)]
+    internal override void DeletePointerToSprite(Sprite removed)
+    {
+        _mouseTips.DeletePointerToSprite(removed);
+        base.DeletePointerToSprite(removed);
+    }
+
+    [EngineRoutine(0x00405ac0)]
+    internal override void Release()
+    {
+        _flags &= ~MapFlags.MonstersAttackNeutralTrains;
+        _mouseTips.Clear();
+        base.Release();
+    }
+
+    [EngineRoutine(0x00405af0)]
+    internal override void DrawSecondaryInfo()
+    {
+        base.DrawSecondaryInfo();
+
+        if (_debug.HasFlag(StepFlags.DrawHashedNumbers))
+        {
+            for (int index = Sprites.Listed.Length - 1; index >= 0; index = Math.Min(Sprites.Listed.Length, index) - 1)
+            {
+                var sprite = Sprites.Listed[index];
+
+                if (sprite.Owner is null)
+                {
+                    Session.Graphics.DrawFormattedText(GetScreenPoint(sprite), $"{sprite.Hp}");
+                }
+            }
+        }
+
+        if (_debug.HasFlag(StepFlags.DrawHashedSprites))
+        {
+            for (int index = Sprites.Listed.Length - 1; index >= 0; index = Math.Min(Sprites.Listed.Length, index) - 1)
+            {
+                Sprites.Listed[index].DrawGoalLine();
+            }
+        }
+    }
+
+    [EngineRoutine(0x00405130)]
+    private protected override void Destruct()
+    {
+        _mouseTips.Clear();
+        Release();
+        base.Destruct();
+    }
+
     private void SetGammaOverrides(bool clear)
     {
         var flagman = Flagman(ControlledPlayer);
@@ -292,7 +292,7 @@ public sealed class MapSteam : Map
             OverrideGamma(flagman, clear ? default : Gamma.FromScript(Constant.SelectedGamma));
         }
 
-        var hovered = _players[ControlledPlayer].Hovered;
+        var hovered = SpriteUnderCursor();
 
         if (hovered is null || Constant is { HoveredGamma: 0, HoveredEnemyGamma: 0 } || !clear && !_flags.HasFlag(MapFlags.MouseTips))
             return;

@@ -1,5 +1,6 @@
 using System.Drawing;
 using System.Numerics;
+using ASToolkit.Engine.IO;
 using ASToolkit.Formats;
 
 namespace ASToolkit.Engine;
@@ -63,7 +64,13 @@ public sealed partial class Graphics
         var depth = screen.Depth;
         var lightTexture = LightPhaseTexture;
         int pitch = lightTexture.Size.Width;
-        var texture = lightTexture.Texels;
+        var texture = lightTexture.Lock(null, out _);
+        if (texture.IsEmpty)
+        {
+            Error.Error(GraphicsLogTag, LogError.Text, 0, "light buffer"u8);
+            return;
+        }
+
         var format = lightTexture.Format;
         ushort[] colors = EnsureBuffers().ColorTable;
         bool isPalette = format == VidPixelFormat.P8;

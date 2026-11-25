@@ -160,7 +160,7 @@ public class Creature : Unit
         {
             var center = Position.AsVector2();
             var reach = new Vector2(CreatureAlertReach);
-            for (var other = Map.Sprites.First(center - reach, center + reach); other is not null; other = Map.Sprites.NextHashInBox())
+            for (var other = Map.Sprites.FirstHashInBox(center - reach, center + reach); other is not null; other = Map.Sprites.NextHashInBox())
             {
                 if (other.Vid.Class == SpriteClass.Creature && center.NearLength(other.Position.AsVector2()) < CreatureAlertReach)
                 {

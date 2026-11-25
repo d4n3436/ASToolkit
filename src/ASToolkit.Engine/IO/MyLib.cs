@@ -1,24 +1,46 @@
+using System.Globalization;
 using System.Text;
 
 namespace ASToolkit.Engine.IO;
 
 internal static class MyLib
 {
+    public const string DateFormat = "yyyy-MM-dd";
+    public const string TimeFormat = "HH:mm:ss";
+
     private const uint ChecksumPolynomial = 0xEDB88320;
     private const int Base64ChunkSize = 0x39;
 
+    private static readonly uint[] ChecksumTable = CreateChecksumTable();
+
     private static ReadOnlySpan<byte> Base64Alphabet => "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"u8;
+
+    [EngineRoutine(0x00406130)]
+    public static int Sqrt(int value)
+    {
+        int result = 0;
+        for (int bit = 0x40000000; bit != 0; bit >>= 2)
+        {
+            if (value >= bit + result)
+            {
+                value -= bit + result;
+                result = result >> 1 | bit;
+            }
+            else
+            {
+                result >>= 1;
+            }
+        }
+
+        return result;
+    }
 
     [EngineRoutine(0x00406160)]
     public static uint UpdateChecksum(uint checksum, ReadOnlySpan<byte> text)
     {
         foreach (byte value in text)
         {
-            checksum ^= value;
-            for (int bit = 0; bit < 8; bit++)
-            {
-                checksum = (checksum & 1) != 0 ? checksum >> 1 ^ ChecksumPolynomial : checksum >> 1;
-            }
+            checksum = ChecksumTable[(int)((checksum ^ value) & byte.MaxValue)] ^ checksum >> 8;
         }
 
         return checksum;
@@ -37,6 +59,12 @@ internal static class MyLib
     public static byte[] Printf(ReadOnlySpan<byte> format, bool isText, ReadOnlySpan<byte> text, int number) =>
         CRuntime.Format(format, isText, text, number);
 
+    [EngineRoutine(0x004067a0)]
+    public static string GetTimeString(TimeProvider time) => time.GetLocalNow().ToString(TimeFormat, CultureInfo.InvariantCulture);
+
+    [EngineRoutine(0x00406850)]
+    public static string GetDateString(TimeProvider time) => time.GetLocalNow().ToString(DateFormat, CultureInfo.InvariantCulture);
+
     extension(string text)
     {
         [EngineRoutine(0x00406c90)]
@@ -45,6 +73,13 @@ internal static class MyLib
             int index = text.IndexOf(from);
 
             return index < 0 ? text : string.Concat(text.AsSpan(0, index), new ReadOnlySpan<char>(in to), text.AsSpan(index + 1));
+        }
+
+        public string After(string delimiter)
+        {
+            int index = text.IndexOf(delimiter, StringComparison.Ordinal);
+
+            return index < 0 ? string.Empty : text[(index + delimiter.Length)..];
         }
     }
 
@@ -111,5 +146,22 @@ internal static class MyLib
         [EngineRoutine(0x004242e0)]
         public int ParseNumber() =>
             text.Length > 1 && text[1] == 'x' ? CRuntime.ScanInteger(text) : CRuntime.ParseInteger(text);
+    }
+
+    private static uint[] CreateChecksumTable()
+    {
+        uint[] table = new uint[byte.MaxValue + 1];
+        for (int i = 0; i < table.Length; i++)
+        {
+            uint value = (uint)i;
+            for (int bit = 0; bit < 8; bit++)
+            {
+                value = (value & 1) != 0 ? value >> 1 ^ ChecksumPolynomial : value >> 1;
+            }
+
+            table[i] = value;
+        }
+
+        return table;
     }
 }

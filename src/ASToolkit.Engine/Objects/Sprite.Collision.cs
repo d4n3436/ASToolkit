@@ -29,8 +29,7 @@ public partial class Sprite
 
         var half = vid.Half;
         float height = vid.Size.Z;
-        Map.Sprites.FirstHashInBox(point.AsVector2() - half, point.AsVector2() + half);
-        for (var other = Map.Sprites.NextHashInBox(); other is not null; other = Map.Sprites.NextHashInBox())
+        for (var other = Map.Sprites.FirstHashInBox(point.AsVector2() - half, point.AsVector2() + half); other is not null; other = Map.Sprites.NextHashInBox())
         {
             var otherVid = other.Vid;
             if (other == this || other.Animation >= SpriteAnimation.Death || MathF.Abs(other.Position.X - point.X) >= otherVid.Half.X + half.X ||
@@ -197,8 +196,7 @@ public partial class Sprite
         var collector = Map.Sprites;
         var half = vid.Half;
         float height = vid.Size.Z;
-        collector.FirstHashInBox(position.AsVector2() - half, position.AsVector2() + half);
-        for (var other = collector.NextHashInBox(); other is not null; other = collector.NextHashInBox())
+        for (var other = collector.FirstHashInBox(position.AsVector2() - half, position.AsVector2() + half); other is not null; other = collector.NextHashInBox())
         {
             var otherVid = other.Vid;
             if (other != this && other.Animation < SpriteAnimation.Death && MathF.Abs(other.Position.X - position.X) < otherVid.Half.X + half.X &&

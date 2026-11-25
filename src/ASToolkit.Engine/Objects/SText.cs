@@ -85,7 +85,7 @@ public sealed class SText : Frame
 
         if ((TextBehavior & TextBehavior.LoadFrom) == TextBehavior.ScriptUpdated)
         {
-            Shown = map.Script.GetVariableString(Description.Span);
+            Shown = map.Script.GetVariableString(Description);
             CalcTextProperty();
         }
 
@@ -126,7 +126,7 @@ public sealed class SText : Frame
                 }
                 else if (character == TagStart && shown.StartsWith(FontTag))
                 {
-                    var identifier = shown[FontTag.Length..];
+                    var identifier = Shown.After(FontTag).Span;
                     int id = identifier.Length > 1 && identifier[1] == (byte)'x' ? CRuntime.ScanInteger(identifier) : CRuntime.ParseInteger(identifier);
                     current = map.FindVid((KnownObject)id) ?? map.EmptyVid;
                     pen.X -= current.Size.X;
@@ -254,9 +254,9 @@ public sealed class SText : Frame
             TextBehavior.NotLoad => description,
             TextBehavior.StringsIni => ReadMenuString(description.Span),
             TextBehavior.File => MyLib.LoadFile(Map.FileSystem, description.Span),
-            TextBehavior.ScriptFile => MyLib.LoadFile(Map.FileSystem, Map.Script.GetVariableString(description.Span).Span),
-            TextBehavior.ScriptStrings => ReadMenuString(Map.Script.GetVariableString(description.Span).Span),
-            _ => Map.Script.GetVariableString(description.Span)
+            TextBehavior.ScriptFile => MyLib.LoadFile(Map.FileSystem, Map.Script.GetVariableString(description).Span),
+            TextBehavior.ScriptStrings => ReadMenuString(Map.Script.GetVariableString(description).Span),
+            _ => Map.Script.GetVariableString(description)
         };
         CalcTextProperty();
     }

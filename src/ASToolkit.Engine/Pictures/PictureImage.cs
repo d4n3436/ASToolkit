@@ -154,6 +154,73 @@ public class PictureImage : IDisposable
     }
 
     /// <summary>
+    /// Writes an area of the picture to a TGA file, as 24-bit colors or as 32-bit colors when the picture has four bytes per pixel.
+    /// </summary>
+    /// <param name="fileSystem">The file system the file is written to.</param>
+    /// <param name="path">The path of the file.</param>
+    /// <param name="area">The area to write. A width or height of -1 means the rest of the picture.</param>
+    [EngineRoutine(0x00426f90)]
+    public void SaveTga(IGameFileSystem fileSystem, string path, Rectangle area)
+    {
+        if (!HasPixels)
+        {
+            Report(LogError.Text, "SaveTGA-not picture"u8);
+            return;
+        }
+
+        if (area.Height == -1)
+        {
+            area.Height = Size.Height;
+        }
+
+        if (area.Width == -1)
+        {
+            area.Width = Size.Width;
+        }
+
+        if (area.X + area.Width > Size.Width || area.Y + area.Height > Size.Height)
+        {
+            Report(LogError.Invalid, "size in SaveTGA"u8);
+            return;
+        }
+
+        var file = path.Length == 0 ? null : fileSystem.OpenWrite(path, false);
+        if (file is null)
+        {
+            Report(LogError.Open, Encoding.ASCII.GetBytes(path));
+            return;
+        }
+
+        using (file)
+        {
+            const byte trueColorBits = 24;
+            const byte tgaDescriptor = 1;
+            const int trueColorMask = 0xffffff;
+            const int trueColorPixelSize = 3;
+
+            var header = new TgaHeader(TgaImageType.TrueColor, area.Size, BytesPerPixel == sizeof(uint) ? (byte)(BytesPerPixel * BitsPerByte) : trueColorBits, tgaDescriptor);
+            file.Write(MemoryMarshal.AsBytes(new ReadOnlySpan<TgaHeader>(in header)));
+
+            for (int y = area.Y + area.Height - 1; y >= area.Y; y--)
+            {
+                for (int x = area.X; x < area.X + area.Width; x++)
+                {
+                    uint pixel = GetColor(new Point(x, y));
+                    if (BytesPerPixel == sizeof(uint))
+                    {
+                        file.Write(MemoryMarshal.AsBytes(new ReadOnlySpan<uint>(in pixel)));
+                    }
+                    else
+                    {
+                        pixel &= trueColorMask;
+                        file.Write(MemoryMarshal.AsBytes(new ReadOnlySpan<uint>(in pixel))[..trueColorPixelSize]);
+                    }
+                }
+            }
+        }
+    }
+
+    /// <summary>
     /// Gets the raw value of a pixel.
     /// </summary>
     /// <param name="point">The point of the pixel.</param>

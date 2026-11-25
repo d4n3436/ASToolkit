@@ -53,7 +53,7 @@ public partial class Sprite
                 bool isScaled = payload.IsExplosive && !payload.DeathRange.IsExactlyZero();
                 int damage = payload.Damage;
 
-                for (var sprite = Map.Sprites.First(point - reach, point + reach); sprite is not null; sprite = Map.Sprites.NextHashInBox())
+                for (var sprite = Map.Sprites.FirstHashInBox(point - reach, point + reach); sprite is not null; sprite = Map.Sprites.NextHashInBox())
                 {
                     if (sprite == this || sprite.Vid.MaxHp == 0 || payload.ShouldSkipOwnArmy && sprite.Army == Army)
                         continue;

@@ -10,6 +10,8 @@ public partial class Map
     /// </summary>
     public const int GridZCellSize = 8;
 
+    private const int ScreenGroundReach = 32;
+
     private const float GridZCellScale = 0.125f;
     private const float PlayerFootprintInset = 3;
     private const float CornerInset = 2;
@@ -26,6 +28,32 @@ public partial class Map
         point.Y = ClampToMap(point.Y, Size.Height);
 
         return GetGridZCell((int)(point.Y * GridZCellScale), (int)(point.X * GridZCellScale));
+    }
+
+    /// <summary>
+    /// Returns the height of the ground that a point on the screen shows, found by looking down the map from the point.
+    /// </summary>
+    /// <param name="point">The point.</param>
+    /// <returns>The height, or 0 if no cell within reach is tall enough.</returns>
+    [EngineRoutine(0x00410f20)]
+    public float GetGroundZScr(Vector2 point)
+    {
+        point.X = ClampToMap(point.X, Size.Width);
+        point.Y = ClampToMap(point.Y, Size.Height);
+        int column = (int)(point.X * GridZCellScale);
+        int top = (int)(point.Y * GridZCellScale);
+        int row = Math.Min(top + ScreenGroundReach, _gridRows - 1);
+
+        for (; row >= top; row--)
+        {
+            int height = (row - top) * GridZCellSize;
+            int index = row * _gridColumns + column;
+
+            if (_sceneryHeights[index] >= height || _objectHeights[index] >= height)
+                return height;
+        }
+
+        return 0;
     }
 
     /// <summary>

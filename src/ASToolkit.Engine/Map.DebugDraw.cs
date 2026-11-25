@@ -20,8 +20,6 @@ public partial class Map
 
     internal Vector2 GetScreenPoint(Sprite sprite) => new(sprite.Position.X - Shift.X, sprite.Position.Y - sprite.Position.Z - Shift.Y);
 
-    private static bool IsInViewport(Rectangle viewport, Vector2 point) => viewport.Left <= point.X && point.X < viewport.Right && viewport.Top <= point.Y && point.Y < viewport.Bottom;
-
     [EngineRoutine(0x0040b590)]
     internal virtual void DrawSecondaryInfo()
     {
@@ -89,28 +87,35 @@ public partial class Map
         if (_flags.HasFlag(MapFlags.DrawFlagman))
         {
             var flagman = Flagman(ControlledPlayer);
-            var hovered = _players[ControlledPlayer].Hovered;
+            var hovered = SpriteUnderCursor();
             var drawn = flagman ?? hovered ?? Menu.Current;
             drawn?.DrawSecondaryInfo();
         }
 
         if (_flags.HasFlag(MapFlags.DrawGroups))
         {
-            int index = 0;
-            foreach (var group in Groups)
-            {
-                DrawGroup(group, index++);
-            }
-
+            DrawGroups();
         }
     }
+
+    private static bool IsInViewport(Rectangle viewport, Vector2 point) => viewport.Left <= point.X && point.X < viewport.Right && viewport.Top <= point.Y && point.Y < viewport.Bottom;
 
     [EngineRoutine(0x0043ac40)]
     private void DrawGroup(Group group, int index)
     {
-        foreach (var member in group.Members)
+        foreach (var member in group)
         {
             Session.Graphics.DrawFormattedText(GetScreenPoint(member), $"{index}");
+        }
+    }
+
+    [EngineRoutine(0x0043ae50)]
+    private void DrawGroups()
+    {
+        int index = 0;
+        foreach (var group in Groups)
+        {
+            DrawGroup(group, index++);
         }
     }
 }

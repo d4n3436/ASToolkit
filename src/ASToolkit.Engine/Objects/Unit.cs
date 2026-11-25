@@ -171,10 +171,7 @@ public class Unit : Terrain
                     var wander = Position.AsVector2() + new Angle((byte)Map.Random.Next()).Vector * WanderReach;
                     var goal = Map.ConstructGoal(new Vector3(wander, Position.Z));
 
-                    if (!SetCommand(Command.Move, goal) && !StartMove())
-                    {
-                        SetCommand(Command.None);
-                    }
+                    Move(goal);
                 }
 
                 return damageResult;

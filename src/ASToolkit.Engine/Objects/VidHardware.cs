@@ -86,7 +86,7 @@ public sealed class VidHardware : Vid
             var tileSize = _tiles[surface / 2].Size;
             _surfaces[surface] = new Texture(tileSize, VidPixelFormat.R5G6B5, TextureFlags.None, session);
             var depths = new Texture(tileSize, VidPixelFormat.D16, TextureFlags.SystemMemory, session);
-            depths.Texels.Fill(EmptyDepth);
+            depths.Lock(null, out _).Fill(EmptyDepth);
             _surfaces[surface + 1] = depths;
         }
     }
@@ -374,7 +374,7 @@ public sealed class VidHardware : Vid
 
             format = created.Format;
             var size = created.Size;
-            var texels = created.Texels;
+            var texels = created.Lock(null, out _);
 
             surface.Palette.Span.CopyTo(paletteBytes);
             var colors = MemoryMarshal.Cast<byte, VidPackedColor>(paletteBytes);
@@ -487,7 +487,7 @@ public sealed class VidHardware : Vid
                         Report(session.Error, LogError.Load, depthSurface.DecodedSize, "Can't decode z"u8);
                     }
 
-                    depthSurface.Data.Span.CopyTo(MemoryMarshal.AsBytes(depths.Texels));
+                    depthSurface.Data.Span.CopyTo(MemoryMarshal.AsBytes(depths.Lock(null, out _)));
                 }
 
                 _surfaces[i] = depths;

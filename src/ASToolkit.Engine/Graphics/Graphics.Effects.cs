@@ -186,18 +186,20 @@ public sealed partial class Graphics
                 strength = unchecked((length - elapsed) * 9 << 8) / rise;
             }
 
-            DrawGrayFade(strength);
+            DrawFade(Screen!, (strength << 8 | strength) << 8 | strength);
         }
 
         if (TryAdvanceEffect(ScreenEffect.FadeIn, realTime, isShown, out elapsed, out length))
         {
             uint rise = length * FadeInRiseNumerator;
-            DrawGrayFade(elapsed < (uint)(rise * DivideByFive >> DivideByFiveShift) ? unchecked(elapsed * 5 << 8) / rise : FadeFullStrength);
+            uint fadeInStrength = elapsed < (uint)(rise * DivideByFive >> DivideByFiveShift) ? unchecked(elapsed * 5 << 8) / rise : FadeFullStrength;
+            DrawFade(Screen!, (fadeInStrength << 8 | fadeInStrength) << 8 | fadeInStrength);
         }
 
         if (TryAdvanceEffect(ScreenEffect.FadeOut, realTime, isShown, out elapsed, out length))
         {
-            DrawGrayFade(unchecked((length - elapsed) << 8) / length);
+            uint fadeOutStrength = unchecked((length - elapsed) << 8) / length;
+            DrawFade(Screen!, (fadeOutStrength << 8 | fadeOutStrength) << 8 | fadeOutStrength);
         }
 
         if (EffectStartTimes[(int)ScreenEffect.ShiftGamma] != 0)
@@ -247,8 +249,6 @@ public sealed partial class Graphics
 
         return start != 0 && isShown;
     }
-
-    private void DrawGrayFade(uint strength) => DrawFade(Screen!, (strength << 8 | strength) << 8 | strength);
 
     [EngineRoutine(0x00434060)]
     private void DrawFade(Screen screen, uint color)

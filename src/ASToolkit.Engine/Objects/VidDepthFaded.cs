@@ -125,7 +125,7 @@ public sealed class VidDepthFaded : VidSoftware
         int rowCount = runs.End - runs.Top;
         var alpha = map.Session.Graphics.AlphaTexture;
         int scratchWidth = alpha.Size.Width;
-        var scratch = alpha.Texels;
+        var scratch = alpha.Lock(null, out _);
         scratch[..(rowCount * scratchWidth)].Clear();
         short key = (short)z;
         bool additive = !FileType.HasFlag(VidType.Blended) || !FileType.HasFlag(VidType.Runs8Bit);

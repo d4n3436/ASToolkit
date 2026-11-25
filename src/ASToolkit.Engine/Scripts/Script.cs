@@ -506,17 +506,17 @@ public sealed partial class Script
     public void PushSprite(int value) => _stack.Insert(ScriptStack.FromHandle(value));
 
     [EngineRoutine(0x004231c0)]
-    internal ReadOnlyMemory<byte> GetVariableString(ReadOnlySpan<byte> reference)
+    internal ReadOnlyMemory<byte> GetVariableString(ReadOnlyMemory<byte> reference)
     {
-        int bracket = reference.IndexOf(VariableElementStart);
-        int index = _objects.Location(bracket < 0 ? reference : reference[..bracket]);
+        int bracket = reference.Span.IndexOf(VariableElementStart);
+        int index = _objects.Location(bracket < 0 ? reference.Span : reference.Span[..bracket]);
         if (index < 0)
         {
-            Error?.Log($"!!!ERROR!!! SCRIPT Can't find variable '{MyError.Decode(reference)}' in GetVariableString");
+            Error?.Log($"!!!ERROR!!! SCRIPT Can't find variable '{MyError.Decode(reference.Span)}' in GetVariableString");
             return default;
         }
 
-        int element = (bracket < 0 ? default : reference[(bracket + 1)..]).ParseNumber();
+        int element = reference.After("["u8).Span.ParseNumber();
         ref var slot = ref GetSlot(_objects[index].Address + element);
         if (slot.Flags.HasFlag(ScriptStackFlags.Number))
         {

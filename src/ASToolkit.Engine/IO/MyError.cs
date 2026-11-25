@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text;
 using ASToolkit.Formats;
 
 namespace ASToolkit.Engine.IO;
@@ -10,8 +11,6 @@ internal sealed class MyError : IDisposable
     private const string NameExtension = ".log";
     private const string LastPath = "logs\\error.log";
     private const string FallbackPath = "error.log";
-    private const string DateFormat = "yyyy-MM-dd";
-    private const string TimeFormat = "HH:mm:ss";
     private const string CreatedPrefix = "Cr-";
     private const string AccessedPrefix = " La-";
     private const string WrittenPrefix = " Lw-";
@@ -26,10 +25,7 @@ internal sealed class MyError : IDisposable
     {
         _fileSystem = fileSystem;
         _time = time;
-        var now = time.GetLocalNow();
-        string clock = now.ToString(TimeFormat, CultureInfo.InvariantCulture);
-        string date = now.ToString(DateFormat, CultureInfo.InvariantCulture);
-        string path = $"{NamePrefix}{date} {clock}{NameExtension}".ReplaceFirst(':', 'h').ReplaceFirst(':', 'm');
+        string path = $"{NamePrefix}{MyLib.GetDateString(time)} {MyLib.GetTimeString(time)}{NameExtension}".ReplaceFirst(':', 'h').ReplaceFirst(':', 'm');
         if (!isTimestamped)
         {
             path = LastPath;
@@ -39,12 +35,12 @@ internal sealed class MyError : IDisposable
 
         if (_stream is null)
         {
-            path = path[FolderPrefix.Length..];
+            path = path.After(FolderPrefix);
             _stream = fileSystem?.OpenWrite(path, !isTimestamped);
         }
 
         _path = path;
-        Log($"----< {date} {clock} >----< {program} ({FormatFileTimes(fileSystem?.GetWriteTime(program))}) >----");
+        Log($"----< {MyLib.GetDateString(time)} {MyLib.GetTimeString(time)} >----< {program} ({FormatFileTimes(fileSystem?.GetWriteTime(program))}) >----");
     }
 
     public bool IsOpen => _stream is not null;
@@ -128,7 +124,7 @@ internal sealed class MyError : IDisposable
         if (_stream is null)
             return;
 
-        string time = _time.GetLocalNow().ToString(TimeFormat, CultureInfo.InvariantCulture);
+        string time = _time.GetLocalNow().ToString(MyLib.TimeFormat, CultureInfo.InvariantCulture);
         Log($"!!!ERROR {time}!!!{tag}: {FormatError(code, value, text)}");
     }
 
@@ -137,7 +133,7 @@ internal sealed class MyError : IDisposable
     [EngineRoutine(0x00406900)]
     private static string FormatFileTimes(DateTime? written)
     {
-        string stamp = (written ?? new DateTime(1601, 1, 1)).ToString($"{DateFormat} hh:mm:ss", CultureInfo.InvariantCulture);
+        string stamp = (written ?? new DateTime(1601, 1, 1)).ToString($"{MyLib.DateFormat} hh:mm:ss", CultureInfo.InvariantCulture);
 
         return $"{CreatedPrefix}{stamp}{AccessedPrefix}{stamp}{WrittenPrefix}{stamp}";
     }
