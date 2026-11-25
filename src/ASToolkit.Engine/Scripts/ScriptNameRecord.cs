@@ -9,21 +9,6 @@ namespace ASToolkit.Engine.Scripts;
 public readonly struct ScriptNameRecord
 {
     /// <summary>
-    /// Initializes a new instance of the <see cref="ScriptNameRecord"/> structure with the stored fields of a name.
-    /// </summary>
-    /// <param name="kind">The kind of the name.</param>
-    /// <param name="address">The first slot, built-in ID or code offset.</param>
-    /// <param name="firstVariable">The slot of the first parameter.</param>
-    /// <param name="count">The number of parameters or elements.</param>
-    public ScriptNameRecord(ScriptObjectKind kind, int address, int firstVariable, int count)
-    {
-        Kind = kind;
-        Address = address;
-        FirstVariable = firstVariable;
-        Count = count;
-    }
-
-    /// <summary>
     /// The kind of the name.
     /// </summary>
     [FieldOffset(0)]
@@ -46,4 +31,19 @@ public readonly struct ScriptNameRecord
     /// </summary>
     [FieldOffset(16)]
     public readonly int Count;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ScriptNameRecord"/> structure with the stored fields of a name.
+    /// </summary>
+    /// <param name="kind">The kind of the name.</param>
+    /// <param name="address">The first slot, built-in ID or code offset.</param>
+    /// <param name="firstVariable">The slot of the first parameter.</param>
+    /// <param name="count">The number of parameters or elements.</param>
+    public ScriptNameRecord(ScriptObjectKind kind, int address, int firstVariable, int count)
+    {
+        Kind = kind;
+        Address = address;
+        FirstVariable = firstVariable;
+        Count = count;
+    }
 }

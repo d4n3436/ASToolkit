@@ -20,15 +20,13 @@ public partial class Map
     [EngineRoutine(0x0040f7f0)]
     public void DrawLayer(Screen screen, Vector2 shift, ObjectLayer layer)
     {
-        var sprites = _layers[(int)layer];
+        int index = 0;
 
         if (layer is ObjectLayer.Ground or ObjectLayer.Region)
         {
-            for (int i = sprites.Count - 1; i >= 0; i--)
+            for (var sprite = FirstDrawingSprite((int)layer, ref index); sprite is not null; sprite = NextDrawingSprite((int)layer, ref index))
             {
-                var sprite = sprites[i];
-
-                if (sprite is not null && !sprite.IsInvisible)
+                if (!sprite.IsInvisible)
                 {
                     DrawSprite(screen, sprite, shift);
                 }
@@ -38,11 +36,9 @@ public partial class Map
         {
             var center = new Point((int)(screen.Size.Width * LayerHalf + shift.X), (int)(screen.Size.Height * LayerHalf + shift.Y));
 
-            for (int i = sprites.Count - 1; i >= 0; i--)
+            for (var sprite = FirstDrawingSprite((int)layer, ref index); sprite is not null; sprite = NextDrawingSprite((int)layer, ref index))
             {
-                var sprite = sprites[i];
-
-                if (sprite is null || sprite.IsInvisible)
+                if (sprite.IsInvisible)
                     continue;
 
                 var point = new Point((int)sprite.Position.X, (int)(sprite.Position.Y - sprite.Position.Z));

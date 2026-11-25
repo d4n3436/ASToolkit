@@ -22,6 +22,7 @@ public partial class Map
     /// Represents the default largest texture width and height.
     /// </summary>
     public const int DefaultMaxTextureSize = 32768;
+
     internal const int DefaultSpriteSpeed = 71;
     private const int WeaponRecordSize = 612;
     private const int UnlimitedBits = 0x497423f0;
@@ -55,89 +56,6 @@ public partial class Map
     internal ReadOnlySpan<Vid?> Vids => _vids.AsSpan(0, _vidCount);
 
     private static ReadOnlySpan<byte> ObjectChunkTag => "OBJ "u8;
-
-    /// <summary>
-    /// Returns the name of an object ID's record.
-    /// </summary>
-    /// <param name="vid">The shared data of the object ID.</param>
-    /// <returns>The name.</returns>
-    public string GetVidName(Vid vid) => vid.RecordId == HardwareGroundId ? HardwareGroundName : _objects.GetName(vid.RecordId);
-
-    [EngineRoutine(0x00411510)]
-    private void LoadVid(ref Resource resource)
-    {
-        uint start = Session.TimeGetTime();
-        if (_weapons is null)
-        {
-            LoadWeaponRecords(ref resource);
-            if (_weaponCount != 0)
-            {
-                Session.Error.Log($"LoadWeapon::No={_weaponCount,-5}             sizeof(WEAPON)={WeaponRecordSize,-4}");
-            }
-        }
-
-        if (resource.GoBegin(ObjectChunkTag) != Resource.Found)
-        {
-            Session.Error.Error(MapLogTag, LogError.Section, 0, "load 'VID'"u8);
-            return;
-        }
-
-        int existing = _vidCount;
-        var screen = Session.Graphics.Screen;
-        bool isTrueColor = screen?.IsTrueColor ?? true;
-        var format = screen?.Format ?? HighColorFormat.Rgb565;
-        do
-        {
-            int id = resource.Read<int>();
-            if (id > MaxVid)
-            {
-                Session.Error.Error(MapLogTag, LogError.Invalid, id, "nvid > MAX_VID"u8);
-                throw new InvalidDataException($"The object ID {id} is past the end of the VID table.");
-            }
-
-            if (_vids[id] is not null)
-            {
-                _vids[id]!.Destruct(Session);
-                _vids[id] = null;
-                Session.Error.Error(MapLogTag, LogError.Load, id, "this VID already loaded"u8);
-            }
-
-            var vid = CreateVid(ref resource, (KnownObject)id, isTrueColor, format);
-            _vids[id] = vid;
-            if (vid is null)
-                continue;
-
-            if (_vidCount <= id)
-            {
-                _vidCount = id + 1;
-            }
-
-            if (existing != 0)
-            {
-                vid.FileType |= VidType.FrameVector;
-            }
-
-            if (vid.WeaponIndex >= _weaponCount)
-            {
-                vid.Report(Session.Error, LogError.Text, vid.WeaponIndex, "nWeapon > noWeapon"u8);
-            }
-
-            Session.Graphics.DrawLoadBar(this, _vids[0]);
-        }
-        while (resource.GoNextSub(ObjectChunkTag) == Resource.Found);
-
-        var largest = System.Drawing.Size.Empty;
-        foreach (var vid in Vids)
-        {
-            if (vid is not null)
-            {
-                SetChildAndLink(vid);
-                largest = new System.Drawing.Size(Math.Max(largest.Width, vid.FrameSize.Width), Math.Max(largest.Height, vid.FrameSize.Height));
-            }
-        }
-
-        Session.Error.Log($"LoadVid::No   ={_vidCount,-15}   sizeof(VID)   ={VidSize,-5}    load time     ={Session.TimeGetTime() - start}ms   MaxSizeX,Y={largest.Width},{largest.Height}");
-    }
 
     /// <summary>
     /// Exchanges the identities of two object IDs.
@@ -203,45 +121,6 @@ public partial class Map
     /// <param name="id">The object ID.</param>
     /// <returns>The shared data of the object ID, or null if the ID isn't loaded.</returns>
     public Vid? FindVid(KnownObject id) => id >= 0 && (int)id < _vidCount ? _vids[(int)id] : null;
-
-    internal FrameMask? GetFrameMask(Vid vid, int frame)
-    {
-        if (_masks.TryGetValue((vid.Id, frame), out var mask))
-            return mask;
-
-        VidResource? file;
-        lock (Parts)
-        {
-            file = Parts.GetFile(vid.Path);
-        }
-
-        mask = file is null || frame < 0 || frame >= file.Value.FrameCount ? null : FrameMask.Read(file.Value, frame);
-
-        return _masks.GetOrAdd((vid.Id, frame), mask);
-    }
-
-    [EngineRoutine(0x00411880)]
-    private void LoadWeaponRecords(ref Resource resource)
-    {
-        _weapons = resource.Load<AlienShooterWeaponRecord>("WEAP"u8, Session.Error);
-        _weaponCount = _weapons.Length;
-        for (int i = 0; i < _weaponCount; i++)
-        {
-            ref var weapon = ref _weapons[i];
-            for (int key = 0; key < WeaponRecord.KeyframeCount; key++)
-            {
-                if (BitConverter.SingleToInt32Bits(weapon.SpeedKeys[key]) != UnlimitedBits)
-                {
-                    weapon.SpeedKeys[key] *= KeyScale;
-                }
-
-                if (!weapon.UnknownKeys[key].IsExactly(ASToolkit.Engine.Vid.Unlimited))
-                {
-                    weapon.UnknownKeys[key] *= KeyScale;
-                }
-            }
-        }
-    }
 
     /// <summary>
     /// Undoes the level script's exchanges and reloads the record of every object ID.
@@ -309,6 +188,29 @@ public partial class Map
                 SetChildAndLink(vid);
             }
         }
+    }
+
+    /// <summary>
+    /// Returns the name of an object ID's record.
+    /// </summary>
+    /// <param name="vid">The shared data of the object ID.</param>
+    /// <returns>The name.</returns>
+    public string GetVidName(Vid vid) => vid.RecordId == HardwareGroundId ? HardwareGroundName : _objects.GetName(vid.RecordId);
+
+    internal FrameMask? GetFrameMask(Vid vid, int frame)
+    {
+        if (_masks.TryGetValue((vid.Id, frame), out var mask))
+            return mask;
+
+        VidResource? file;
+        lock (Parts)
+        {
+            file = Parts.GetFile(vid.Path);
+        }
+
+        mask = file is null || frame < 0 || frame >= file.Value.FrameCount ? null : FrameMask.Read(file.Value, frame);
+
+        return _masks.GetOrAdd((vid.Id, frame), mask);
     }
 
     [EngineRoutine(0x00413a60)]
@@ -415,11 +317,102 @@ public partial class Map
         return picture.Load(path, string.Empty, string.Empty) ? picture.Convert() : default;
     }
 
-    private ReadOnlyMemory<byte> GetVidBytes(string path)
+    [EngineRoutine(0x00411510)]
+    private void LoadVid(ref Resource resource)
     {
-        lock (Parts)
+        uint start = Session.TimeGetTime();
+        if (_weapons is null)
         {
-            return Parts.GetBytes(path);
+            LoadWeaponRecords(ref resource);
+            if (_weaponCount != 0)
+            {
+                Session.Error.Log($"LoadWeapon::No={_weaponCount,-5}             sizeof(WEAPON)={WeaponRecordSize,-4}");
+            }
+        }
+
+        if (resource.GoBegin(ObjectChunkTag) != Resource.Found)
+        {
+            Session.Error.Error(MapLogTag, LogError.Section, 0, "load 'VID'"u8);
+            return;
+        }
+
+        int existing = _vidCount;
+        var screen = Session.Graphics.Screen;
+        bool isTrueColor = screen?.IsTrueColor ?? true;
+        var format = screen?.Format ?? HighColorFormat.Rgb565;
+        do
+        {
+            int id = resource.Read<int>();
+            if (id > MaxVid)
+            {
+                Session.Error.Error(MapLogTag, LogError.Invalid, id, "nvid > MAX_VID"u8);
+                throw new InvalidDataException($"The object ID {id} is past the end of the VID table.");
+            }
+
+            if (_vids[id] is not null)
+            {
+                _vids[id]!.Destruct(Session);
+                _vids[id] = null;
+                Session.Error.Error(MapLogTag, LogError.Load, id, "this VID already loaded"u8);
+            }
+
+            var vid = CreateVid(ref resource, (KnownObject)id, isTrueColor, format);
+            _vids[id] = vid;
+            if (vid is null)
+                continue;
+
+            if (_vidCount <= id)
+            {
+                _vidCount = id + 1;
+            }
+
+            if (existing != 0)
+            {
+                vid.FileType |= VidType.FrameVector;
+            }
+
+            if (vid.WeaponIndex >= _weaponCount)
+            {
+                vid.Report(Session.Error, LogError.Text, vid.WeaponIndex, "nWeapon > noWeapon"u8);
+            }
+
+            Session.Graphics.DrawLoadBar(this, _vids[0]);
+        }
+        while (resource.GoNextSub(ObjectChunkTag) == Resource.Found);
+
+        var largest = System.Drawing.Size.Empty;
+        foreach (var vid in Vids)
+        {
+            if (vid is not null)
+            {
+                SetChildAndLink(vid);
+                largest = new System.Drawing.Size(Math.Max(largest.Width, vid.FrameSize.Width), Math.Max(largest.Height, vid.FrameSize.Height));
+            }
+        }
+
+        Session.Error.Log($"LoadVid::No   ={_vidCount,-15}   sizeof(VID)   ={VidSize,-5}    load time     ={Session.TimeGetTime() - start}ms   MaxSizeX,Y={largest.Width},{largest.Height}");
+    }
+
+    [EngineRoutine(0x00411880)]
+    private void LoadWeaponRecords(ref Resource resource)
+    {
+        _weapons = resource.Load<AlienShooterWeaponRecord>("WEAP"u8, Session.Error);
+        _weaponCount = _weapons.Length;
+        for (int i = 0; i < _weaponCount; i++)
+        {
+            ref var weapon = ref _weapons[i];
+            for (int key = 0; key < WeaponRecord.KeyframeCount; key++)
+            {
+                if (BitConverter.SingleToInt32Bits(weapon.SpeedKeys[key]) != UnlimitedBits)
+                {
+                    weapon.SpeedKeys[key] *= KeyScale;
+                }
+
+                if (!weapon.UnknownKeys[key].IsExactly(ASToolkit.Engine.Vid.Unlimited))
+                {
+                    weapon.UnknownKeys[key] *= KeyScale;
+                }
+            }
         }
     }
 
@@ -553,6 +546,14 @@ public partial class Map
 
         vid.SetLayer();
         return vid;
+    }
+
+    private ReadOnlyMemory<byte> GetVidBytes(string path)
+    {
+        lock (Parts)
+        {
+            return Parts.GetBytes(path);
+        }
     }
 
     private void PrepareVid(Vid vid, in GameObject record, string name, string path)

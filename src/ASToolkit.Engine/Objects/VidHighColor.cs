@@ -30,9 +30,6 @@ public sealed class VidHighColor : VidSoftware
     {
     }
 
-    [EngineRoutine(0x004126e0)]
-    internal override Vid CreateMirror() => new VidHighColor(this);
-
     /// <inheritdoc/>
     protected override bool IsHighColor => true;
 
@@ -42,6 +39,34 @@ public sealed class VidHighColor : VidSoftware
     /// <returns>The size of one palette.</returns>
     [EngineRoutine(0x00412710)]
     public override int GetPaletteSize() => FileType.HasFlag(VidType.Blended) ? TrueColorPaletteSize : HighColorPaletteSize;
+
+    /// <summary>
+    /// Applies a gamma to a palette of 16-bit colors, or of 32-bit colors when the sprite file is blended.
+    /// </summary>
+    /// <param name="palette">The palette, 256 entries of the size the sprite file stores them in.</param>
+    /// <param name="gamma">The gamma.</param>
+    [EngineRoutine(0x00416030)]
+    public override void ApplyGamma(Span<byte> palette, Gamma gamma)
+    {
+        if (palette.IsEmpty || gamma is { Negative: 0, Positive: 0 })
+            return;
+
+        if (FileType.HasFlag(VidType.Blended))
+        {
+            base.ApplyGamma(palette, gamma);
+            return;
+        }
+
+        var pixels = MemoryMarshal.Cast<byte, ushort>(palette);
+        for (int i = 0; i < PaletteEntries; i++)
+        {
+            uint color = Format.Expand(pixels[i]);
+            uint blue = (uint)((pixels[i] & HighColorBlueMask) << 3);
+            uint green = color >> Gamma.ChannelBits & byte.MaxValue;
+            uint red = color >> (2 * Gamma.ChannelBits) & byte.MaxValue;
+            pixels[i] = Format.Pack(gamma.Apply(red << (2 * Gamma.ChannelBits) | green << Gamma.ChannelBits | blue));
+        }
+    }
 
     /// <summary>
     /// Draws a sprite with 16-bit pixels from its runs.
@@ -95,31 +120,6 @@ public sealed class VidHighColor : VidSoftware
         DrawRuns(target, Palettes[GetPaletteOffset(sprite)..], origin, depth, rows);
     }
 
-    /// <summary>
-    /// Applies a gamma to a palette of 16-bit colors, or of 32-bit colors when the sprite file is blended.
-    /// </summary>
-    /// <param name="palette">The palette, 256 entries of the size the sprite file stores them in.</param>
-    /// <param name="gamma">The gamma.</param>
-    [EngineRoutine(0x00416030)]
-    public override void ApplyGamma(Span<byte> palette, Gamma gamma)
-    {
-        if (palette.IsEmpty || gamma is { Negative: 0, Positive: 0 })
-            return;
-
-        if (FileType.HasFlag(VidType.Blended))
-        {
-            base.ApplyGamma(palette, gamma);
-            return;
-        }
-
-        var pixels = MemoryMarshal.Cast<byte, ushort>(palette);
-        for (int i = 0; i < PaletteEntries; i++)
-        {
-            uint color = Format.Expand(pixels[i]);
-            uint blue = (uint)((pixels[i] & HighColorBlueMask) << 3);
-            uint green = color >> Gamma.ChannelBits & byte.MaxValue;
-            uint red = color >> (2 * Gamma.ChannelBits) & byte.MaxValue;
-            pixels[i] = Format.Pack(gamma.Apply(red << (2 * Gamma.ChannelBits) | green << Gamma.ChannelBits | blue));
-        }
-    }
+    [EngineRoutine(0x004126e0)]
+    internal override Vid CreateMirror() => new VidHighColor(this);
 }

@@ -36,6 +36,123 @@ public class Creature : Unit
 
     internal Region? Region { get; set; }
 
+    [EngineRoutine(0x0044d460)]
+    internal override void DeletePointerToSprite(Sprite removed)
+    {
+        if (Region == removed)
+        {
+            Region = null;
+        }
+
+        base.DeletePointerToSprite(removed);
+    }
+
+    [EngineRoutine(0x0044d480)]
+    internal override void MoveTact()
+    {
+        if (IsSeekingRegion && Region is null)
+        {
+            IsSeekingRegion = false;
+            Region = FindRegion(Position.AsVector2());
+        }
+
+        int elapsed = Map.FrameTime;
+        var next = MoveTactCalculateCoordinates(elapsed);
+
+        if (TurnTicks != 0)
+        {
+            if ((TurnTicks & 1) != 0)
+            {
+                bool left = Animation == SpriteAnimation.LRotate || Animation != SpriteAnimation.RRotate && Map.Random.Next() % 2 == 0;
+                RotateTact(Direction + (left ? -Angle.QuarterTurn : Angle.QuarterTurn), elapsed);
+            }
+
+            TurnTicks += TurnTicks < 0 ? 1 : -1;
+        }
+        else if (HasGoal && !Speed.IsExactlyZero())
+        {
+            var goal = DirectionTo(Goal!);
+
+            if (Speed < 0)
+            {
+                goal = goal.Opposite;
+            }
+
+            RotateTact(RotateForGlide(goal), elapsed);
+
+            if (HasReachedX && HasReachedY)
+            {
+                Stop();
+            }
+        }
+
+        if (Vid.Properties.HasFlag(ObjectProperties.ZeroZ))
+        {
+            next.Z = Map.GetGroundZForMoveTo(Vid, next.AsVector2());
+        }
+
+        bool isFree = CanPlaceWithCrush(next) is null;
+
+        if (isFree && Region is not null)
+        {
+            var point = next.AsVector2();
+            var half = Region.Size * 0.5f;
+
+            if (!(Region.Position.X - half.X <= point.X && point.X <= half.X + Region.Position.X && Region.Position.Y - half.Y <= point.Y && point.Y <= half.Y + Region.Position.Y))
+            {
+                var other = FindRegion(point);
+
+                if (other is null || Region.Vid != other.Vid)
+                {
+                    isFree = false;
+                }
+                else
+                {
+                    Region = other;
+                }
+            }
+        }
+
+        if (isFree)
+        {
+            MoveTactMapLimit(next.AsVector2(), elapsed);
+            ChangeCoor(next);
+
+            return;
+        }
+
+        Speed = 0;
+
+        if (TurnTicks == 0)
+        {
+            TurnTicks = BlockedTurnTicks;
+        }
+    }
+
+    [EngineRoutine(0x0044d7b0)]
+    internal Region? FindRegion(Vector2 point)
+    {
+        var list = Map.GetLayer((int)ObjectLayer.Region);
+
+        for (int i = list.Count - 1; i >= 0; i--)
+        {
+            if (list[i] is not Region sprite || !sprite.Vid.SpriteType.HasFlag(OldSpriteType.Region) || sprite.Vid.Class != SpriteClass.Region)
+                continue;
+
+            float halfWidth = sprite.Size.X * 0.5f;
+
+            if (sprite.Position.X - halfWidth > point.X || point.X > halfWidth + sprite.Position.X)
+                continue;
+
+            float halfHeight = sprite.Size.Y * 0.5f;
+
+            if (sprite.Position.Y - halfHeight <= point.Y && point.Y <= halfHeight + sprite.Position.Y)
+                return sprite;
+        }
+
+        return null;
+    }
+
     [EngineRoutine(0x0044d880)]
     internal override int Action(ActionCode act, int var1, int var2, int var3, Sprite? target)
     {
@@ -145,122 +262,5 @@ public class Creature : Unit
         }
 
         return 0;
-    }
-
-    [EngineRoutine(0x0044d480)]
-    internal override void MoveTact()
-    {
-        if (IsSeekingRegion && Region is null)
-        {
-            IsSeekingRegion = false;
-            Region = FindRegion(Position.AsVector2());
-        }
-
-        int elapsed = Map.FrameTime;
-        var next = MoveTactCalculateCoordinates(elapsed);
-
-        if (TurnTicks != 0)
-        {
-            if ((TurnTicks & 1) != 0)
-            {
-                bool left = Animation == SpriteAnimation.LRotate || Animation != SpriteAnimation.RRotate && Map.Random.Next() % 2 == 0;
-                RotateTact(Direction + (left ? -Angle.QuarterTurn : Angle.QuarterTurn), elapsed);
-            }
-
-            TurnTicks += TurnTicks < 0 ? 1 : -1;
-        }
-        else if (HasGoal && !Speed.IsExactlyZero())
-        {
-            var goal = DirectionTo(Goal!);
-
-            if (Speed < 0)
-            {
-                goal = goal.Opposite;
-            }
-
-            RotateTact(RotateForGlide(goal), elapsed);
-
-            if (HasReachedX && HasReachedY)
-            {
-                Stop();
-            }
-        }
-
-        if (Vid.Properties.HasFlag(ObjectProperties.ZeroZ))
-        {
-            next.Z = Map.GetGroundZForMoveTo(Vid, next.AsVector2());
-        }
-
-        bool isFree = CanPlaceWithCrush(next) is null;
-
-        if (isFree && Region is not null)
-        {
-            var point = next.AsVector2();
-            var half = Region.Size * 0.5f;
-
-            if (!(Region.Position.X - half.X <= point.X && point.X <= half.X + Region.Position.X && Region.Position.Y - half.Y <= point.Y && point.Y <= half.Y + Region.Position.Y))
-            {
-                var other = FindRegion(point);
-
-                if (other is null || Region.Vid != other.Vid)
-                {
-                    isFree = false;
-                }
-                else
-                {
-                    Region = other;
-                }
-            }
-        }
-
-        if (isFree)
-        {
-            MoveTactMapLimit(next.AsVector2(), elapsed);
-            ChangeCoor(next);
-
-            return;
-        }
-
-        Speed = 0;
-
-        if (TurnTicks == 0)
-        {
-            TurnTicks = BlockedTurnTicks;
-        }
-    }
-
-    [EngineRoutine(0x0044d460)]
-    internal override void DeletePointerToSprite(Sprite removed)
-    {
-        if (Region == removed)
-        {
-            Region = null;
-        }
-
-        base.DeletePointerToSprite(removed);
-    }
-
-    [EngineRoutine(0x0044d7b0)]
-    internal Region? FindRegion(Vector2 point)
-    {
-        var list = Map.GetLayer((int)ObjectLayer.Region);
-
-        for (int i = list.Count - 1; i >= 0; i--)
-        {
-            if (list[i] is not Region sprite || !sprite.Vid.SpriteType.HasFlag(OldSpriteType.Region) || sprite.Vid.Class != SpriteClass.Region)
-                continue;
-
-            float halfWidth = sprite.Size.X * 0.5f;
-
-            if (sprite.Position.X - halfWidth > point.X || point.X > halfWidth + sprite.Position.X)
-                continue;
-
-            float halfHeight = sprite.Size.Y * 0.5f;
-
-            if (sprite.Position.Y - halfHeight <= point.Y && point.Y <= halfHeight + sprite.Position.Y)
-                return sprite;
-        }
-
-        return null;
     }
 }

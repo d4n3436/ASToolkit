@@ -42,19 +42,6 @@ public class MyList<T> : IReadOnlyList<T>
     T IReadOnlyList<T>.this[int index] => _items[index];
 
     /// <summary>
-    /// Adds an entry after the last one.
-    /// </summary>
-    /// <param name="item">The entry.</param>
-    [EngineRoutine(0x00446930)]
-    [EngineRoutine(0x00424e60)]
-    public void Insert(T item)
-    {
-        ExpandForInsert();
-
-        _items[Count++] = item;
-    }
-
-    /// <summary>
     /// Inserts an entry before the first one and moves the others up.
     /// </summary>
     /// <param name="item">The entry.</param>
@@ -65,30 +52,6 @@ public class MyList<T> : IReadOnlyList<T>
 
         Array.Copy(_items, 0, _items, 1, Count++);
         _items[0] = item;
-    }
-
-    /// <summary>
-    /// Inserts an entry at an index and moves up the entries after it.
-    /// </summary>
-    /// <param name="index">The index.</param>
-    /// <param name="item">The entry.</param>
-    [EngineRoutine(0x00446a10)]
-    public void InsertBefore(int index, T item)
-    {
-        ExpandForInsert();
-
-        int count = Count++;
-
-        if (index < count)
-        {
-            Array.Copy(_items, index, _items, index + 1, count - index);
-        }
-        else
-        {
-            Expand(index + 1);
-        }
-
-        _items[index] = item;
     }
 
     /// <summary>
@@ -124,6 +87,33 @@ public class MyList<T> : IReadOnlyList<T>
     }
 
     /// <summary>
+    /// Adds an entry after the last one.
+    /// </summary>
+    /// <param name="item">The entry.</param>
+    [EngineRoutine(0x00424e60)]
+    [EngineRoutine(0x00446930)]
+    public void Insert(T item)
+    {
+        ExpandForInsert();
+
+        _items[Count++] = item;
+    }
+
+    /// <summary>
+    /// Grows the array to hold a number of entries, if it holds fewer.
+    /// </summary>
+    /// <param name="capacity">The number of entries.</param>
+    [EngineRoutine(0x00425080)]
+    [EngineRoutine(0x00446be0)]
+    public void Expand(int capacity)
+    {
+        if (_items.Length < capacity)
+        {
+            Grow(capacity);
+        }
+    }
+
+    /// <summary>
     /// Removes and returns the last entry.
     /// </summary>
     /// <returns>The entry.</returns>
@@ -131,17 +121,44 @@ public class MyList<T> : IReadOnlyList<T>
     public T Pop() => _items[--Count];
 
     /// <summary>
-    /// Grows the array to hold a number of entries, if it holds fewer.
+    /// Returns the index of the last entry equal to a value.
     /// </summary>
-    /// <param name="capacity">The number of entries.</param>
-    [EngineRoutine(0x00446be0)]
-    [EngineRoutine(0x00425080)]
-    public void Expand(int capacity)
+    /// <param name="item">The value.</param>
+    /// <returns>The index, or -1 if no entry equals the value.</returns>
+    [EngineRoutine(0x00446900)]
+    public int Location(T item)
     {
-        if (_items.Length < capacity)
+        for (int i = Count - 1; i >= 0; i--)
         {
-            Grow(capacity);
+            if (EqualityComparer<T>.Default.Equals(_items[i], item))
+                return i;
         }
+
+        return -1;
+    }
+
+    /// <summary>
+    /// Inserts an entry at an index and moves up the entries after it.
+    /// </summary>
+    /// <param name="index">The index.</param>
+    /// <param name="item">The entry.</param>
+    [EngineRoutine(0x00446a10)]
+    public void InsertBefore(int index, T item)
+    {
+        ExpandForInsert();
+
+        int count = Count++;
+
+        if (index < count)
+        {
+            Array.Copy(_items, index, _items, index + 1, count - index);
+        }
+        else
+        {
+            Expand(index + 1);
+        }
+
+        _items[index] = item;
     }
 
     /// <summary>
@@ -162,23 +179,6 @@ public class MyList<T> : IReadOnlyList<T>
     }
 
     /// <summary>
-    /// Returns the index of the last entry equal to a value.
-    /// </summary>
-    /// <param name="item">The value.</param>
-    /// <returns>The index, or -1 if no entry equals the value.</returns>
-    [EngineRoutine(0x00446900)]
-    public int Location(T item)
-    {
-        for (int i = Count - 1; i >= 0; i--)
-        {
-            if (EqualityComparer<T>.Default.Equals(_items[i], item))
-                return i;
-        }
-
-        return -1;
-    }
-
-    /// <summary>
     /// Removes every entry and frees the array.
     /// </summary>
     public void Release()
@@ -186,6 +186,20 @@ public class MyList<T> : IReadOnlyList<T>
         _items = [];
         Count = 0;
     }
+
+    /// <summary>
+    /// Returns an enumerator over the entries.
+    /// </summary>
+    /// <returns>The enumerator.</returns>
+    public IEnumerator<T> GetEnumerator()
+    {
+        for (int i = 0; i < Count; i++)
+        {
+            yield return _items[i];
+        }
+    }
+
+    IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 
     private void ExpandForInsert()
     {
@@ -207,18 +221,4 @@ public class MyList<T> : IReadOnlyList<T>
             throw;
         }
     }
-
-    /// <summary>
-    /// Returns an enumerator over the entries.
-    /// </summary>
-    /// <returns>The enumerator.</returns>
-    public IEnumerator<T> GetEnumerator()
-    {
-        for (int i = 0; i < Count; i++)
-        {
-            yield return _items[i];
-        }
-    }
-
-    IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 }

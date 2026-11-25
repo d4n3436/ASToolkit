@@ -48,6 +48,16 @@ public sealed class Registry
     }
 
     /// <summary>
+    /// Gets the value stored under a name of a path.
+    /// </summary>
+    /// <param name="path">The registry path.</param>
+    /// <param name="name">The value name.</param>
+    /// <param name="defaultValue">The text to return if no value is stored.</param>
+    /// <returns>The stored text, or <paramref name="defaultValue"/> if no value is stored.</returns>
+    [EngineRoutine(0x0042cf70)]
+    public string Get(string path, string name, string defaultValue) => _values.GetValueOrDefault(GetKey(path, name), defaultValue);
+
+    /// <summary>
     /// Gets the value stored under a name of the default path, as a number.
     /// </summary>
     /// <param name="name">The value name.</param>
@@ -63,29 +73,11 @@ public sealed class Registry
     }
 
     /// <summary>
-    /// Gets the value stored under a name of a path.
-    /// </summary>
-    /// <param name="path">The registry path.</param>
-    /// <param name="name">The value name.</param>
-    /// <param name="defaultValue">The text to return if no value is stored.</param>
-    /// <returns>The stored text, or <paramref name="defaultValue"/> if no value is stored.</returns>
-    [EngineRoutine(0x0042cf70)]
-    public string Get(string path, string name, string defaultValue) => _values.GetValueOrDefault(GetKey(path, name), defaultValue);
-
-    /// <summary>
     /// Stores a value under a name of the default path.
     /// </summary>
     /// <param name="name">The value name.</param>
     /// <param name="value">The text to store.</param>
     public void Set(string name, string value) => Set(DefaultPath, name, value);
-
-    /// <summary>
-    /// Stores a number under a name of the default path.
-    /// </summary>
-    /// <param name="name">The value name.</param>
-    /// <param name="value">The number to store.</param>
-    [EngineRoutine(0x0042d280)]
-    public void SetNumber(string name, int value) => Set(name, value.ToString(CultureInfo.InvariantCulture));
 
     /// <summary>
     /// Stores a value under a name of a path.
@@ -95,6 +87,14 @@ public sealed class Registry
     /// <param name="value">The text to store.</param>
     [EngineRoutine(0x0042d1f0)]
     public void Set(string path, string name, string value) => _values[GetKey(path, name)] = value;
+
+    /// <summary>
+    /// Stores a number under a name of the default path.
+    /// </summary>
+    /// <param name="name">The value name.</param>
+    /// <param name="value">The number to store.</param>
+    [EngineRoutine(0x0042d280)]
+    public void SetNumber(string name, int value) => Set(name, value.ToString(CultureInfo.InvariantCulture));
 
     /// <summary>
     /// Removes the value stored under a name of a path.

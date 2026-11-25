@@ -174,7 +174,7 @@ public sealed class SText : Frame
                 VisibleCount = var1;
                 return 0;
             case ActionCode.SetFile:
-                Shown = Map.LoadTextFile(ReadTextAddress(var1).Span);
+                Shown = MyLib.LoadFile(Map.FileSystem, ReadTextAddress(var1).Span);
                 VisibleCount = Shown.Length;
                 return 0;
             case ActionCode.GetTextDesc or ActionCode.GetText:
@@ -253,8 +253,8 @@ public sealed class SText : Frame
         {
             TextBehavior.NotLoad => description,
             TextBehavior.StringsIni => ReadMenuString(description.Span),
-            TextBehavior.File => Map.LoadTextFile(description.Span),
-            TextBehavior.ScriptFile => Map.LoadTextFile(Map.Script.GetVariableString(description.Span).Span),
+            TextBehavior.File => MyLib.LoadFile(Map.FileSystem, description.Span),
+            TextBehavior.ScriptFile => MyLib.LoadFile(Map.FileSystem, Map.Script.GetVariableString(description.Span).Span),
             TextBehavior.ScriptStrings => ReadMenuString(Map.Script.GetVariableString(description.Span).Span),
             _ => Map.Script.GetVariableString(description.Span)
         };
@@ -292,7 +292,7 @@ public sealed class SText : Frame
 
     private static byte GetCharacter(ReadOnlySpan<byte> text, int index) => index < text.Length ? text[index] : (byte)0;
 
-    private ReadOnlyMemory<byte> ReadMenuString(ReadOnlySpan<byte> key) => Map.Session.Strings?.GetString("menu"u8, key) ?? default;
-
     private ReadOnlyMemory<byte> ReadTextAddress(int address) => address == 0 ? default : Map.Script.GetSlot(address - 1).Text;
+
+    private ReadOnlyMemory<byte> ReadMenuString(ReadOnlySpan<byte> key) => Map.Session.Strings?.GetString("menu"u8, key) ?? default;
 }

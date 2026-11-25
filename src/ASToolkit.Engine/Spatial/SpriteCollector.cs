@@ -69,12 +69,12 @@ public sealed class SpriteCollector
     /// </summary>
     public ReadOnlySpan<Sprite> Listed => _listed.Items;
 
-    internal SpriteList ListedSprites => _listed;
-
     /// <summary>
     /// Gets half the width and depth of the largest object.
     /// </summary>
     public Vector2 LargestHalf { get; }
+
+    internal SpriteList ListedSprites => _listed;
 
     /// <summary>
     /// Gets the sprites in the buckets a box covers.
@@ -84,9 +84,9 @@ public sealed class SpriteCollector
     /// <returns>The query over the sprites.</returns>
     public HashQuery GetNear(Vector2 min, Vector2 max) => new(_buckets, _columns, GetColumn(min.X), GetColumn(max.X), GetRow(min.Y), GetRow(max.Y));
 
-    internal static bool IsHashed(Vid vid) => vid.Properties.HasFlag(ObjectProperties.Hash);
-
     internal static bool IsListed(Vid vid) => (vid.SpriteType & ListedTypes) != 0;
+
+    internal static bool IsHashed(Vid vid) => vid.Properties.HasFlag(ObjectProperties.Hash);
 
     [EngineRoutine(0x0042d6a0)]
     internal void InsertToHash(Sprite sprite)
@@ -155,34 +155,6 @@ public sealed class SpriteCollector
         FirstHashInBox(min, max);
 
         return NextHashInBox();
-    }
-
-    [EngineRoutine(0x0042dd60)]
-    internal void FirstHashInBox(Vector2 min, Vector2 max)
-    {
-        _firstColumn = GetColumn(min.X - _cell.X);
-        _row = GetRow(min.Y - _cell.Y);
-        _lastColumn = GetColumn(max.X + _cell.X);
-        _lastRow = GetRow(max.Y + _cell.Y);
-        _column = _firstColumn;
-        _index = 0;
-    }
-
-    [EngineRoutine(0x0042deb0)]
-    internal Sprite? NextHashInBox()
-    {
-        for (; _row <= _lastRow; _row++, _column = _firstColumn, _index = 0)
-        {
-            for (; _column <= _lastColumn; _column++, _index = 0)
-            {
-                var bucket = _buckets[(_row * _columns) + _column];
-
-                if (_index < bucket.Count)
-                    return bucket[_index++];
-            }
-        }
-
-        return null;
     }
 
     [EngineRoutine(0x0042da30)]
@@ -269,6 +241,34 @@ public sealed class SpriteCollector
         }
 
         return false;
+    }
+
+    [EngineRoutine(0x0042dd60)]
+    internal void FirstHashInBox(Vector2 min, Vector2 max)
+    {
+        _firstColumn = GetColumn(min.X - _cell.X);
+        _row = GetRow(min.Y - _cell.Y);
+        _lastColumn = GetColumn(max.X + _cell.X);
+        _lastRow = GetRow(max.Y + _cell.Y);
+        _column = _firstColumn;
+        _index = 0;
+    }
+
+    [EngineRoutine(0x0042deb0)]
+    internal Sprite? NextHashInBox()
+    {
+        for (; _row <= _lastRow; _row++, _column = _firstColumn, _index = 0)
+        {
+            for (; _column <= _lastColumn; _column++, _index = 0)
+            {
+                var bucket = _buckets[(_row * _columns) + _column];
+
+                if (_index < bucket.Count)
+                    return bucket[_index++];
+            }
+        }
+
+        return null;
     }
 
     private static float GetCellSize(float size)

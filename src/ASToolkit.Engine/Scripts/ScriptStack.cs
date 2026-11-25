@@ -47,24 +47,6 @@ public struct ScriptStack
     public static ScriptStack FromText(ReadOnlyMemory<byte> text) => new(ScriptStackFlags.Text, 0, text);
 
     /// <summary>
-    /// Creates a sprite handle value.
-    /// </summary>
-    /// <param name="handle">The handle, or 0 if there isn't one.</param>
-    /// <returns>The value.</returns>
-    [EngineRoutine(0x00439dd0)]
-    public static ScriptStack FromHandle(int handle) =>
-        new(handle == 0 ? ScriptStackFlags.Number : ScriptStackFlags.Number | ScriptStackFlags.Sprite, handle);
-
-    /// <summary>
-    /// Reads a text as a hexadecimal number when its second character is <c>x</c> (<c>sscanf("%i")</c>), and as a decimal number otherwise (<c>atoi</c>).
-    /// </summary>
-    /// <param name="text">The text.</param>
-    /// <returns>The number, or 0 if the text doesn't hold one.</returns>
-    [EngineRoutine(0x004242e0)]
-    public static int ParseNumber(ReadOnlySpan<byte> text) =>
-        text.Length > 1 && text[1] == 'x' ? CRuntime.ScanInteger(text) : CRuntime.ParseInteger(text);
-
-    /// <summary>
     /// Writes a number as decimal text.
     /// </summary>
     /// <param name="value">The number.</param>
@@ -87,51 +69,13 @@ public struct ScriptStack
     public static ScriptStack FromNumber(int value) => new(ScriptStackFlags.Number, value);
 
     /// <summary>
-    /// Returns the value as text, with a number written in decimal.
+    /// Creates a sprite handle value.
     /// </summary>
-    /// <returns>The text.</returns>
-    [EngineRoutine(0x00439e30)]
-    public readonly ReadOnlyMemory<byte> GetText() => Flags.HasFlag(ScriptStackFlags.Number) ? FormatNumber(Value) : Text;
-
-    /// <summary>
-    /// Returns the value as a number, parsing the text when the value is text.
-    /// </summary>
-    /// <returns>The number.</returns>
-    [EngineRoutine(0x00439df0)]
-    public readonly int GetValue() => Flags.HasFlag(ScriptStackFlags.Text) ? ParseNumber(Text.Span) : Value;
-
-    /// <summary>
-    /// Determines whether the value is nonzero as a number.
-    /// </summary>
-    /// <returns><see langword="true"/> if the value is nonzero; otherwise, <see langword="false"/>.</returns>
-    public readonly bool IsTrue() => GetValue() != 0;
-
-    /// <summary>
-    /// Writes the value to a demo or save stream, as its flags followed by its number or its masked, zero-terminated text.
-    /// </summary>
-    /// <param name="stream">The stream to write to.</param>
-    /// <param name="number">A four-byte buffer for the number.</param>
-    [EngineRoutine(0x00424520)]
-    public readonly void Write(Stream stream, Span<byte> number)
-    {
-        stream.WriteByte((byte)Flags);
-        if (!Flags.HasFlag(ScriptStackFlags.Initialized))
-            return;
-
-        if (!Flags.HasFlag(ScriptStackFlags.Text))
-        {
-            BinaryPrimitives.WriteInt32LittleEndian(number, Value);
-            stream.Write(number);
-            return;
-        }
-
-        foreach (byte character in Text.Span)
-        {
-            stream.WriteByte((byte)(character ^ TextMask));
-        }
-
-        stream.WriteByte(0);
-    }
+    /// <param name="handle">The handle, or 0 if there isn't one.</param>
+    /// <returns>The value.</returns>
+    [EngineRoutine(0x00439dd0)]
+    public static ScriptStack FromHandle(int handle) =>
+        new(handle == 0 ? ScriptStackFlags.Number : ScriptStackFlags.Number | ScriptStackFlags.Sprite, handle);
 
     /// <summary>
     /// Reads the value from a demo or save.
@@ -161,6 +105,53 @@ public struct ScriptStack
         Text = text;
     }
 
+    /// <summary>
+    /// Writes the value to a demo or save stream, as its flags followed by its number or its masked, zero-terminated text.
+    /// </summary>
+    /// <param name="stream">The stream to write to.</param>
+    /// <param name="number">A four-byte buffer for the number.</param>
+    [EngineRoutine(0x00424520)]
+    public readonly void Write(Stream stream, Span<byte> number)
+    {
+        stream.WriteByte((byte)Flags);
+        if (!Flags.HasFlag(ScriptStackFlags.Initialized))
+            return;
+
+        if (!Flags.HasFlag(ScriptStackFlags.Text))
+        {
+            BinaryPrimitives.WriteInt32LittleEndian(number, Value);
+            stream.Write(number);
+            return;
+        }
+
+        foreach (byte character in Text.Span)
+        {
+            stream.WriteByte((byte)(character ^ TextMask));
+        }
+
+        stream.WriteByte(0);
+    }
+
+    /// <summary>
+    /// Determines whether the value is nonzero as a number.
+    /// </summary>
+    /// <returns><see langword="true"/> if the value is nonzero; otherwise, <see langword="false"/>.</returns>
+    public readonly bool IsTrue() => GetValue() != 0;
+
+    /// <summary>
+    /// Returns the value as a number, parsing the text when the value is text.
+    /// </summary>
+    /// <returns>The number.</returns>
+    [EngineRoutine(0x00439df0)]
+    public readonly int GetValue() => Flags.HasFlag(ScriptStackFlags.Text) ? Text.Span.ParseNumber() : Value;
+
+    /// <summary>
+    /// Returns the value as text, with a number written in decimal.
+    /// </summary>
+    /// <returns>The text.</returns>
+    [EngineRoutine(0x00439e30)]
+    public readonly ReadOnlyMemory<byte> GetText() => Flags.HasFlag(ScriptStackFlags.Number) ? FormatNumber(Value) : Text;
+
     [EngineRoutine(0x004245e0)]
     internal void BinarOperator(ScriptOpcode opcode, in ScriptStack right, MyError? error)
     {
@@ -168,7 +159,7 @@ public struct ScriptStack
         bool areTexts = Flags.HasFlag(ScriptStackFlags.Text) && right.Flags.HasFlag(ScriptStackFlags.Text);
         if (Flags.HasFlag(ScriptStackFlags.Text))
         {
-            Value = ParseNumber(Text.Span);
+            Value = Text.Span.ParseNumber();
         }
 
         int current = Value;

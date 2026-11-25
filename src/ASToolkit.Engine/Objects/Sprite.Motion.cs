@@ -8,151 +8,6 @@ namespace ASToolkit.Engine;
 
 public partial class Sprite
 {
-    [EngineRoutine(0x004446c0)]
-    internal bool SetCommand(Command command, Sprite? target = null)
-    {
-        if (Command == Command.Pause && command != Command.Pause)
-        {
-            Timer = 0;
-        }
-
-        Goal = target;
-        var link = ArmedLink;
-
-        if (link is not null && link.Vid.FightChild != 0)
-        {
-            link.SetCommand(command, target);
-        }
-
-        if (command < Command.Build && !HasGoal)
-        {
-            Command = Command.None;
-
-            return true;
-        }
-
-        Command = command;
-
-        return false;
-    }
-
-    [EngineRoutine(0x00444750)]
-    internal bool SetCommandWithoutLink(Command command, Sprite? target = null)
-    {
-        if (Command == Command.Pause && command != Command.Pause)
-        {
-            Timer = 0;
-        }
-
-        Goal = target;
-
-        if (command < Command.Build && !HasGoal)
-        {
-            Command = Command.None;
-
-            return true;
-        }
-
-        Command = command;
-
-        return false;
-    }
-
-    [EngineRoutine(0x004445d0)]
-    internal void Stop()
-    {
-        if (Command is Command.None or Command.Move)
-        {
-            SetCommandWithoutLink(Command.None);
-        }
-
-        IsMoving = false;
-        HasReachedX = false;
-        HasReachedY = false;
-        VerticalSpeed = 0;
-
-        if (Vid.Deceleration.IsExactly(Vid.Unlimited))
-        {
-            Speed = 0;
-        }
-    }
-
-    [EngineRoutine(0x004447b0)]
-    internal void Move(Sprite? target)
-    {
-        if (!SetCommandWithoutLink(Command.Move, target) && !StartMove())
-        {
-            SetCommand(Command.None);
-
-            return;
-        }
-
-        var link = Link;
-
-        if (link is not null && link.Vid == Vid.LinkVid && link.Vid.FightChild != 0 && link.Vid.WeaponIndex != 0 &&
-            link.Command is not (Command.None or Command.OneAttack))
-        {
-            link.SetCommand(Command.None);
-        }
-    }
-
-    [EngineRoutine(0x004443f0)]
-    internal bool StartMove()
-    {
-        if (MaxSpeed.IsExactlyZero())
-            return false;
-
-        var vid = Vid;
-
-        if (HasGoal)
-        {
-            var offset = GoalPosition - Position;
-
-            if (offset.X.IsExactlyZero() && offset.Y.IsExactlyZero())
-                return false;
-
-            int distance = 0;
-
-            if (Vid.Directions == 1 || vid.Properties.HasFlag(ObjectProperties.RandomBirth))
-            {
-                ChangeDirection(MeasureDirectionToGoal());
-            }
-
-            if (!vid.SpriteType.HasFlag(OldSpriteType.Cannon) && Vid.Class != SpriteClass.Cannon)
-            {
-                VerticalSpeed = offset.Z > 0 ? Vid.ZSpeed : offset.Z < 0 ? -Vid.ZSpeed : 0;
-            }
-            else
-            {
-                if (distance == 0)
-                {
-                    Angle.Aim(new Point((int)offset.X, (int)offset.Y), out distance);
-                }
-
-                if (distance == 0)
-                    return false;
-
-                VerticalSpeed = Vid.CalculateZSpeed(Map, offset.Z, distance);
-            }
-        }
-
-        IsMoving = true;
-        HasReachedX = false;
-        HasReachedY = false;
-
-        if (Animation < SpriteAnimation.Death && Animation != SpriteAnimation.StartMove)
-        {
-            ChangeAnimation(Speed.IsExactlyZero() ? SpriteAnimation.StartMove : SpriteAnimation.Go);
-        }
-
-        if (vid.Acceleration.IsExactly(Vid.Unlimited))
-        {
-            Speed = MaxSpeed;
-        }
-
-        return true;
-    }
-
     [EngineRoutine(0x0043fb10)]
     internal Vector3 MoveTactCalculateCoordinates(int elapsed)
     {
@@ -258,5 +113,150 @@ public partial class Sprite
         }
 
         return next;
+    }
+
+    [EngineRoutine(0x004443f0)]
+    internal bool StartMove()
+    {
+        if (MaxSpeed.IsExactlyZero())
+            return false;
+
+        var vid = Vid;
+
+        if (HasGoal)
+        {
+            var offset = GoalPosition - Position;
+
+            if (offset.X.IsExactlyZero() && offset.Y.IsExactlyZero())
+                return false;
+
+            int distance = 0;
+
+            if (Vid.Directions == 1 || vid.Properties.HasFlag(ObjectProperties.RandomBirth))
+            {
+                ChangeDirection(MeasureDirectionToGoal());
+            }
+
+            if (!vid.SpriteType.HasFlag(OldSpriteType.Cannon) && Vid.Class != SpriteClass.Cannon)
+            {
+                VerticalSpeed = offset.Z > 0 ? Vid.ZSpeed : offset.Z < 0 ? -Vid.ZSpeed : 0;
+            }
+            else
+            {
+                if (distance == 0)
+                {
+                    Angle.Aim(new Point((int)offset.X, (int)offset.Y), out distance);
+                }
+
+                if (distance == 0)
+                    return false;
+
+                VerticalSpeed = Vid.CalculateZSpeed(Map, offset.Z, distance);
+            }
+        }
+
+        IsMoving = true;
+        HasReachedX = false;
+        HasReachedY = false;
+
+        if (Animation < SpriteAnimation.Death && Animation != SpriteAnimation.StartMove)
+        {
+            ChangeAnimation(Speed.IsExactlyZero() ? SpriteAnimation.StartMove : SpriteAnimation.Go);
+        }
+
+        if (vid.Acceleration.IsExactly(Vid.Unlimited))
+        {
+            Speed = MaxSpeed;
+        }
+
+        return true;
+    }
+
+    [EngineRoutine(0x004445d0)]
+    internal void Stop()
+    {
+        if (Command is Command.None or Command.Move)
+        {
+            SetCommandWithoutLink(Command.None);
+        }
+
+        IsMoving = false;
+        HasReachedX = false;
+        HasReachedY = false;
+        VerticalSpeed = 0;
+
+        if (Vid.Deceleration.IsExactly(Vid.Unlimited))
+        {
+            Speed = 0;
+        }
+    }
+
+    [EngineRoutine(0x004446c0)]
+    internal bool SetCommand(Command command, Sprite? target = null)
+    {
+        if (Command == Command.Pause && command != Command.Pause)
+        {
+            Timer = 0;
+        }
+
+        Goal = target;
+        var link = ArmedLink;
+
+        if (link is not null && link.Vid.FightChild != 0)
+        {
+            link.SetCommand(command, target);
+        }
+
+        if (command < Command.Build && !HasGoal)
+        {
+            Command = Command.None;
+
+            return true;
+        }
+
+        Command = command;
+
+        return false;
+    }
+
+    [EngineRoutine(0x00444750)]
+    internal bool SetCommandWithoutLink(Command command, Sprite? target = null)
+    {
+        if (Command == Command.Pause && command != Command.Pause)
+        {
+            Timer = 0;
+        }
+
+        Goal = target;
+
+        if (command < Command.Build && !HasGoal)
+        {
+            Command = Command.None;
+
+            return true;
+        }
+
+        Command = command;
+
+        return false;
+    }
+
+    [EngineRoutine(0x004447b0)]
+    internal void Move(Sprite? target)
+    {
+        if (!SetCommandWithoutLink(Command.Move, target) && !StartMove())
+        {
+            SetCommand(Command.None);
+
+            return;
+        }
+
+        var link = Link;
+
+        if (link is not null && link.Vid == Vid.LinkVid && link.Vid.FightChild != 0 && link.Vid.WeaponIndex != 0 &&
+            link.Command is not (Command.None or Command.OneAttack))
+        {
+            link.SetCommand(Command.None);
+        }
     }
 }

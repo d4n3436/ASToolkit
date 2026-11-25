@@ -9,7 +9,6 @@ public sealed partial class Graphics
     internal const int ColorTableLength = 256;
     internal const int TextureSide = 256;
     internal const int ColorTableGroup = 8;
-    private const int GrayLength = 256;
     internal const int VideoMemory = 8000000;
     internal const VidPixelFormat DesktopFormat = VidPixelFormat.X8R8G8B8;
     internal const bool IsPowerOfTwoRequired = false;
@@ -20,12 +19,13 @@ public sealed partial class Graphics
     internal const bool IsDotProduct3Supported = true;
     internal const int DevicePixelShaderVersion = unchecked((int)0xffff0104);
 
-    private static readonly ushort[] DefaultTable = CreateColorTable(HighColorFormat.Rgb565);
-
     internal static readonly bool CanRenderWindowed = true;
     internal static readonly bool IsNonGdiDevice = false;
     internal static readonly bool CanTextureFromNonLocalVideoMemory = false;
+    private const int GrayLength = 256;
     private const int DeviceFailure = 1;
+
+    private static readonly ushort[] DefaultTable = CreateColorTable(HighColorFormat.Rgb565);
 
     private static readonly TextureStage DefaultStage = new(TextureOperation.Modulate, TextureArgument.Texture, TextureArgument.Current, TextureOperation.SelectFirst, TextureArgument.Texture, TextureArgument.Current);
 
@@ -63,6 +63,8 @@ public sealed partial class Graphics
         new(new Size(1024, 768), VidPixelFormat.R5G6B5)
     ];
 
+    private readonly DdDriver _driver = new(DeviceDisplayModes);
+
     internal static Size DeviceMaxTextureSize => new(0x8000, 0x8000);
 
     internal static ReadOnlySpan<VidPixelFormat> DeviceTextureFormats =>
@@ -72,29 +74,7 @@ public sealed partial class Graphics
         VidPixelFormat.V16U16, VidPixelFormat.Dxt1, VidPixelFormat.Dxt2, VidPixelFormat.Dxt3, VidPixelFormat.Dxt4, VidPixelFormat.Dxt5
     ];
 
-    internal int PixelShaderVersion { get; set; }
-
-    internal VidPixelFormat DisplayFormat { get; private set; }
-
-    internal int DepthWidth { get; private set; }
-
-    internal DeviceBuffers Buffers { get; } = new();
-
     internal static ReadOnlySpan<ushort> DefaultColorTable => DefaultTable;
-
-    internal Texture LightTexture => EnsureBuffers().Light!;
-
-    internal Texture HighTexture => EnsureBuffers().High!;
-
-    internal Texture AlphaTexture => EnsureBuffers().Alpha!;
-
-    internal Texture LightPhaseTexture => LightPhase == 0 ? LightTexture : HighTexture;
-
-    internal int LightPhase { get; set; }
-
-    private static uint[] GrayPalette { get; } = CreateGrayPalette();
-
-    internal TextureStage DeviceStage { get; private set; } = DefaultStage;
 
     internal static ReadOnlySpan<int> ColorTableOffsets =>
     [
@@ -107,6 +87,28 @@ public sealed partial class Graphics
         0, 0, -2,
         0, 0, 0
     ];
+
+    internal int PixelShaderVersion { get; set; }
+
+    internal VidPixelFormat DisplayFormat { get; private set; }
+
+    internal int DepthWidth { get; private set; }
+
+    internal DeviceBuffers Buffers { get; } = new();
+
+    internal Texture LightTexture => EnsureBuffers().Light!;
+
+    internal Texture HighTexture => EnsureBuffers().High!;
+
+    internal Texture AlphaTexture => EnsureBuffers().Alpha!;
+
+    internal Texture LightPhaseTexture => LightPhase == 0 ? LightTexture : HighTexture;
+
+    internal int LightPhase { get; set; }
+
+    internal TextureStage DeviceStage { get; private set; } = DefaultStage;
+
+    private static uint[] GrayPalette { get; } = CreateGrayPalette();
 
     internal static int GetDisplayBits(VidPixelFormat format) => format switch
     {
@@ -143,6 +145,24 @@ public sealed partial class Graphics
         }
     }
 
+    internal void SetTextureStageState(int stage, TextureStageState state, int value)
+    {
+        if (stage != 0)
+            return;
+
+        var current = DeviceStage;
+        DeviceStage = state switch
+        {
+            TextureStageState.ColorOperation => current with { ColorOperation = (TextureOperation)value },
+            TextureStageState.ColorArgument1 => current with { ColorArgument1 = (TextureArgument)value },
+            TextureStageState.ColorArgument2 => current with { ColorArgument2 = (TextureArgument)value },
+            TextureStageState.AlphaOperation => current with { AlphaOperation = (TextureOperation)value },
+            TextureStageState.AlphaArgument1 => current with { AlphaArgument1 = (TextureArgument)value },
+            TextureStageState.AlphaArgument2 => current with { AlphaArgument2 = (TextureArgument)value },
+            _ => current
+        };
+    }
+
     [EngineRoutine(0x00401c80)]
     internal int SetUpDevice(SizeF screenSize)
     {
@@ -156,7 +176,7 @@ public sealed partial class Graphics
         else
         {
             int bits = Flags.HasFlag(GraphicsFlags.Color32) ? 0x20 : 0x10;
-            int index = FindDisplayMode(Size.Truncate(screenSize), bits);
+            int index = _driver.GetMode(Size.Truncate(screenSize), bits);
             if (index < 0)
             {
                 Error?.Log($"Selected display mode {screenSize.Width:F0}x{screenSize.Height:F0}");
@@ -164,7 +184,7 @@ public sealed partial class Graphics
                 return DeviceFailure;
             }
 
-            format = DeviceDisplayModes[index].Format;
+            format = _driver.Modes[index].Format;
         }
 
         DisplayFormat = format;
@@ -195,41 +215,6 @@ public sealed partial class Graphics
         return 0;
     }
 
-    internal void SetTextureStageState(int stage, TextureStageState state, int value)
-    {
-        if (stage != 0)
-            return;
-
-        var current = DeviceStage;
-        DeviceStage = state switch
-        {
-            TextureStageState.ColorOperation => current with { ColorOperation = (TextureOperation)value },
-            TextureStageState.ColorArgument1 => current with { ColorArgument1 = (TextureArgument)value },
-            TextureStageState.ColorArgument2 => current with { ColorArgument2 = (TextureArgument)value },
-            TextureStageState.AlphaOperation => current with { AlphaOperation = (TextureOperation)value },
-            TextureStageState.AlphaArgument1 => current with { AlphaArgument1 = (TextureArgument)value },
-            TextureStageState.AlphaArgument2 => current with { AlphaArgument2 = (TextureArgument)value },
-            _ => current
-        };
-    }
-
-    [EngineRoutine(0x00430650)]
-    internal void ReloadPalettes()
-    {
-        var light = Buffers.Light;
-        if (light is null || light.IsEmpty || light.Format != VidPixelFormat.P8)
-            return;
-
-        light.Destruct(_session);
-        Buffers.Light = CreateBufferTexture(VidPixelFormat.P8);
-        if (Buffers.Light.IsEmpty)
-        {
-            Error?.Error(GraphicsLogTag, LogError.Create, 0, "Light at RelodPalette"u8);
-        }
-
-        Error?.Log("ReloadPalettes"u8);
-    }
-
     [EngineRoutine(0x0042eb10)]
     internal byte[] DescribeTextureStage()
     {
@@ -248,6 +233,23 @@ public sealed partial class Graphics
         text.AddRange(" Arg2="u8);
         AppendArgument(text, stage.AlphaArgument2);
         return text.ToArray();
+    }
+
+    [EngineRoutine(0x00430650)]
+    internal void ReloadPalettes()
+    {
+        var light = Buffers.Light;
+        if (light is null || light.IsEmpty || light.Format != VidPixelFormat.P8)
+            return;
+
+        light.Destruct(_session);
+        Buffers.Light = CreateBufferTexture(VidPixelFormat.P8);
+        if (Buffers.Light.IsEmpty)
+        {
+            Error?.Error(GraphicsLogTag, LogError.Create, 0, "Light at RelodPalette"u8);
+        }
+
+        Error?.Log("ReloadPalettes"u8);
     }
 
     [EngineRoutine(0x00401070)]
@@ -317,19 +319,6 @@ public sealed partial class Graphics
         TextureOperation.BlendTextureAlpha => "tex_alpha"u8,
         _ => "unknown"u8
     };
-
-    [EngineRoutine(0x00434720)]
-    private int FindDisplayMode(Size size, int bits)
-    {
-        var modes = DeviceDisplayModes;
-        for (int i = 0; i < modes.Length; i++)
-        {
-            if (modes[i].Size == size && GetDisplayBits(modes[i].Format) == bits)
-                return i;
-        }
-
-        return -1;
-    }
 
     private static uint[] CreateGrayPalette()
     {

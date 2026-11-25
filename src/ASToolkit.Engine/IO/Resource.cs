@@ -66,6 +66,53 @@ internal ref struct Resource
         return kept;
     }
 
+    public ReadOnlySpan<byte> ReadText() => ReadText(_data, ref _position);
+
+    [EngineRoutine(0x00407870)]
+    public int Open(MyError? error, ReadOnlySpan<byte> data, ReadOnlySpan<byte> kind)
+    {
+        _data = data;
+        _isOpen = true;
+        _position = 0;
+        _start = _position;
+        Span<byte> signature = stackalloc byte[TagSize];
+        if (Read(signature) != 0)
+        {
+            Log(error, LogError.Load, 0, "empty file"u8);
+            _isOpen = false;
+            return 4;
+        }
+
+        _isRes = signature.SequenceEqual("RES "u8);
+        if (!_isRes && !signature.SequenceEqual("RIFF"u8))
+        {
+            Log(error, LogError.Invalid, 0, "resource signature"u8);
+            _isOpen = false;
+            return 2;
+        }
+
+        _end = Read<int>();
+        _end += _start + ChunkHeaderSize;
+        if (_data.Length < _end)
+        {
+            Log(error, LogError.Text, _data.Length - _end, "Invalid filelength"u8);
+        }
+
+        Span<byte> type = stackalloc byte[TagSize];
+        Read(type);
+        if (!type.SequenceEqual(kind) && !kind.SequenceEqual(AnyTag))
+        {
+            _chunkTag = BinaryPrimitives.ReadInt32LittleEndian(type);
+            Log(error, LogError.Invalid, 0, "resource type"u8);
+            _isOpen = false;
+            return 3;
+        }
+
+        GoBegin(AnyTag);
+
+        return 0;
+    }
+
     [EngineRoutine(0x00407a40)]
     public int Open(IGameFileSystem fileSystem, MyError? error, ReadOnlySpan<byte> name, ReadOnlySpan<byte> kind)
     {
@@ -79,6 +126,34 @@ internal ref struct Resource
         Log(error, LogError.Open, 0, name);
 
         return 1;
+    }
+
+    [EngineRoutine(0x00407b90)]
+    public int Read(scoped Span<byte> destination)
+    {
+        if (!_isOpen || destination.IsEmpty)
+            return destination.Length;
+
+        int count = Math.Clamp(_data.Length - _position, 0, destination.Length);
+        _data.Slice(_position, count).CopyTo(destination);
+        _position += count;
+
+        return destination.Length - count;
+    }
+
+    [EngineRoutine(0x00407c50)]
+    public int ReadPacked(Span<byte> destination, RangeCoder? coder)
+    {
+        if (!_isOpen || destination.IsEmpty)
+            return destination.Length;
+
+        if (coder is null)
+            return Read(destination);
+
+        int decoded = coder.Decode(_data[Math.Min(_position, _data.Length)..], destination, out int used);
+        _position += used;
+
+        return destination.Length - decoded;
     }
 
     [EngineRoutine(0x00407cf0)]
@@ -155,19 +230,29 @@ internal ref struct Resource
         return Found;
     }
 
-    [EngineRoutine(0x00408280)]
-    public int CountRecords(ReadOnlySpan<byte> tag)
+    [EngineRoutine(0x00408080)]
+    public int SubLoad(MyError? error, out byte[] block)
     {
+        block = [];
         if (!_isOpen)
-            return 0;
-
-        int count = 0;
-        for (int found = GoBegin(tag); found == Found; found = GoNext(tag))
         {
-            count += _recordCount;
+            Log(error, LogError.Load, 0, "file not opened"u8);
+            return 0;
         }
 
-        return count;
+        if (_recordLength < 1)
+        {
+            Log(error, LogError.Section, 0, "SubLoad"u8);
+            return 0;
+        }
+
+        block = new byte[_recordLength];
+        if (Read(block) != 0)
+        {
+            Log(error, LogError.Load, 0, "Subload"u8);
+        }
+
+        return _recordLength;
     }
 
     /// <summary>
@@ -206,57 +291,13 @@ internal ref struct Resource
         return records;
     }
 
-    [EngineRoutine(0x00408080)]
-    public int SubLoad(MyError? error, out byte[] block)
+    public void ReadInto<T>(ref T value)
+        where T : unmanaged
     {
-        block = [];
-        if (!_isOpen)
+        if (TryRead(out T read))
         {
-            Log(error, LogError.Load, 0, "file not opened"u8);
-            return 0;
+            value = read;
         }
-
-        if (_recordLength < 1)
-        {
-            Log(error, LogError.Section, 0, "SubLoad"u8);
-            return 0;
-        }
-
-        block = new byte[_recordLength];
-        if (Read(block) != 0)
-        {
-            Log(error, LogError.Load, 0, "Subload"u8);
-        }
-
-        return _recordLength;
-    }
-
-    [EngineRoutine(0x00407b90)]
-    public int Read(scoped Span<byte> destination)
-    {
-        if (!_isOpen || destination.IsEmpty)
-            return destination.Length;
-
-        int count = Math.Clamp(_data.Length - _position, 0, destination.Length);
-        _data.Slice(_position, count).CopyTo(destination);
-        _position += count;
-
-        return destination.Length - count;
-    }
-
-    [EngineRoutine(0x00407c50)]
-    public int ReadPacked(Span<byte> destination, RangeCoder? coder)
-    {
-        if (!_isOpen || destination.IsEmpty)
-            return destination.Length;
-
-        if (coder is null)
-            return Read(destination);
-
-        int decoded = coder.Decode(_data[Math.Min(_position, _data.Length)..], destination, out int used);
-        _position += used;
-
-        return destination.Length - decoded;
     }
 
     public T Read<T>()
@@ -287,60 +328,19 @@ internal ref struct Resource
         return Read(MemoryMarshal.AsBytes(new Span<T>(ref value))) == 0;
     }
 
-    public void ReadInto<T>(ref T value)
-        where T : unmanaged
+    [EngineRoutine(0x00408280)]
+    public int CountRecords(ReadOnlySpan<byte> tag)
     {
-        if (TryRead(out T read))
-        {
-            value = read;
-        }
-    }
+        if (!_isOpen)
+            return 0;
 
-    public ReadOnlySpan<byte> ReadText() => ReadText(_data, ref _position);
-
-    [EngineRoutine(0x00407870)]
-    public int Open(MyError? error, ReadOnlySpan<byte> data, ReadOnlySpan<byte> kind)
-    {
-        _data = data;
-        _isOpen = true;
-        _position = 0;
-        _start = _position;
-        Span<byte> signature = stackalloc byte[TagSize];
-        if (Read(signature) != 0)
+        int count = 0;
+        for (int found = GoBegin(tag); found == Found; found = GoNext(tag))
         {
-            Log(error, LogError.Load, 0, "empty file"u8);
-            _isOpen = false;
-            return 4;
+            count += _recordCount;
         }
 
-        _isRes = signature.SequenceEqual("RES "u8);
-        if (!_isRes && !signature.SequenceEqual("RIFF"u8))
-        {
-            Log(error, LogError.Invalid, 0, "resource signature"u8);
-            _isOpen = false;
-            return 2;
-        }
-
-        _end = Read<int>();
-        _end += _start + ChunkHeaderSize;
-        if (_data.Length < _end)
-        {
-            Log(error, LogError.Text, _data.Length - _end, "Invalid filelength"u8);
-        }
-
-        Span<byte> type = stackalloc byte[TagSize];
-        Read(type);
-        if (!type.SequenceEqual(kind) && !kind.SequenceEqual(AnyTag))
-        {
-            _chunkTag = BinaryPrimitives.ReadInt32LittleEndian(type);
-            Log(error, LogError.Invalid, 0, "resource type"u8);
-            _isOpen = false;
-            return 3;
-        }
-
-        GoBegin(AnyTag);
-
-        return 0;
+        return count;
     }
 
     private readonly void Log(MyError? error, LogError code, int value, ReadOnlySpan<byte> text)

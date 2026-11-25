@@ -91,6 +91,46 @@ public sealed class Texture
 
     private static ReadOnlySpan<byte> TextureLogTag => "TEXTURE"u8;
 
+    /// <summary>
+    /// Returns the texels of the texture from a given texel to its end.
+    /// </summary>
+    /// <param name="origin">The first texel of the area, or <see langword="null"/> for the whole texture.</param>
+    /// <param name="pitch">The number of bytes from the start of one row to the next.</param>
+    /// <returns>The texels from the first texel of the area to the end of the texture.</returns>
+    [EngineRoutine(0x00403a40)]
+    public Span<ushort> Lock(Point? origin, out int pitch) => View.Lock(origin, out pitch);
+
+    /// <summary>
+    /// Draws a rectangle of the texture to the screen as a quad that lies in front of everything, with a gamma applied.
+    /// </summary>
+    /// <param name="screen">The screen to draw to.</param>
+    /// <param name="destination">The area of the screen.</param>
+    /// <param name="source">The area of the texture.</param>
+    /// <param name="gamma">The gamma that darkens the texels and then brightens them.</param>
+    /// <param name="blend">How the quad combines with the colors underneath.</param>
+    /// <param name="isAlphaModulated">Whether the alpha of the texels is multiplied by the alpha of the gamma's inverted reductions.</param>
+    /// <param name="minimumAlpha">The alpha that a texel needs to be drawn, after the modulation.</param>
+    /// <exception cref="NotSupportedException">The texture is DXT-compressed.</exception>
+    [EngineRoutine(0x00403ae0)]
+    public void DrawFlatQuad(Screen screen, Rectangle destination, Rectangle source, Gamma gamma, QuadBlend blend, bool isAlphaModulated = false, int minimumAlpha = 0) =>
+        View.DrawFlatQuad(screen, destination, source, gamma, blend, isAlphaModulated, minimumAlpha);
+
+    /// <summary>
+    /// Draws a rectangle of the texture to the screen as a quad, with a gamma applied.
+    /// </summary>
+    /// <param name="screen">The screen to draw to.</param>
+    /// <param name="destination">The area of the screen.</param>
+    /// <param name="source">The area of the texture.</param>
+    /// <param name="gamma">The gamma that darkens the texels and then brightens them.</param>
+    /// <param name="blend">How the quad combines with the colors underneath.</param>
+    /// <param name="isDoubled">Whether the texels are doubled after the gamma and before they are blended.</param>
+    /// <param name="topDepth">The depth of the vertices on the top edge of the quad.</param>
+    /// <param name="bottomDepth">The depth of the vertices on the bottom edge of the quad.</param>
+    /// <exception cref="NotSupportedException">The texture is DXT-compressed.</exception>
+    [EngineRoutine(0x00403dd0)]
+    public void DrawQuad(Screen screen, Rectangle destination, Rectangle source, Gamma gamma, QuadBlend blend, bool isDoubled = false, float topDepth = 0, float bottomDepth = 0) =>
+        View.DrawQuad(screen, destination, source, gamma, blend, isDoubled, topDepth, bottomDepth);
+
     [EngineRoutine(0x00402fa0)]
     internal static string SetDeviceCapabilities(GameSession session)
     {
@@ -186,6 +226,44 @@ public sealed class Texture
 
         _systemTexels = [];
     }
+
+    [EngineRoutine(0x00403970)]
+    internal int CopyFromSurface(Screen surface, Rectangle source, Point destination, MyError? error)
+    {
+        var view = View;
+        int result = surface.IsTrueColor
+            ? view.LoadTexels(new Rectangle(destination, source.Size), MemoryMarshal.AsBytes(surface.TrueColorPixels), VidPixelFormat.X8R8G8B8, surface.Pitch * sizeof(uint), surface.Size, source, Direct3DTexture.DefaultFilter, 0)
+            : view.LoadTexels(new Rectangle(destination, source.Size), MemoryMarshal.AsBytes(surface.HighColorPixels), surface.Format.IsRgb555 ? VidPixelFormat.X1R5G5B5 : VidPixelFormat.R5G6B5, surface.Pitch * sizeof(ushort), surface.Size, source, Direct3DTexture.DefaultFilter, 0);
+        if (result != 0)
+        {
+            error?.Error(TextureLogTag, LogError.Copy, result);
+        }
+
+        return result;
+    }
+
+    [EngineRoutine(0x004040c0)]
+    internal void SetPalette(ReadOnlySpan<uint> colors, GameSession session)
+    {
+        if (_deviceTexels.Length == 0)
+        {
+            session.Error.Error(TextureLogTag, LogError.Set, 0, "palette for non initialized texture"u8);
+            return;
+        }
+
+        if (Format != VidPixelFormat.P8)
+        {
+            session.Error.Error(TextureLogTag, LogError.Set, 0, "palette for non palette texture"u8);
+            return;
+        }
+
+        Palette = colors.ToArray();
+        PaletteNumber = session.TexturePaletteCount++;
+    }
+
+    private static VidPixelFormat ReplacePalette(VidPixelFormat format, GameSession session) => format == VidPixelFormat.P8 && !session.IsTexturePaletteSupported ? VidPixelFormat.R5G6B5 : format;
+
+    private static int GetTexelBytes(VidPixelFormat format) => format == VidPixelFormat.P8 ? PaletteTexelBytes : ColorTexelBytes;
 
     [EngineRoutine(0x004036b0)]
     private void Create(Size size, VidPixelFormat format, TextureFlags flags, GameSession session)
@@ -295,82 +373,4 @@ public sealed class Texture
             ? new ushort[(width + BlockSize - 1) / BlockSize * (format == VidPixelFormat.Dxt1 ? 8 : 16) * ((height + BlockSize - 1) / BlockSize) / sizeof(ushort)]
             : new ushort[width * height * (Direct3DTexture.Is32Bit(format) ? 2 : 1)];
     }
-
-    [EngineRoutine(0x00403970)]
-    internal int CopyFromSurface(Screen surface, Rectangle source, Point destination, MyError? error)
-    {
-        var view = View;
-        int result = surface.IsTrueColor
-            ? view.LoadTexels(new Rectangle(destination, source.Size), MemoryMarshal.AsBytes(surface.TrueColorPixels), VidPixelFormat.X8R8G8B8, surface.Pitch * sizeof(uint), surface.Size, source, Direct3DTexture.DefaultFilter, 0)
-            : view.LoadTexels(new Rectangle(destination, source.Size), MemoryMarshal.AsBytes(surface.HighColorPixels), surface.Format.IsRgb555 ? VidPixelFormat.X1R5G5B5 : VidPixelFormat.R5G6B5, surface.Pitch * sizeof(ushort), surface.Size, source, Direct3DTexture.DefaultFilter, 0);
-        if (result != 0)
-        {
-            error?.Error(TextureLogTag, LogError.Copy, result);
-        }
-
-        return result;
-    }
-
-    /// <summary>
-    /// Returns the texels of the texture from a given texel to its end.
-    /// </summary>
-    /// <param name="origin">The first texel of the area, or <see langword="null"/> for the whole texture.</param>
-    /// <param name="pitch">The number of bytes from the start of one row to the next.</param>
-    /// <returns>The texels from the first texel of the area to the end of the texture.</returns>
-    [EngineRoutine(0x00403a40)]
-    public Span<ushort> Lock(Point? origin, out int pitch) => View.Lock(origin, out pitch);
-
-    /// <summary>
-    /// Draws a rectangle of the texture to the screen as a quad that lies in front of everything, with a gamma applied.
-    /// </summary>
-    /// <param name="screen">The screen to draw to.</param>
-    /// <param name="destination">The area of the screen.</param>
-    /// <param name="source">The area of the texture.</param>
-    /// <param name="gamma">The gamma that darkens the texels and then brightens them.</param>
-    /// <param name="blend">How the quad combines with the colors underneath.</param>
-    /// <param name="isAlphaModulated">Whether the alpha of the texels is multiplied by the alpha of the gamma's inverted reductions.</param>
-    /// <param name="minimumAlpha">The alpha that a texel needs to be drawn, after the modulation.</param>
-    /// <exception cref="NotSupportedException">The texture is DXT-compressed.</exception>
-    [EngineRoutine(0x00403ae0)]
-    public void DrawFlatQuad(Screen screen, Rectangle destination, Rectangle source, Gamma gamma, QuadBlend blend, bool isAlphaModulated = false, int minimumAlpha = 0) =>
-        View.DrawFlatQuad(screen, destination, source, gamma, blend, isAlphaModulated, minimumAlpha);
-
-    /// <summary>
-    /// Draws a rectangle of the texture to the screen as a quad, with a gamma applied.
-    /// </summary>
-    /// <param name="screen">The screen to draw to.</param>
-    /// <param name="destination">The area of the screen.</param>
-    /// <param name="source">The area of the texture.</param>
-    /// <param name="gamma">The gamma that darkens the texels and then brightens them.</param>
-    /// <param name="blend">How the quad combines with the colors underneath.</param>
-    /// <param name="isDoubled">Whether the texels are doubled after the gamma and before they are blended.</param>
-    /// <param name="topDepth">The depth of the vertices on the top edge of the quad.</param>
-    /// <param name="bottomDepth">The depth of the vertices on the bottom edge of the quad.</param>
-    /// <exception cref="NotSupportedException">The texture is DXT-compressed.</exception>
-    [EngineRoutine(0x00403dd0)]
-    public void DrawQuad(Screen screen, Rectangle destination, Rectangle source, Gamma gamma, QuadBlend blend, bool isDoubled = false, float topDepth = 0, float bottomDepth = 0) =>
-        View.DrawQuad(screen, destination, source, gamma, blend, isDoubled, topDepth, bottomDepth);
-
-    [EngineRoutine(0x004040c0)]
-    internal void SetPalette(ReadOnlySpan<uint> colors, GameSession session)
-    {
-        if (_deviceTexels.Length == 0)
-        {
-            session.Error.Error(TextureLogTag, LogError.Set, 0, "palette for non initialized texture"u8);
-            return;
-        }
-
-        if (Format != VidPixelFormat.P8)
-        {
-            session.Error.Error(TextureLogTag, LogError.Set, 0, "palette for non palette texture"u8);
-            return;
-        }
-
-        Palette = colors.ToArray();
-        PaletteNumber = session.TexturePaletteCount++;
-    }
-
-    private static int GetTexelBytes(VidPixelFormat format) => format == VidPixelFormat.P8 ? PaletteTexelBytes : ColorTexelBytes;
-
-    private static VidPixelFormat ReplacePalette(VidPixelFormat format, GameSession session) => format == VidPixelFormat.P8 && !session.IsTexturePaletteSupported ? VidPixelFormat.R5G6B5 : format;
 }

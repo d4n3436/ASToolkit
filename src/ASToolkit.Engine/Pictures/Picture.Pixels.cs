@@ -58,27 +58,75 @@ public partial class Picture
         return (short)(depth + NoDepth);
     }
 
-    [EngineRoutine(0x0042c790)]
-    private bool IsOpaque(Point point)
+    [EngineRoutine(0x004291d0)]
+    private short GetRegionDepth(Rectangle area)
     {
-        if (!Colors.Image.Contains(point))
-            return false;
+        var corner = new Point(area.Right - 1, area.Bottom - 1);
+        if (IsOpaque(corner))
+            return GetDepth(corner);
 
-        if (Depth.Image.HasPixels && Depth.Format == PictureFormat.Z)
+        for (int y = area.Top; y < area.Bottom; y++)
         {
-            if ((ushort)Depth.Image.GetPixel(point) == EmptyDepth)
-                return false;
-
-            if (Flags.HasFlag(PictureFlags.Hardware) && Flags.HasFlag(PictureFlags.Alpha) && Flags.HasFlag(PictureFlags.Depth))
-                return Flags.HasFlag(PictureFlags.Color) ? GetAlpha(point) >> 4 != 0 : (GetHighColor(point) & 0xfff) != 0;
-
-            return true;
+            for (int x = area.Left; x < area.Right; x++)
+            {
+                if (IsOpaque(new Point(x, y)))
+                    return GetDepth(new Point(x, y));
+            }
         }
 
-        if (Flags.HasFlag(PictureFlags.Alpha) && Flags.HasFlag(PictureFlags.Color))
-            return GetAlpha(point) >> 4 != 0;
+        return 0;
+    }
 
-        return (GetColor(point) & OpaqueMask) != 0;
+    [EngineRoutine(0x00429270)]
+    private int FindPaletteIndex(uint color)
+    {
+        if (_paletteMap.Length == 0)
+        {
+            int index = 0;
+            int nearest = 9999999;
+            for (int entry = 0; entry < PaletteSize; entry++)
+            {
+                uint other = _palette[entry];
+                int red = (int)(color >> 19 & 0x1f) - (int)(other >> 19 & 0x1f);
+                int blue = (int)(color >> 3 & 0x1f) - (int)(other >> 3 & 0x1f);
+                int alpha = (int)(color / 0xf000000) - (int)(other / 0xf000000);
+                int green = (int)(color >> 10 & 0x3f) - (int)(other >> 10 & 0x3f);
+                int distance = red * red * 0x36640 + blue * blue * 0x790 + alpha * alpha * 0x1a5e + green * green * 0x3840;
+                if (distance < nearest)
+                {
+                    index = entry;
+                    nearest = distance;
+                }
+            }
+
+            return index;
+        }
+
+        return _paletteMap[(int)((((color & 0xfc00 | color >> 3 & 0x1f0000) >> 2 | color & 0xf8) >> 3) * 0x10 + (color >> 28))];
+    }
+
+    [EngineRoutine(0x004293f0)]
+    private void SetPaletteIndex(uint color, byte index)
+    {
+        if (_paletteMap.Length == 0)
+            return;
+
+        int position = (int)((((color & 0xfc00 | color >> 3 & 0x1f0000) >> 2 | color & 0xf8) >> 3) * 0x10 + (color >> 28));
+        byte current = _paletteMap[position];
+        if (current != 0 && current != index)
+        {
+            for (int cell = 0; cell < PaletteMapSize; cell++)
+            {
+                if (_paletteMap[cell] == current)
+                {
+                    _paletteMap[cell] = index;
+                }
+            }
+
+            return;
+        }
+
+        _paletteMap[position] = index;
     }
 
     [EngineRoutine(0x00429480)]
@@ -138,58 +186,6 @@ public partial class Picture
         }
 
         return Colors.Image.GetPixel(point);
-    }
-
-    [EngineRoutine(0x00429270)]
-    private int FindPaletteIndex(uint color)
-    {
-        if (_paletteMap.Length == 0)
-        {
-            int index = 0;
-            int nearest = 9999999;
-            for (int entry = 0; entry < PaletteSize; entry++)
-            {
-                uint other = _palette[entry];
-                int red = (int)(color >> 19 & 0x1f) - (int)(other >> 19 & 0x1f);
-                int blue = (int)(color >> 3 & 0x1f) - (int)(other >> 3 & 0x1f);
-                int alpha = (int)(color / 0xf000000) - (int)(other / 0xf000000);
-                int green = (int)(color >> 10 & 0x3f) - (int)(other >> 10 & 0x3f);
-                int distance = red * red * 0x36640 + blue * blue * 0x790 + alpha * alpha * 0x1a5e + green * green * 0x3840;
-                if (distance < nearest)
-                {
-                    index = entry;
-                    nearest = distance;
-                }
-            }
-
-            return index;
-        }
-
-        return _paletteMap[(int)((((color & 0xfc00 | color >> 3 & 0x1f0000) >> 2 | color & 0xf8) >> 3) * 0x10 + (color >> 28))];
-    }
-
-    [EngineRoutine(0x004293f0)]
-    private void SetPaletteIndex(uint color, byte index)
-    {
-        if (_paletteMap.Length == 0)
-            return;
-
-        int position = (int)((((color & 0xfc00 | color >> 3 & 0x1f0000) >> 2 | color & 0xf8) >> 3) * 0x10 + (color >> 28));
-        byte current = _paletteMap[position];
-        if (current != 0 && current != index)
-        {
-            for (int cell = 0; cell < PaletteMapSize; cell++)
-            {
-                if (_paletteMap[cell] == current)
-                {
-                    _paletteMap[cell] = index;
-                }
-            }
-
-            return;
-        }
-
-        _paletteMap[position] = index;
     }
 
     [EngineRoutine(0x00429760)]
@@ -279,6 +275,29 @@ public partial class Picture
         return Rectangle.FromLTRB(left, top, right, bottom);
     }
 
+    [EngineRoutine(0x0042c790)]
+    private bool IsOpaque(Point point)
+    {
+        if (!Colors.Image.Contains(point))
+            return false;
+
+        if (Depth.Image.HasPixels && Depth.Format == PictureFormat.Z)
+        {
+            if ((ushort)Depth.Image.GetPixel(point) == EmptyDepth)
+                return false;
+
+            if (Flags.HasFlag(PictureFlags.Hardware) && Flags.HasFlag(PictureFlags.Alpha) && Flags.HasFlag(PictureFlags.Depth))
+                return Flags.HasFlag(PictureFlags.Color) ? GetAlpha(point) >> 4 != 0 : (GetHighColor(point) & 0xfff) != 0;
+
+            return true;
+        }
+
+        if (Flags.HasFlag(PictureFlags.Alpha) && Flags.HasFlag(PictureFlags.Color))
+            return GetAlpha(point) >> 4 != 0;
+
+        return (GetColor(point) & OpaqueMask) != 0;
+    }
+
     [EngineRoutine(0x0042c860)]
     private bool HasOpaque(Rectangle area)
     {
@@ -292,24 +311,5 @@ public partial class Picture
         }
 
         return false;
-    }
-
-    [EngineRoutine(0x004291d0)]
-    private short GetRegionDepth(Rectangle area)
-    {
-        var corner = new Point(area.Right - 1, area.Bottom - 1);
-        if (IsOpaque(corner))
-            return GetDepth(corner);
-
-        for (int y = area.Top; y < area.Bottom; y++)
-        {
-            for (int x = area.Left; x < area.Right; x++)
-            {
-                if (IsOpaque(new Point(x, y)))
-                    return GetDepth(new Point(x, y));
-            }
-        }
-
-        return 0;
     }
 }

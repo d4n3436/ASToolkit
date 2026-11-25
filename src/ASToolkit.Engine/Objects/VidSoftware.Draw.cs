@@ -1,5 +1,6 @@
 using System.Drawing;
 using System.Numerics;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using ASToolkit.Core;
 using ASToolkit.Formats;
@@ -19,8 +20,68 @@ public partial class VidSoftware
     private protected const int PaletteScratchSize = 1024;
     private protected const int AlphaShift = 24;
     private protected const int Cell = 8;
+    private const uint OutlineShadeColor = 0xa4a4a4;
+    private const uint OutlineLightColor = 0x8f8f8f;
+
+    private static readonly Size OutlineMargin = new(200, 100);
+    private static readonly Vector2 OutlineSlant = new(0.35f, 0.7f);
 
     private bool HasSlope => Size.Y < Size.Z;
+
+    /// <summary>
+    /// Draws a run of palette entries to 32-bit pixels where the depth buffer is below the key.
+    /// </summary>
+    /// <param name="colors">The 32-bit pixels to draw to.</param>
+    /// <param name="depths">The depth buffer of <paramref name="colors"/>.</param>
+    /// <param name="palette">The palette, with 32-bit entries.</param>
+    /// <param name="indexes">The palette indexes of the run.</param>
+    /// <param name="depthIndex">The index of the run's first depth value.</param>
+    /// <param name="colorIndex">The index of the run's first pixel.</param>
+    /// <param name="count">The number of pixels; a run of zero pixels still draws one.</param>
+    /// <param name="key">The depth of the sprite.</param>
+    [EngineRoutine(0x004165c0)]
+    public static void DrawPaletteRun(Span<uint> colors, Span<ushort> depths, ReadOnlySpan<uint> palette, ReadOnlySpan<byte> indexes, int depthIndex, int colorIndex, int count, short key)
+    {
+        int i = 0;
+        bool more;
+        do
+        {
+            if ((short)depths[depthIndex + i] < key)
+            {
+                depths[depthIndex + i] = (ushort)key;
+                colors[colorIndex + i] = palette[indexes[i]];
+            }
+
+            i++;
+            more = 0 < count;
+            count--;
+        }
+        while (count != 0 && more);
+    }
+
+    /// <summary>
+    /// Blends a run of palette entries over 32-bit pixels where the depth buffer does not exceed the key, without changing the depth buffer.
+    /// </summary>
+    /// <param name="colors">The 32-bit pixels to draw to.</param>
+    /// <param name="depths">The depth buffer of <paramref name="colors"/>.</param>
+    /// <param name="palette">The palette, with 32-bit entries.</param>
+    /// <param name="indexes">The palette indexes of the run.</param>
+    /// <param name="depthIndex">The index of the run's first depth value.</param>
+    /// <param name="colorIndex">The index of the run's first pixel.</param>
+    /// <param name="count">The number of pixels.</param>
+    /// <param name="key">The depth of the sprite.</param>
+    [EngineRoutine(0x00416600)]
+    public static void BlendRun32(Span<uint> colors, ReadOnlySpan<ushort> depths, ReadOnlySpan<uint> palette, ReadOnlySpan<byte> indexes, int depthIndex, int colorIndex, int count, ushort key)
+    {
+        for (int i = 0; i < count; i++)
+        {
+            if (depths[depthIndex + i] <= key)
+            {
+                uint entry = palette[indexes[i]];
+                colors[colorIndex + i] = BlendColor(colors[colorIndex + i], entry, (int)(entry >> AlphaShift));
+            }
+        }
+    }
 
     /// <summary>
     /// Blends a color over another with the alpha of the source.
@@ -68,61 +129,6 @@ public partial class VidSoftware
     }
 
     /// <summary>
-    /// Blends a run of palette entries over 32-bit pixels where the depth buffer does not exceed the key, without changing the depth buffer.
-    /// </summary>
-    /// <param name="colors">The 32-bit pixels to draw to.</param>
-    /// <param name="depths">The depth buffer of <paramref name="colors"/>.</param>
-    /// <param name="palette">The palette, with 32-bit entries.</param>
-    /// <param name="indexes">The palette indexes of the run.</param>
-    /// <param name="depthIndex">The index of the run's first depth value.</param>
-    /// <param name="colorIndex">The index of the run's first pixel.</param>
-    /// <param name="count">The number of pixels.</param>
-    /// <param name="key">The depth of the sprite.</param>
-    [EngineRoutine(0x00416600)]
-    public static void BlendRun32(Span<uint> colors, ReadOnlySpan<ushort> depths, ReadOnlySpan<uint> palette, ReadOnlySpan<byte> indexes, int depthIndex, int colorIndex, int count, ushort key)
-    {
-        for (int i = 0; i < count; i++)
-        {
-            if (depths[depthIndex + i] <= key)
-            {
-                uint entry = palette[indexes[i]];
-                colors[colorIndex + i] = BlendColor(colors[colorIndex + i], entry, (int)(entry >> AlphaShift));
-            }
-        }
-    }
-
-    /// <summary>
-    /// Draws a run of palette entries to 32-bit pixels where the depth buffer is below the key.
-    /// </summary>
-    /// <param name="colors">The 32-bit pixels to draw to.</param>
-    /// <param name="depths">The depth buffer of <paramref name="colors"/>.</param>
-    /// <param name="palette">The palette, with 32-bit entries.</param>
-    /// <param name="indexes">The palette indexes of the run.</param>
-    /// <param name="depthIndex">The index of the run's first depth value.</param>
-    /// <param name="colorIndex">The index of the run's first pixel.</param>
-    /// <param name="count">The number of pixels; a run of zero pixels still draws one.</param>
-    /// <param name="key">The depth of the sprite.</param>
-    [EngineRoutine(0x004165c0)]
-    public static void DrawPaletteRun(Span<uint> colors, Span<ushort> depths, ReadOnlySpan<uint> palette, ReadOnlySpan<byte> indexes, int depthIndex, int colorIndex, int count, short key)
-    {
-        int i = 0;
-        bool more;
-        do
-        {
-            if ((short)depths[depthIndex + i] < key)
-            {
-                depths[depthIndex + i] = (ushort)key;
-                colors[colorIndex + i] = palette[indexes[i]];
-            }
-
-            i++;
-            more = 0 < count;
-            count--;
-        }
-        while (count != 0 && more);
-    }
-
-    /// <summary>
     /// Draws a sprite with 32-bit pixels from its runs.
     /// </summary>
     /// <param name="screen">The screen to draw to.</param>
@@ -143,6 +149,57 @@ public partial class VidSoftware
         Span<byte> scratch = stackalloc byte[PaletteScratchSize];
         var target = new RunTarget<uint>(screen.TrueColorPixels, screen.Pitch, screen.Depth, screen.DepthWidth, screen.Viewport, screen.Format);
         DrawRuns(target, SelectPalette(map, sprite, scratch), origin, depth, rows);
+    }
+
+    /// <inheritdoc/>
+    [EngineRoutine(0x00418640)]
+    public override void DrawOutline(Screen screen, Map map, Sprite sprite, Vector2 shift)
+    {
+        if (Frames.IsEmpty || FrameOffsets.Length == 0 || IsHidden)
+            return;
+
+        int halfWidth = FrameSize.Width / 2;
+        int halfHeight = FrameSize.Height / 2;
+        var origin = new Vector2(sprite.Position.X - shift.X - halfWidth, sprite.Position.Y - sprite.Position.Z - shift.Y - halfHeight);
+        var viewport = screen.Viewport;
+        if ((int)origin.X + FrameSize.Width + OutlineMargin.Width < viewport.Left || (int)origin.X >= viewport.Right)
+            return;
+
+        if ((int)origin.Y + FrameSize.Height + OutlineMargin.Height < viewport.Top || (int)origin.Y >= viewport.Bottom)
+            return;
+
+        origin.Y += sprite.Position.Z;
+        float z = sprite.Position.Z;
+        if (Properties.HasFlag(ObjectProperties.Wave))
+        {
+            z = new Angle((byte)(map.CurrentTime >> WaveTimeShift & WaveTableMask)).Sine * TopZ + z;
+        }
+
+        int record = FrameOffsets[sprite.Frame];
+        int count = MemoryMarshal.AsRef<VidFrameHeader>(Frames[record..]).ExtraCount;
+        if (count == 0)
+            return;
+
+        var points = MemoryMarshal.Cast<byte, VidOutlinePoint>(Frames[(record + Unsafe.SizeOf<VidFrameHeader>())..]);
+        Span<Vector2> vertices = new Vector2[count * 2 + 2];
+        for (int i = 0; i < count; i++)
+        {
+            ref readonly var point = ref points[i];
+            float pointZ = point.Z + z;
+            float baseX = point.X + origin.X;
+            float baseY = point.Y + origin.Y;
+            vertices[i * 2] = new Vector2(baseX, baseY - pointZ);
+            vertices[i * 2 + 1] = new Vector2(pointZ * OutlineSlant.X + baseX, baseY - pointZ * OutlineSlant.Y);
+        }
+
+        vertices[count * 2] = vertices[0];
+        vertices[count * 2 + 1] = vertices[1];
+        var graphics = map.Session.Graphics;
+        graphics.SetRenderState(RenderState.SpecularEnable, 0);
+        graphics.SetAlphaBlend(BlendFactor.Zero, BlendFactor.SourceColor);
+        ScreenPrimitives.FillTriangleStrip(screen, vertices, OutlineShadeColor, graphics.Blend.Source, graphics.Blend.Destination, CullMode.CounterClockwise);
+        graphics.SetAlphaBlend(BlendFactor.DestinationColor, BlendFactor.One);
+        ScreenPrimitives.FillTriangleStrip(screen, vertices, OutlineLightColor, graphics.Blend.Source, graphics.Blend.Destination, CullMode.Clockwise);
     }
 
     private protected Point GetScreenOrigin(Sprite sprite, Vector2 shift) =>

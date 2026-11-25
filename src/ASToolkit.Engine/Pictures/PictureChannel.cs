@@ -38,6 +38,18 @@ public sealed class PictureChannel : IDisposable
     public PictureFormat Format { get; private set; }
 
     /// <summary>
+    /// Goes to the next frame of the image.
+    /// </summary>
+    [EngineRoutine(0x00412660)]
+    public void Advance() => Image.Advance();
+
+    /// <summary>
+    /// Goes back to the first frame of the image.
+    /// </summary>
+    [EngineRoutine(0x00412670)]
+    public void Rewind() => Image.Rewind();
+
+    /// <summary>
     /// Releases the image.
     /// </summary>
     [EngineRoutine(0x00412680)]
@@ -85,18 +97,6 @@ public sealed class PictureChannel : IDisposable
 
         return Format != PictureFormat.None && Image.Load(path);
     }
-
-    /// <summary>
-    /// Goes to the next frame of the image.
-    /// </summary>
-    [EngineRoutine(0x00412660)]
-    public void Advance() => Image.Advance();
-
-    /// <summary>
-    /// Goes back to the first frame of the image.
-    /// </summary>
-    [EngineRoutine(0x00412670)]
-    public void Rewind() => Image.Rewind();
 
     private static bool HasExtension(string path, string extension) => path.Contains(extension, StringComparison.Ordinal) || path.Contains(extension.ToUpperInvariant(), StringComparison.Ordinal);
 }

@@ -41,43 +41,6 @@ public sealed class VidHardwareLayer : Vid
         Textures = source.Textures;
     }
 
-    [EngineRoutine(0x004128a0)]
-    internal override Vid CreateMirror() => new VidHardwareLayer(this);
-
-    [EngineRoutine(0x0041b990)]
-    internal override void Destruct(GameSession session)
-    {
-        if (NextMirror == this)
-        {
-            for (int frame = 0; frame < Textures.Length; frame++)
-            {
-                var texture = Textures[frame];
-                if (texture is null || texture.IsEmpty)
-                    continue;
-
-                bool isRepeated = false;
-                for (int earlier = 0; earlier < frame; earlier++)
-                {
-                    if (ReferenceEquals(Textures[earlier], Textures[frame]))
-                    {
-                        isRepeated = true;
-                        break;
-                    }
-                }
-
-                if (isRepeated)
-                    continue;
-
-                texture.Destruct(session);
-            }
-
-            Textures = [];
-            Meshes = [];
-        }
-
-        base.Destruct(session);
-    }
-
     /// <summary>
     /// Gets the mesh of each frame, in the order of the records of the sprite file.
     /// </summary>
@@ -92,6 +55,10 @@ public sealed class VidHardwareLayer : Vid
     /// Gets the pixel format of the frames' texels in the sprite file.
     /// </summary>
     public VidPixelFormat Format { get; private set; }
+
+    /// <inheritdoc/>
+    [EngineRoutine(0x0041bde0)]
+    public override void SetLayer() => Layer = ObjectLayer.Hardware;
 
     /// <summary>
     /// Draws a sprite with the frames of this object ID as meshes placed by the position, scale and offset of the sprite.
@@ -172,9 +139,42 @@ public sealed class VidHardwareLayer : Vid
         Meshes[sprite.Frame].Draw(screen, Textures[sprite.Frame]!.View, transform, graphics.Blend, ~gamma.Negative);
     }
 
-    /// <inheritdoc/>
-    [EngineRoutine(0x0041bde0)]
-    public override void SetLayer() => Layer = ObjectLayer.Hardware;
+    [EngineRoutine(0x004128a0)]
+    internal override Vid CreateMirror() => new VidHardwareLayer(this);
+
+    [EngineRoutine(0x0041b990)]
+    internal override void Destruct(GameSession session)
+    {
+        if (NextMirror == this)
+        {
+            for (int frame = 0; frame < Textures.Length; frame++)
+            {
+                var texture = Textures[frame];
+                if (texture is null || texture.IsEmpty)
+                    continue;
+
+                bool isRepeated = false;
+                for (int earlier = 0; earlier < frame; earlier++)
+                {
+                    if (ReferenceEquals(Textures[earlier], Textures[frame]))
+                    {
+                        isRepeated = true;
+                        break;
+                    }
+                }
+
+                if (isRepeated)
+                    continue;
+
+                texture.Destruct(session);
+            }
+
+            Textures = [];
+            Meshes = [];
+        }
+
+        base.Destruct(session);
+    }
 
     [EngineRoutine(0x0041baf0)]
     internal override void Load(in VidResource file, ReadOnlyMemory<byte> data, GameSession session)

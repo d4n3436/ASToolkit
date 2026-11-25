@@ -163,16 +163,6 @@ public sealed partial class Graphics
         ScreenPrimitives.FillRectangle(Screen, area, color, Blend.Source, Blend.Destination);
     }
 
-    [EngineRoutine(0x00430f10)]
-    internal void SetLoadingText(ReadOnlySpan<byte> text)
-    {
-        LoadingText = text.ToArray();
-        PreTact();
-        FillBox(RectangleF.FromLTRB(LoadingTextLeft, Viewport.Top + LoadingTextTop, LoadingTextRight, Viewport.Top + LoadingTextBottom), OpaqueBlack);
-        DrawText(new Vector2(LoadingTextLeft, Viewport.Top + LoadingTextTop), LoadingText, TextColor);
-        PostTact(true);
-    }
-
     [EngineRoutine(0x00402090)]
     internal int PreTact()
     {
@@ -223,9 +213,6 @@ public sealed partial class Graphics
         Flags &= ~GraphicsFlags.PreTact;
     }
 
-    [EngineRoutine(0x00430ed0)]
-    internal void DrawText(Vector2 position, ReadOnlyMemory<byte> text, uint color) => DrawDeviceText(position, color, text.Span);
-
     [EngineRoutine(0x00402c40)]
     internal void DrawDeviceText(Vector2 position, uint color, ReadOnlySpan<byte> text)
     {
@@ -236,54 +223,39 @@ public sealed partial class Graphics
         DeviceFont.Draw(Screen, position, color, text);
     }
 
-    [EngineRoutine(0x00430dd0)]
-    internal void DrawLoadBar(Map map, Vid? vid)
+    [EngineRoutine(0x00430780)]
+    internal void SetAlphaBlend(BlendFactor source, BlendFactor destination)
     {
-        uint realTime = map.Session.TimeGetTime();
-        map.Session.RealCurrentTime = realTime;
-        if (vid is null || (uint)vid.SpriteSpeed >= realTime - _loadingDrawnAt)
-            return;
-
-        PreTact();
-        if (Screen is not null)
+        if (!Flags.HasFlag(GraphicsFlags.AlphaBlendEnabled))
         {
-            ClearScreen(Screen, ClearColor);
+            _isBlendEnabled = true;
+            Flags |= GraphicsFlags.AlphaBlendEnabled;
         }
 
-        var screen = ScreenSize;
-        DrawVid(map, vid, _loadingFrame, new Vector3(screen.Width * Map.HalfShare, screen.Height * Map.HalfShare + 1, LoadingDepth));
-        UpdateEffects(map, true);
-        DrawText(new Vector2(LoadingTextLeft, Viewport.Top + LoadingTextTop), LoadingText, TextColor);
-        PostTact(true);
-        _loadingDrawnAt = realTime;
-        _loadingFrame++;
-        if (_loadingFrame >= vid.FileFrameCount)
-        {
-            _loadingFrame = 0;
-        }
+        _blendFactors = new QuadBlend(source, destination);
     }
 
-    [EngineRoutine(0x004333d0)]
-    internal void DrawVid(Map map, Vid vid, int frame, Vector3 position)
+    [EngineRoutine(0x004307e0)]
+    internal void SetRenderState(RenderState state, uint value)
     {
-        if (vid == map.EmptyVid)
+        if (state is RenderState.DepthFunction or RenderState.DepthWrite or RenderState.DepthEnable)
             return;
 
-        if (frame < 0 || frame >= vid.FileFrameCount)
+        if (state == RenderState.SpecularEnable)
         {
-            map.Session.Error.Error(GraphicsLogTag, LogError.Invalid, frame, "ncadr in DrawVid"u8);
-            return;
-        }
+            if ((Flags.HasFlag(GraphicsFlags.SpecularEnabled) ? 1u : 0u) == value)
+                return;
 
-        SetRenderState(RenderState.AlphaBlendEnable, vid.Layer < ObjectLayer.AlphaGround ? 0u : 1u);
-        var sprite = new Sprite(vid, new Vector3(position.AsVector2() + map.Shift, position.Z), default, null, map);
-        sprite.Frame = frame;
-        if (Screen is not null)
+            Flags = value != 0 ? Flags | GraphicsFlags.SpecularEnabled : Flags & ~GraphicsFlags.SpecularEnabled;
+        }
+        else if (state == RenderState.AlphaBlendEnable)
         {
-            vid.Draw(Screen, map, sprite, map.Shift);
-        }
+            if ((Flags.HasFlag(GraphicsFlags.AlphaBlendEnabled) ? 1u : 0u) == value)
+                return;
 
-        sprite.Destruct();
+            Flags = value != 0 ? Flags | GraphicsFlags.AlphaBlendEnabled : Flags & ~GraphicsFlags.AlphaBlendEnabled;
+            _isBlendEnabled = value != 0;
+        }
     }
 
     [EngineRoutine(0x00430870)]
@@ -366,41 +338,6 @@ public sealed partial class Graphics
         IsDepthLocked = false;
     }
 
-    [EngineRoutine(0x004307e0)]
-    internal void SetRenderState(RenderState state, uint value)
-    {
-        if (state is RenderState.DepthFunction or RenderState.DepthWrite or RenderState.DepthEnable)
-            return;
-
-        if (state == RenderState.SpecularEnable)
-        {
-            if ((Flags.HasFlag(GraphicsFlags.SpecularEnabled) ? 1u : 0u) == value)
-                return;
-
-            Flags = value != 0 ? Flags | GraphicsFlags.SpecularEnabled : Flags & ~GraphicsFlags.SpecularEnabled;
-        }
-        else if (state == RenderState.AlphaBlendEnable)
-        {
-            if ((Flags.HasFlag(GraphicsFlags.AlphaBlendEnabled) ? 1u : 0u) == value)
-                return;
-
-            Flags = value != 0 ? Flags | GraphicsFlags.AlphaBlendEnabled : Flags & ~GraphicsFlags.AlphaBlendEnabled;
-            _isBlendEnabled = value != 0;
-        }
-    }
-
-    [EngineRoutine(0x00430780)]
-    internal void SetAlphaBlend(BlendFactor source, BlendFactor destination)
-    {
-        if (!Flags.HasFlag(GraphicsFlags.AlphaBlendEnabled))
-        {
-            _isBlendEnabled = true;
-            Flags |= GraphicsFlags.AlphaBlendEnabled;
-        }
-
-        _blendFactors = new QuadBlend(source, destination);
-    }
-
     [EngineRoutine(0x00430d20)]
     internal void LockDepth()
     {
@@ -408,6 +345,69 @@ public sealed partial class Graphics
         {
             IsDepthLocked = true;
         }
+    }
+
+    [EngineRoutine(0x00430dd0)]
+    internal void DrawLoadBar(Map map, Vid? vid)
+    {
+        uint realTime = map.Session.TimeGetTime();
+        map.Session.RealCurrentTime = realTime;
+        if (vid is null || (uint)vid.SpriteSpeed >= realTime - _loadingDrawnAt)
+            return;
+
+        PreTact();
+        if (Screen is not null)
+        {
+            ClearScreen(Screen, ClearColor);
+        }
+
+        var screen = ScreenSize;
+        DrawVid(map, vid, _loadingFrame, new Vector3(screen.Width * Map.HalfShare, screen.Height * Map.HalfShare + 1, LoadingDepth));
+        UpdateEffects(map, true);
+        DrawText(new Vector2(LoadingTextLeft, Viewport.Top + LoadingTextTop), LoadingText, TextColor);
+        PostTact(true);
+        _loadingDrawnAt = realTime;
+        _loadingFrame++;
+        if (_loadingFrame >= vid.FileFrameCount)
+        {
+            _loadingFrame = 0;
+        }
+    }
+
+    [EngineRoutine(0x00430ed0)]
+    internal void DrawText(Vector2 position, ReadOnlyMemory<byte> text, uint color) => DrawDeviceText(position, color, text.Span);
+
+    [EngineRoutine(0x00430f10)]
+    internal void SetLoadingText(ReadOnlySpan<byte> text)
+    {
+        LoadingText = text.ToArray();
+        PreTact();
+        FillBox(RectangleF.FromLTRB(LoadingTextLeft, Viewport.Top + LoadingTextTop, LoadingTextRight, Viewport.Top + LoadingTextBottom), OpaqueBlack);
+        DrawText(new Vector2(LoadingTextLeft, Viewport.Top + LoadingTextTop), LoadingText, TextColor);
+        PostTact(true);
+    }
+
+    [EngineRoutine(0x004333d0)]
+    internal void DrawVid(Map map, Vid vid, int frame, Vector3 position)
+    {
+        if (vid == map.EmptyVid)
+            return;
+
+        if (frame < 0 || frame >= vid.FileFrameCount)
+        {
+            map.Session.Error.Error(GraphicsLogTag, LogError.Invalid, frame, "ncadr in DrawVid"u8);
+            return;
+        }
+
+        SetRenderState(RenderState.AlphaBlendEnable, vid.Layer < ObjectLayer.AlphaGround ? 0u : 1u);
+        var sprite = new Sprite(vid, new Vector3(position.AsVector2() + map.Shift, position.Z), default, null, map);
+        sprite.Frame = frame;
+        if (Screen is not null)
+        {
+            vid.Draw(Screen, map, sprite, map.Shift);
+        }
+
+        sprite.Destruct();
     }
 
     private void DrawLayers(Map map, ObjectLayer first, ObjectLayer last)

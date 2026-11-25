@@ -15,6 +15,7 @@ public sealed class Region : Sprite
     /// Represents the number of object ID pairs a region changes.
     /// </summary>
     public const int Pairs = 6;
+
     private const int FloatRegionSizeVersion = 10;
     private const float RegionReach = 25f;
     private const int FogPhaseMask = 7;
@@ -42,6 +43,11 @@ public sealed class Region : Sprite
         UnusedVid = map.EmptyVid;
     }
 
+    /// <summary>
+    /// Gets or sets the width and height of the region.
+    /// </summary>
+    public Vector2 Size { get; set; }
+
     internal int FogLevel { get; set; }
 
     internal int FogPhase { get; set; }
@@ -55,11 +61,6 @@ public sealed class Region : Sprite
     internal int FogNear { get; set; }
 
     internal uint FogColor { get; set; }
-
-    /// <summary>
-    /// Gets or sets the width and height of the region.
-    /// </summary>
-    public Vector2 Size { get; set; }
 
     internal Vid? UnusedVid { get; set; }
 
@@ -171,25 +172,6 @@ public sealed class Region : Sprite
         map.Session.Graphics.DrawFog(screen, topLeft, bottomRight, FogNear, FogFar, FogColor, FogTable.Span, FogLevel, Flags.HasFlag(RegionFlags.LightFog));
     }
 
-    [EngineRoutine(0x00449700)]
-    internal override void Destruct()
-    {
-        Map.DeletePointerToSprite(this);
-        base.Destruct();
-    }
-
-    [EngineRoutine(0x00449730)]
-    internal override void DrawSecondaryInfo()
-    {
-        var position = Position;
-        var size = Size;
-        float left = position.X - size.X * Map.HalfShare - Map.Shift.X;
-        float top = position.Y - position.Z - size.Y * Map.HalfShare - Map.Shift.Y;
-        float right = size.X * Map.HalfShare + position.X - Map.Shift.X;
-        float bottom = size.Y * Map.HalfShare + (position.Y - position.Z) - Map.Shift.Y;
-        Map.Session.Graphics.Box(Map, new Vector2(left - RegionBoxMargin, top - RegionBoxMargin), new Vector2(right + RegionBoxMargin, bottom + RegionBoxMargin), Map.White);
-    }
-
     [EngineRoutine(0x00449be0)]
     internal static Vid ReplaceVid(Map map, Vid vid, Vector3 position)
     {
@@ -219,27 +201,23 @@ public sealed class Region : Sprite
         return vid;
     }
 
-    [EngineRoutine(0x00449d00)]
-    private void SetFogParameters(int near, int far, uint color, ReadOnlySpan<ushort> ramp, bool isPalettized)
+    [EngineRoutine(0x00449700)]
+    internal override void Destruct()
     {
-        FogFar = far;
-        FogNear = near;
-        FogColor = color;
-        FogTable = default;
+        Map.DeletePointerToSprite(this);
+        base.Destruct();
+    }
 
-        if (near >= far)
-            return;
-
-        int span = far - near;
-        ushort[] table = new ushort[span * FogStepsPerUnit + 1];
-
-        for (int step = span * FogStepsPerUnit; step >= 0; step--)
-        {
-            int index = step * byte.MaxValue / span >> FogRampShift;
-            table[step] = isPalettized ? (ushort)index : ramp[index];
-        }
-
-        FogTable = table;
+    [EngineRoutine(0x00449730)]
+    internal override void DrawSecondaryInfo()
+    {
+        var position = Position;
+        var size = Size;
+        float left = position.X - size.X * Map.HalfShare - Map.Shift.X;
+        float top = position.Y - position.Z - size.Y * Map.HalfShare - Map.Shift.Y;
+        float right = size.X * Map.HalfShare + position.X - Map.Shift.X;
+        float bottom = size.Y * Map.HalfShare + (position.Y - position.Z) - Map.Shift.Y;
+        Map.Session.Graphics.Box(Map, new Vector2(left - RegionBoxMargin, top - RegionBoxMargin), new Vector2(right + RegionBoxMargin, bottom + RegionBoxMargin), Map.White);
     }
 
     [EngineRoutine(0x00449e20)]
@@ -279,5 +257,28 @@ public sealed class Region : Sprite
         }
 
         return 0;
+    }
+
+    [EngineRoutine(0x00449d00)]
+    private void SetFogParameters(int near, int far, uint color, ReadOnlySpan<ushort> ramp, bool isPalettized)
+    {
+        FogFar = far;
+        FogNear = near;
+        FogColor = color;
+        FogTable = default;
+
+        if (near >= far)
+            return;
+
+        int span = far - near;
+        ushort[] table = new ushort[span * FogStepsPerUnit + 1];
+
+        for (int step = span * FogStepsPerUnit; step >= 0; step--)
+        {
+            int index = step * byte.MaxValue / span >> FogRampShift;
+            table[step] = isPalettized ? (ushort)index : ramp[index];
+        }
+
+        FogTable = table;
     }
 }

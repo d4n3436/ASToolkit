@@ -15,6 +15,7 @@ public sealed class TgaImage : PictureImage
     /// Represents the extension of TGA files.
     /// </summary>
     public const string Extension = ".tga";
+
     private const int ColorMapType = 1;
 
     /// <summary>
@@ -62,6 +63,25 @@ public sealed class TgaImage : PictureImage
         Resize(tga.Size, tga.Depth / BitsPerByte);
         Rewind();
         return true;
+    }
+
+    /// <summary>
+    /// Reopens the first file and goes to the first frame.
+    /// </summary>
+    [EngineRoutine(0x00428150)]
+    public override void Rewind()
+    {
+        if (!HasPixels)
+            return;
+
+        CloseFile();
+        Input = OpenFile(Name);
+        if (!ReadHeader(out _))
+            return;
+
+        Input!.Seek(DataOffset, SeekOrigin.Begin);
+        FrameIndex = -1;
+        Advance();
     }
 
     /// <summary>
@@ -136,25 +156,6 @@ public sealed class TgaImage : PictureImage
         }
     }
 
-    /// <summary>
-    /// Reopens the first file and goes to the first frame.
-    /// </summary>
-    [EngineRoutine(0x00428150)]
-    public override void Rewind()
-    {
-        if (!HasPixels)
-            return;
-
-        CloseFile();
-        Input = OpenFile(Name);
-        if (!ReadHeader(out _))
-            return;
-
-        Input!.Seek(DataOffset, SeekOrigin.Begin);
-        FrameIndex = -1;
-        Advance();
-    }
-
     [EngineRoutine(0x00427ef0)]
     private bool ReadHeader(out TgaHeader tga)
     {
@@ -197,5 +198,4 @@ public sealed class TgaImage : PictureImage
 
         return true;
     }
-
 }

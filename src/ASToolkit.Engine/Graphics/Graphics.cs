@@ -25,6 +25,8 @@ public sealed partial class Graphics
     /// Represents the number of screen effects.
     /// </summary>
     public const int EffectCount = 16;
+
+    private const float ViewDepthOffset = 128f;
     private const float ProjectionDepthScale = 0.001f;
     private const float ProjectionRange = 2f;
     private const float WindPerSecond = 0.001f;
@@ -32,10 +34,10 @@ public sealed partial class Graphics
     private const float SquallGain = 0.001953125f;
     private const uint SquallRise = 0x800;
     private const uint SquallEnd = 0x1000;
+    private readonly GameSession _session;
 
     private float _squallBaseSpeed = NoSquall;
     private int _squallStart;
-    private readonly GameSession _session;
 
     internal Graphics(GameSession session)
     {
@@ -135,6 +137,20 @@ public sealed partial class Graphics
 
     internal GraphicsFlags Flags { get; set; }
 
+    internal Movie Movie { get; } = new();
+
+    /// <summary>
+    /// Creates the view transform that moves the shift to the top left of the viewport and raises points by their height.
+    /// </summary>
+    /// <param name="shift">The top left corner of the view, in map pixels.</param>
+    /// <param name="viewport">The viewport of the screen, in pixels.</param>
+    /// <returns>The view transform.</returns>
+    public static Matrix4x4 CreateView(Vector2 shift, Rectangle viewport) => new(
+        1f, 0f, 0f, 0f,
+        0f, 1f, 0f, 0f,
+        0f, -1f, 1f, 0f,
+        -shift.X - (viewport.Right + (float)viewport.Left) * 0.5f, -shift.Y - (viewport.Bottom + (float)viewport.Top) * 0.5f, ViewDepthOffset, 1f);
+
     /// <summary>
     /// Sets the area of the back buffer the frame is drawn into.
     /// </summary>
@@ -152,6 +168,36 @@ public sealed partial class Graphics
             0f, -ProjectionRange / height, 0f, 0f,
             0f, 0f, ProjectionDepthScale, 0f,
             0f, 0f, 0f, 1f);
+    }
+
+    /// <summary>
+    /// Sets the wind.
+    /// </summary>
+    /// <param name="speed">The speed in pixels per second.</param>
+    /// <param name="direction">The direction.</param>
+    [EngineRoutine(0x0040c930)]
+    public void SetWind(int speed, Angle direction)
+    {
+        WindSpeed = speed * WindPerSecond;
+        WindDirection = direction;
+    }
+
+    /// <summary>
+    /// Sets the ambient gamma and when it changes, applies it to the palettes of every sprite file.
+    /// </summary>
+    /// <param name="gamma">The ambient gamma.</param>
+    /// <param name="map">The map whose object IDs take the gamma.</param>
+    [EngineRoutine(0x00431c50)]
+    public void SetGamma(Gamma gamma, Map map)
+    {
+        if (Gamma == gamma)
+            return;
+
+        Gamma = gamma;
+        foreach (var vid in map.Vids)
+        {
+            vid?.SetGamma(gamma, Vid.AllArmies, gamma, map.Session);
+        }
     }
 
     /// <summary>
@@ -202,69 +248,6 @@ public sealed partial class Graphics
         _squallBaseSpeed = NoSquall;
     }
 
-    /// <summary>
-    /// Sets the ambient gamma and when it changes, applies it to the palettes of every sprite file.
-    /// </summary>
-    /// <param name="gamma">The ambient gamma.</param>
-    /// <param name="map">The map whose object IDs take the gamma.</param>
-    [EngineRoutine(0x00431c50)]
-    public void SetGamma(Gamma gamma, Map map)
-    {
-        if (Gamma == gamma)
-            return;
-
-        Gamma = gamma;
-        foreach (var vid in map.Vids)
-        {
-            vid?.SetGamma(gamma, Vid.AllArmies, gamma, map.Session);
-        }
-    }
-
-    /// <summary>
-    /// Sets the wind.
-    /// </summary>
-    /// <param name="speed">The speed in pixels per second.</param>
-    /// <param name="direction">The direction.</param>
-    [EngineRoutine(0x0040c930)]
-    public void SetWind(int speed, Angle direction)
-    {
-        WindSpeed = speed * WindPerSecond;
-        WindDirection = direction;
-    }
-
-    [EngineRoutine(0x00433cd0)]
-    internal void Load(ref Resource reader, Map map)
-    {
-        var environment = Environment;
-        reader.ReadInto(ref environment);
-        Environment = environment;
-        var gamma = default(Gamma);
-        reader.ReadInto(ref gamma);
-        SetGamma(gamma, map);
-        int direction = 0;
-        reader.ReadInto(ref direction);
-        WindDirection = new Angle((byte)direction);
-        float speed = WindSpeed;
-        reader.ReadInto(ref speed);
-        WindSpeed = speed;
-    }
-
-    [EngineRoutine(0x00433bb0)]
-    internal void OldLoadParameters(ref Resource reader, Map map)
-    {
-        var environment = Environment;
-        reader.ReadInto(ref environment);
-        Environment = environment;
-        uint gamma = 0;
-        reader.ReadInto(ref gamma);
-        SetGamma(Gamma.FromScript(gamma), map);
-        byte direction = 0;
-        reader.ReadInto(ref direction);
-        short speed = 0;
-        reader.ReadInto(ref speed);
-        SetWind(speed, new Angle(direction));
-    }
-
     [EngineRoutine(0x00431cf0)]
     internal void SetEnvironment(MapEnvironment environment)
     {
@@ -291,6 +274,42 @@ public sealed partial class Graphics
 
         Environment |= environment;
     }
+
+    [EngineRoutine(0x00433bb0)]
+    internal void OldLoadParameters(ref Resource reader, Map map)
+    {
+        var environment = Environment;
+        reader.ReadInto(ref environment);
+        Environment = environment;
+        uint gamma = 0;
+        reader.ReadInto(ref gamma);
+        SetGamma(Gamma.FromScript(gamma), map);
+        byte direction = 0;
+        reader.ReadInto(ref direction);
+        short speed = 0;
+        reader.ReadInto(ref speed);
+        SetWind(speed, new Angle(direction));
+    }
+
+    [EngineRoutine(0x00433cd0)]
+    internal void Load(ref Resource reader, Map map)
+    {
+        var environment = Environment;
+        reader.ReadInto(ref environment);
+        Environment = environment;
+        var gamma = default(Gamma);
+        reader.ReadInto(ref gamma);
+        SetGamma(gamma, map);
+        int direction = 0;
+        reader.ReadInto(ref direction);
+        WindDirection = new Angle((byte)direction);
+        float speed = WindSpeed;
+        reader.ReadInto(ref speed);
+        WindSpeed = speed;
+    }
+
+    [EngineRoutine(0x004343e0)]
+    internal void PlayMovie(IGameFileSystem fileSystem, ReadOnlySpan<byte> path, MyError error) => Movie.Open(fileSystem, path, error);
 
     private static Rectangle ToViewportRectangle(RectangleF viewport) => Rectangle.FromLTRB((int)viewport.Left, (int)viewport.Top, (int)viewport.Right, (int)viewport.Bottom);
 }

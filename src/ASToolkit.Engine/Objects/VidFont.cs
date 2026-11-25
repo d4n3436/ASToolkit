@@ -34,20 +34,6 @@ public sealed class VidFont : Vid
         Style = source.Style;
     }
 
-    [EngineRoutine(0x00412850)]
-    internal override Vid CreateMirror() => new VidFont(this);
-
-    [EngineRoutine(0x00415100)]
-    internal override void Destruct(GameSession session)
-    {
-        if (NextMirror == this)
-        {
-            Font = null;
-        }
-
-        base.Destruct(session);
-    }
-
     /// <summary>
     /// Gets the font of this object ID, or <see langword="null"/> before the sprite file loads.
     /// </summary>
@@ -68,6 +54,10 @@ public sealed class VidFont : Vid
     /// </summary>
     public int MaxTextureSize { get; }
 
+    /// <inheritdoc/>
+    [EngineRoutine(0x004151f0)]
+    public override void SetLayer() => Layer = ObjectLayer.Cursor;
+
     /// <summary>
     /// Draws the text of a sprite with the glyphs of the font.
     /// </summary>
@@ -87,9 +77,19 @@ public sealed class VidFont : Vid
         Font.Draw(screen, new Vector2(position.X - shift.X, position.Y - position.Z - shift.Y), ~gamma.Negative, ""u8);
     }
 
-    /// <inheritdoc/>
-    [EngineRoutine(0x004151f0)]
-    public override void SetLayer() => Layer = ObjectLayer.Cursor;
+    [EngineRoutine(0x00412850)]
+    internal override Vid CreateMirror() => new VidFont(this);
+
+    [EngineRoutine(0x00415100)]
+    internal override void Destruct(GameSession session)
+    {
+        if (NextMirror == this)
+        {
+            Font = null;
+        }
+
+        base.Destruct(session);
+    }
 
     [EngineRoutine(0x00415140)]
     internal override void Load(in VidResource file, ReadOnlyMemory<byte> data, GameSession session)

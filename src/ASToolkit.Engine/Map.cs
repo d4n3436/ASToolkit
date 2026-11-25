@@ -32,9 +32,18 @@ public partial class Map : IDisposable
     /// Represents the game time of the frame before the one a level starts at.
     /// </summary>
     public const int LevelStartPreviousTime = 1;
-    
+
     internal const int UpdatedLayerCount = 16;
     internal const string ConfigFile = "AlienShooter.cfg";
+    internal const string StringsFile = "Strings.ini";
+    internal const int ControlledPlayer = 0;
+    private protected readonly MyList<Sprite?>[] _layers = new MyList<Sprite?>[LayerCount];
+    private protected readonly Player[] _players = new Player[ASToolkit.Engine.Vid.ArmyCount];
+    private protected readonly MouseTips _mouseTips;
+
+    private protected readonly GameRandom _rng;
+    private protected MapFlags _flags;
+    private protected int _stepCount;
     private const string DefaultFont = "Arial";
     private const int DefaultFontWidth = 0;
     private const int DefaultFontHeight = 8;
@@ -55,18 +64,23 @@ public partial class Map : IDisposable
     private const int ReleaseWindDirection = 200;
 
     private static readonly SizeF StartMapSize = new(640, 480);
+    private readonly string _gameFolder;
+    private readonly Group _groupHead = new(null, null);
+    private readonly Vid?[] _vids = new Vid?[VidTableSize];
+    private readonly Dictionary<int, ScriptFile> _scriptFiles = [];
+    private readonly ControlSettings _controls;
+    private readonly LivingSet _livingFences = new();
+    private readonly LivingSet _livingSites = new();
+    private readonly LivingSet _livingCharges = new();
+    private readonly int[] _eventFunctionNumbers = new int[EventFunctionCount];
     private int _framesPerSecond;
     private int _framesThisSecond;
-    private protected MapFlags _flags;
     private float _speed;
     private ReadOnlyMemory<byte> _mapName;
     private ReadOnlyMemory<byte> _pendingMapName;
     private ReadOnlyMemory<byte> _previousMapName;
-    private readonly string _gameFolder;
-    private protected int _stepCount;
     private int _levelStartTime;
     private ScrollType _scrollType = ScrollType.FromBorder;
-    private protected readonly MyList<Sprite?>[] _layers = new MyList<Sprite?>[LayerCount];
     private DemoResource? _playedDemo;
     private int _playedOffset;
     private MemoryStream? _recordedDemo;
@@ -77,21 +91,9 @@ public partial class Map : IDisposable
     private int _gridColumns;
     private int _gridRows;
     private bool _hasWindow;
-    private protected readonly Player[] _players = new Player[ASToolkit.Engine.Vid.ArmyCount];
-    private readonly Group _groupHead = new(null, null);
     private int _weaponCount;
     private AlienShooterWeaponRecord[]? _weapons;
     private int _vidCount;
-    private readonly Vid?[] _vids = new Vid?[VidTableSize];
-    private protected readonly MouseTips _mouseTips;
-
-    private protected readonly GameRandom _rng;
-    private readonly Dictionary<int, ScriptFile> _scriptFiles = [];
-    private readonly ControlSettings _controls;
-    private readonly LivingSet _livingFences = new();
-    private readonly LivingSet _livingSites = new();
-    private readonly LivingSet _livingCharges = new();
-    private readonly int[] _eventFunctionNumbers = new int[EventFunctionCount];
     private int _pausedAt;
     private ObjectTable _objects;
     private int _lastHandle;
@@ -206,8 +208,6 @@ public partial class Map : IDisposable
     /// </summary>
     public int FrameTime => Session.CurrentTime - Session.PreviousCurrentTime;
 
-    internal int PreviousCurrentTime => Session.PreviousCurrentTime;
-
     /// <summary>
     /// Gets a value indicating whether the level script has locked the doors.
     /// </summary>
@@ -248,12 +248,6 @@ public partial class Map : IDisposable
     /// </summary>
     public ReadOnlySpan<Sprite> MenuSprites => Menu.Items;
 
-    internal Relation Relation { get; } = new();
-
-    internal Menu Menu { get; }
-
-    internal IGameFileSystem FileSystem { get; }
-
     /// <summary>
     /// Gets the name of the map loaded last.
     /// </summary>
@@ -289,6 +283,18 @@ public partial class Map : IDisposable
     /// </summary>
     public SpriteCollector Sprites { get; private set; }
 
+    internal static ReadOnlySpan<byte> GameSection => "game"u8;
+
+    internal static ReadOnlySpan<byte> GraphSection => "graph"u8;
+
+    internal int PreviousCurrentTime => Session.PreviousCurrentTime;
+
+    internal Relation Relation { get; } = new();
+
+    internal Menu Menu { get; }
+
+    internal IGameFileSystem FileSystem { get; }
+
     internal GameRandom Random => _rng;
 
     internal bool CanMonstersAttackNeutralTrains => _flags.HasFlag(MapFlags.MonstersAttackNeutralTrains);
@@ -299,9 +305,18 @@ public partial class Map : IDisposable
 
     private static ReadOnlySpan<byte> SpriteDataTag => "SPRD"u8;
 
-    internal static ReadOnlySpan<byte> GameSection => "game"u8;
-
-    internal static ReadOnlySpan<byte> GraphSection => "graph"u8;
+    /// <summary>
+    /// Sends an action to a sprite.
+    /// </summary>
+    /// <param name="sprite">The sprite.</param>
+    /// <param name="code">The action.</param>
+    /// <param name="var1">The first argument.</param>
+    /// <param name="var2">The second argument.</param>
+    /// <param name="var3">The third argument.</param>
+    /// <param name="target">The sprite argument.</param>
+    /// <returns>The action's result.</returns>
+    public static int Action(Sprite sprite, ActionCode code, int var1 = 0, int var2 = 0, int var3 = 0, Sprite? target = null) =>
+        sprite.Action(code, var1, var2, var3, target);
 
     /// <summary>
     /// Sets a map file, or a demo file, to load at the start of the next step, before that step's frame runs.
@@ -313,6 +328,27 @@ public partial class Map : IDisposable
         _flags |= MapFlags.LoadPending;
         _pendingMapName = name.ToArray();
     }
+
+    /// <summary>
+    /// Sets whether the controllers act on the input.
+    /// </summary>
+    /// <param name="controlled"><see langword="true"/> if the controllers act on the input; otherwise, <see langword="false"/>.</param>
+    public void SetPlayerControl(bool controlled) => SetFlag(MapFlags.PlayerControlled, controlled);
+
+    /// <summary>
+    /// Returns the state a new sprite of an object ID starts in.
+    /// </summary>
+    /// <param name="vid">The shared data of the object ID.</param>
+    /// <returns>The starting state.</returns>
+    public SpriteAnimation GetInitialAnimation(Vid vid)
+    {
+        return IsLoading && vid.InitialAnimation == SpriteAnimation.Birth ? SpriteAnimation.Stand : vid.InitialAnimation;
+    }
+
+    /// <summary>
+    /// Releases the map, its level and its object IDs.
+    /// </summary>
+    public void Dispose() => Destruct();
 
     /// <summary>
     /// Loads a map file, or the map a demo file plays, and releases the level the map held before.
@@ -514,7 +550,7 @@ public partial class Map : IDisposable
         Session.Error.Log($"Vid    release {Session.TextureMemoryInUse} {Session.VidMemoryInUse}");
 
         ShowLoadingStep("Load script file"u8);
-        string stem = GameTextEncoding.Cyrillic.GetString(GetBeforeLast(name, "."u8));
+        string stem = GameTextEncoding.Cyrillic.GetString(name.BeforeLast("."u8));
         string scriptPath = stem + ScriptExtension;
         if (!FileSystem.TryRead(scriptPath, out _))
         {
@@ -702,40 +738,12 @@ public partial class Map : IDisposable
     }
 
     /// <summary>
-    /// Sets whether the controllers act on the input.
+    /// Sets the player a player slot controls.
     /// </summary>
-    /// <param name="controlled"><see langword="true"/> if the controllers act on the input; otherwise, <see langword="false"/>.</param>
-    public void SetPlayerControl(bool controlled) => SetFlag(MapFlags.PlayerControlled, controlled);
-
-    /// <summary>
-    /// Removes a reference to a sprite and deletes the sprite when no reference is left.
-    /// </summary>
-    /// <param name="sprite">The sprite.</param>
-    public void Release(Sprite sprite)
-    {
-        int count = sprite.Release();
-
-        if (count >= 1)
-            return;
-
-        if (count < 0)
-        {
-            Session.Error.Error($"SPRITE {(int)sprite.Vid.Id}", LogError.Invalid, count, "noRef at Release"u8);
-            return;
-        }
-
-        DeleteSprite(sprite);
-    }
-
-    /// <summary>
-    /// Returns the state a new sprite of an object ID starts in.
-    /// </summary>
-    /// <param name="vid">The shared data of the object ID.</param>
-    /// <returns>The starting state.</returns>
-    public SpriteAnimation GetInitialAnimation(Vid vid)
-    {
-        return IsLoading && vid.InitialAnimation == SpriteAnimation.Birth ? SpriteAnimation.Stand : vid.InitialAnimation;
-    }
+    /// <param name="army">The player slot.</param>
+    /// <param name="sprite">The player, or null to clear the slot.</param>
+    [EngineRoutine(0x0040e600)]
+    public void SetFlagman(int army, Sprite? sprite) => _players[army & ASToolkit.Engine.Vid.ArmyMask].SetFlagman(sprite);
 
     /// <summary>
     /// Returns the player a player slot controls.
@@ -746,12 +754,81 @@ public partial class Map : IDisposable
     public Sprite? Flagman(int army) => _players[army & ASToolkit.Engine.Vid.ArmyMask].Flagman;
 
     /// <summary>
-    /// Sets the player a player slot controls.
+    /// Gets the sprites of the update list of a layer.
     /// </summary>
-    /// <param name="army">The player slot.</param>
-    /// <param name="sprite">The player, or null to clear the slot.</param>
-    [EngineRoutine(0x0040e600)]
-    public void SetFlagman(int army, Sprite? sprite) => _players[army & ASToolkit.Engine.Vid.ArmyMask].SetFlagman(sprite);
+    /// <param name="layer">The layer, from 0 to 16.</param>
+    /// <returns>The sprites in the list's order, with <see langword="null"/> where a sprite was removed.</returns>
+    public MyList<Sprite?> GetLayer(int layer) => _layers[layer];
+
+    /// <summary>
+    /// Creates a sprite of an object ID, or of the object ID that a region at the position replaces it with, and runs the creation handler of
+    /// the sprite's object ID unless the map is loading or is the application menu.
+    /// </summary>
+    /// <param name="vid">The shared data of the object ID.</param>
+    /// <param name="position">The position.</param>
+    /// <param name="direction">The direction.</param>
+    /// <param name="parent">The sprite that the new sprite takes its army and height from, and links to if the new sprite is a linker.</param>
+    /// <returns>The sprite, or <see langword="null"/> if <paramref name="vid"/> is null, or its class isn't valid.</returns>
+    [EngineRoutine(0x0040e870)]
+    public virtual Sprite? CreateSprite(Vid? vid, Vector3 position, Angle direction, Sprite? parent = null)
+    {
+        if (vid is null)
+            return null;
+
+        if (vid.IsRegionReplaced)
+        {
+            vid = Region.ReplaceVid(this, vid, position);
+        }
+
+        Sprite sprite;
+        switch (vid.Class)
+        {
+            case SpriteClass.Unit:
+                sprite = new Unit(vid, position, direction, parent, this);
+                break;
+            case SpriteClass.Avia:
+                sprite = new Plane(vid, position, direction, parent, this);
+                break;
+            case SpriteClass.Cannon:
+                sprite = new Cannon(vid, position, direction, parent, this);
+                break;
+            case SpriteClass.Primitive:
+                sprite = new Primitive(vid, position, direction, parent, this);
+                break;
+            case SpriteClass.Man:
+                sprite = new Man(vid, position, direction, parent, this);
+                break;
+            case SpriteClass.BuiltTerrain:
+                sprite = new BuiltTerrain(vid, position, direction, parent, this);
+                break;
+            case SpriteClass.Sprite:
+                sprite = new Sprite(vid, position, direction, parent, this);
+                break;
+            case SpriteClass.Frame:
+                sprite = new Frame(vid, position, direction, parent, this);
+                break;
+            case SpriteClass.Linker:
+                sprite = new Linker(vid, position, direction, parent, this);
+                break;
+            case SpriteClass.Text:
+                sprite = new SText(vid, position, direction, parent, this);
+                break;
+            case SpriteClass.Region:
+                sprite = new Region(vid, position, direction, parent, this);
+                break;
+            default:
+                Session.Error.Error(MapLogTag, LogError.Create, (int)vid.Class, "sprite - Behave is invalidate"u8);
+
+                return null;
+        }
+
+        if ((_flags & (MapFlags.Loading | MapFlags.AppMenu)) == 0)
+        {
+            RunCreationHandler(sprite);
+        }
+
+        return sprite;
+    }
 
     /// <summary>
     /// Waits for the real time to move on, advances the game time, compacts the update lists, loads a map if one was requested and processes the window messages.
@@ -851,38 +928,82 @@ public partial class Map : IDisposable
     public virtual bool Tact() => false;
 
     /// <summary>
-    /// Releases the map, its level and its object IDs.
+    /// Removes a reference to a sprite and deletes the sprite when no reference is left.
     /// </summary>
-    public void Dispose() => Destruct();
-
-    [EngineRoutine(0x0040b180)]
-    private protected virtual void Destruct()
+    /// <param name="sprite">The sprite.</param>
+    public void Release(Sprite sprite)
     {
-        for (int i = _vidCount - 1; i >= 0; i--)
+        int count = sprite.Release();
+
+        if (count >= 1)
+            return;
+
+        if (count < 0)
         {
-            if (_vids[i] is not null)
-            {
-                _vids[i]!.Destruct(Session);
-                _vids[i] = null;
-            }
+            Session.Error.Error($"SPRITE {(int)sprite.Vid.Id}", LogError.Invalid, count, "noRef at Release"u8);
+            return;
         }
 
-        _vidCount = 0;
-        Session.Error.Log($"Vid    release {Session.TextureMemoryInUse} {Session.VidMemoryInUse}");
-        _mouseTips.Clear();
-        CloseDemoFile();
+        DeleteSprite(sprite);
     }
 
     /// <summary>
-    /// Gets the sprites of the update list of a layer.
+    /// Deletes a sprite.
     /// </summary>
-    /// <param name="layer">The layer, from 0 to 16.</param>
-    /// <returns>The sprites in the list's order, with <see langword="null"/> where a sprite was removed.</returns>
-    public MyList<Sprite?> GetLayer(int layer) => _layers[layer];
+    /// <param name="sprite">The sprite.</param>
+    public void DeleteSprite(Sprite sprite) => sprite.Destruct();
 
-    internal void SetMonstersAttackNeutralTrains(bool attack) => SetFlag(MapFlags.MonstersAttackNeutralTrains, attack);
+    internal static int OpenObjects(IGameFileSystem fileSystem, MyError? error, ref Resource resource)
+    {
+        var config = new Profile(fileSystem);
+        config.Load(ConfigFile);
+        var name = config.TryGetString(GameSection, "Resource"u8, out var configured) ? configured.Span : "objects.res"u8;
 
-    internal bool IsFree(Vid vid, Vector3 position) => Sprites.CanPlace(vid, position) is null;
+        return resource.Open(fileSystem, error, name, "DATA"u8);
+    }
+
+    [EngineRoutine(0x0040b4b0)]
+    internal virtual void DeletePointerToSprite(Sprite removed)
+    {
+        foreach (var controller in _players)
+        {
+            controller.Forget(removed);
+        }
+
+        if (removed.Handle != 0)
+        {
+            Script.DeletePointerToObject(removed.Handle);
+        }
+
+        RemoveFromGroups(removed);
+
+        int index = removed.ReferenceCount > 1 ? Sprites.Listed.Length - 1 : -1;
+        while (index >= 0)
+        {
+            Sprites.Listed[index].DeletePointerToSprite(removed);
+
+            if (Sprites.Listed.Length < index)
+            {
+                index = Sprites.Listed.Length;
+            }
+
+            index--;
+        }
+
+        for (int layer = 0; layer < LayerCount; layer++)
+        {
+            if (removed.ReferenceCount <= 1)
+                continue;
+
+            var list = _layers[layer];
+            for (int i = list.Count - 1; i >= 0; i--)
+            {
+                var sprite = list[i];
+
+                sprite?.DeletePointerToSprite(removed);
+            }
+        }
+    }
 
     [EngineRoutine(0x0040c570)]
     internal virtual void Release()
@@ -966,244 +1087,21 @@ public partial class Map : IDisposable
         }
     }
 
-    [EngineRoutine(0x00406f20)]
-    private static ReadOnlySpan<byte> GetBeforeLast(ReadOnlySpan<byte> text, ReadOnlySpan<byte> delimiter)
-    {
-        int index = text.LastIndexOf(delimiter);
+    internal void SetMonstersAttackNeutralTrains(bool attack) => SetFlag(MapFlags.MonstersAttackNeutralTrains, attack);
 
-        return index < 0 ? text : text[..index];
-    }
-
-    private void LoadGridZ(ref Resource reader, int expectedSize)
-    {
-        if (reader.GoNext("GRID"u8) == Resource.Found)
-        {
-            int count = reader.SubLoad(Session.Error, out byte[] grid);
-            _sceneryHeights = MemoryMarshal.Cast<byte, short>(grid).ToArray();
-            if (count != expectedSize)
-            {
-                Session.Error.Error(MapLogTag, LogError.Invalid, count, "grid"u8);
-                ResetGroundZ();
-            }
-        }
-        else
-        {
-            reader.GoBegin(Resource.AnyTag);
-        }
-    }
-
-    private bool FindSection(ref Resource reader, ReadOnlySpan<byte> tag)
-    {
-        if (reader.GoNext(tag) == Resource.Found)
-            return true;
-
-        LogMissingSection(tag);
-        return false;
-    }
-
-    internal static int OpenObjects(IGameFileSystem fileSystem, MyError? error, ref Resource resource)
-    {
-        var config = new Profile(fileSystem);
-        config.Load(ConfigFile);
-        var name = config.TryGetString(GameSection, "Resource"u8, out var configured) ? configured.Span : "objects.res"u8;
-
-        return resource.Open(fileSystem, error, name, "DATA"u8);
-    }
-
-    private void LogMissingSection(ReadOnlySpan<byte> tag) => Session.Error.Error(MapLogTag, LogError.Section, 0, tag);
-
-    private protected static void OverrideGamma(Sprite sprite, Gamma gamma)
-    {
-        sprite.SetGamma(gamma);
-        var link = sprite.Link;
-
-        if (link is not null && link.Vid == sprite.Vid.LinkVid)
-        {
-            link.SetGamma(gamma);
-        }
-    }
-
-    [EngineRoutine(0x00411440)]
-    private void DeleteExtraVid()
-    {
-        for (int layer = 0; layer < LayerCount; layer++)
-        {
-            var list = _layers[layer];
-            for (int i = list.Count - 1; i >= 0; i--)
-            {
-                var sprite = list[i];
-
-                if (sprite is not null && sprite.Vid.FileType.HasFlag(VidType.FrameVector))
-                {
-                    DeleteSprite(sprite);
-                }
-            }
-        }
-
-        for (int i = _vidCount - 1; i >= 0; i--)
-        {
-            if (_vids[i] is not null && _vids[i]!.FileType.HasFlag(VidType.FrameVector))
-            {
-                _vids[i]!.Destruct(Session);
-                _vids[i] = null;
-            }
-        }
-
-        while (_vidCount > 0 && _vids[_vidCount - 1] is null)
-        {
-            _vidCount--;
-        }
-    }
-
-    private void ShowLoadingStep(ReadOnlySpan<byte> text)
-    {
-        if (Constant.IsDebugMode)
-        {
-            Session.Graphics.SetLoadingText(text);
-        }
-    }
+    internal bool IsFree(Vid vid, Vector3 position) => Sprites.CanPlace(vid, position) is null;
 
     internal bool HasFlag(MapFlags flag) => _flags.HasFlag(flag);
 
-    private void SetFlag(MapFlags flag, bool isSet) => _flags = (isSet ? flag : MapFlags.None) | _flags & ~flag;
-
-    /// <summary>
-    /// Creates a sprite of an object ID, or of the object ID that a region at the position replaces it with, and runs the creation handler of
-    /// the sprite's object ID unless the map is loading or is the application menu.
-    /// </summary>
-    /// <param name="vid">The shared data of the object ID.</param>
-    /// <param name="position">The position.</param>
-    /// <param name="direction">The direction.</param>
-    /// <param name="parent">The sprite that the new sprite takes its army and height from, and links to if the new sprite is a linker.</param>
-    /// <returns>The sprite, or <see langword="null"/> if <paramref name="vid"/> is null, or its class isn't valid.</returns>
-    [EngineRoutine(0x0040e870)]
-    public virtual Sprite? CreateSprite(Vid? vid, Vector3 position, Angle direction, Sprite? parent = null)
+    [EngineRoutine(0x0040f9e0)]
+    internal void PauseOn()
     {
-        if (vid is null)
-            return null;
-
-        if (vid.IsRegionReplaced)
+        if (!IsPaused)
         {
-            vid = Region.ReplaceVid(this, vid, position);
+            _pausedAt = CurrentTime;
         }
 
-        Sprite sprite;
-        switch (vid.Class)
-        {
-            case SpriteClass.Unit:
-                sprite = new Unit(vid, position, direction, parent, this);
-                break;
-            case SpriteClass.Avia:
-                sprite = new Plane(vid, position, direction, parent, this);
-                break;
-            case SpriteClass.Cannon:
-                sprite = new Cannon(vid, position, direction, parent, this);
-                break;
-            case SpriteClass.Primitive:
-                sprite = new Primitive(vid, position, direction, parent, this);
-                break;
-            case SpriteClass.Man:
-                sprite = new Man(vid, position, direction, parent, this);
-                break;
-            case SpriteClass.BuiltTerrain:
-                sprite = new BuiltTerrain(vid, position, direction, parent, this);
-                break;
-            case SpriteClass.Sprite:
-                sprite = new Sprite(vid, position, direction, parent, this);
-                break;
-            case SpriteClass.Frame:
-                sprite = new Frame(vid, position, direction, parent, this);
-                break;
-            case SpriteClass.Linker:
-                sprite = new Linker(vid, position, direction, parent, this);
-                break;
-            case SpriteClass.Text:
-                sprite = new SText(vid, position, direction, parent, this);
-                break;
-            case SpriteClass.Region:
-                sprite = new Region(vid, position, direction, parent, this);
-                break;
-            default:
-                Session.Error.Error(MapLogTag, LogError.Create, (int)vid.Class, "sprite - Behave is invalidate"u8);
-
-                return null;
-        }
-
-        if ((_flags & (MapFlags.Loading | MapFlags.AppMenu)) == 0)
-        {
-            RunCreationHandler(sprite);
-        }
-
-        return sprite;
-    }
-
-    private List<Sprite> GetLiving(KnownObject id, LivingSet set)
-    {
-        if (set.CheckedAt == CurrentTime)
-            return set.Sprites;
-
-        set.CheckedAt = CurrentTime;
-        set.Sprites.Clear();
-        var vid = FindVid(id);
-
-        if (vid is null)
-            return set.Sprites;
-
-        foreach (var sprite in _layers[(int)vid.Layer].Items)
-        {
-            if (sprite is not null && sprite.Vid == vid && sprite.Animation < SpriteAnimation.Death)
-            {
-                set.Sprites.Add(sprite);
-            }
-        }
-
-        return set.Sprites;
-    }
-
-    private void SetTime(int time) => Session.CurrentTime = time;
-
-    [EngineRoutine(0x0043ad70)]
-    private void LoadGroups(ref Resource reader)
-    {
-        while (TryReadPointer(ref reader, out var first))
-        {
-            var group = new Group(_groupHead, first);
-            while (TryReadPointer(ref reader, out var sprite))
-            {
-                group.Add(sprite!);
-            }
-        }
-    }
-
-    [EngineRoutine(0x0043adf0)]
-    private void RemoveFromGroups(Sprite sprite)
-    {
-        var group = _groupHead.Next;
-
-        while (group != _groupHead)
-        {
-            var next = group.Next;
-
-            if (group.Remove(sprite))
-            {
-                Release(sprite);
-
-                if (group.Members.Count == 0)
-                {
-                    group.Unlink();
-                }
-            }
-
-            group = next;
-        }
-    }
-
-    [EngineRoutine(0x0040fad0)]
-    internal void AddToLayer(Sprite sprite)
-    {
-        _layers[(int)sprite.Vid.Layer].Insert(sprite);
-        sprite.AddRef();
-        Release(sprite);
+        _flags |= MapFlags.Paused;
     }
 
     [EngineRoutine(0x0040fa90)]
@@ -1223,78 +1121,44 @@ public partial class Map : IDisposable
         return false;
     }
 
-    [EngineRoutine(0x0040f9e0)]
-    internal void PauseOn()
+    [EngineRoutine(0x0040fad0)]
+    internal void AddToLayer(Sprite sprite)
     {
-        if (!IsPaused)
-        {
-            _pausedAt = CurrentTime;
-        }
-
-        _flags |= MapFlags.Paused;
+        _layers[(int)sprite.Vid.Layer].Insert(sprite);
+        sprite.AddRef();
+        Release(sprite);
     }
 
-    [EngineRoutine(0x0040fa00)]
-    private void PauseOff()
+    private protected static void OverrideGamma(Sprite sprite, Gamma gamma)
     {
-        if (!IsPaused)
-            return;
+        sprite.SetGamma(gamma);
+        var link = sprite.Link;
 
-        for (int layer = 0; layer < LayerCount; layer++)
+        if (link is not null && link.Vid == sprite.Vid.LinkVid)
         {
-            foreach (var entry in _layers[layer].Items)
+            link.SetGamma(gamma);
+        }
+    }
+
+    [EngineRoutine(0x0040b180)]
+    private protected virtual void Destruct()
+    {
+        for (int i = _vidCount - 1; i >= 0; i--)
+        {
+            if (_vids[i] is not null)
             {
-                entry?.LastTickTime = _pausedAt;
+                _vids[i]!.Destruct(Session);
+                _vids[i] = null;
             }
         }
 
-        Session.CurrentTime = _pausedAt;
-        Session.PreviousCurrentTime = _pausedAt - ResumeFrameTime;
-        _flags &= ~MapFlags.Paused;
+        _vidCount = 0;
+        Session.Error.Log($"Vid    release {Session.TextureMemoryInUse} {Session.VidMemoryInUse}");
+        _mouseTips.Clear();
+        CloseDemoFile();
     }
 
-    [EngineRoutine(0x0040b4b0)]
-    internal virtual void DeletePointerToSprite(Sprite removed)
-    {
-        foreach (var controller in _players)
-        {
-            controller.Forget(removed);
-        }
-
-        if (removed.Handle != 0)
-        {
-            Script.DeletePointerToObject(removed.Handle);
-        }
-
-        RemoveFromGroups(removed);
-
-        int index = removed.ReferenceCount > 1 ? Sprites.Listed.Length - 1 : -1;
-        while (index >= 0)
-        {
-            Sprites.Listed[index].DeletePointerToSprite(removed);
-
-            if (Sprites.Listed.Length < index)
-            {
-                index = Sprites.Listed.Length;
-            }
-
-            index--;
-        }
-
-        for (int layer = 0; layer < LayerCount; layer++)
-        {
-            if (removed.ReferenceCount <= 1)
-                continue;
-
-            var list = _layers[layer];
-            for (int i = list.Count - 1; i >= 0; i--)
-            {
-                var sprite = list[i];
-
-                sprite?.DeletePointerToSprite(removed);
-            }
-        }
-    }
+    private void SetFlag(MapFlags flag, bool isSet) => _flags = (isSet ? flag : MapFlags.None) | _flags & ~flag;
 
     private void DeleteAll()
     {
@@ -1330,6 +1194,155 @@ public partial class Map : IDisposable
         if (_groupHead.Next != _groupHead)
         {
             Session.Error.Error(MapLogTag, LogError.Text, 0, "Incorrect delete groups in DeleteAll()"u8);
+        }
+    }
+
+    private void LoadGridZ(ref Resource reader, int expectedSize)
+    {
+        if (reader.GoNext("GRID"u8) == Resource.Found)
+        {
+            int count = reader.SubLoad(Session.Error, out byte[] grid);
+            _sceneryHeights = MemoryMarshal.Cast<byte, short>(grid).ToArray();
+            if (count != expectedSize)
+            {
+                Session.Error.Error(MapLogTag, LogError.Invalid, count, "grid"u8);
+                ResetGroundZ();
+            }
+        }
+        else
+        {
+            reader.GoBegin(Resource.AnyTag);
+        }
+    }
+
+    private bool FindSection(ref Resource reader, ReadOnlySpan<byte> tag)
+    {
+        if (reader.GoNext(tag) == Resource.Found)
+            return true;
+
+        LogMissingSection(tag);
+        return false;
+    }
+
+    private void LogMissingSection(ReadOnlySpan<byte> tag) => Session.Error.Error(MapLogTag, LogError.Section, 0, tag);
+
+    private void ShowLoadingStep(ReadOnlySpan<byte> text)
+    {
+        if (Constant.IsDebugMode)
+        {
+            Session.Graphics.SetLoadingText(text);
+        }
+    }
+
+    private void SetTime(int time) => Session.CurrentTime = time;
+
+    private List<Sprite> GetLiving(KnownObject id, LivingSet set)
+    {
+        if (set.CheckedAt == CurrentTime)
+            return set.Sprites;
+
+        set.CheckedAt = CurrentTime;
+        set.Sprites.Clear();
+        var vid = FindVid(id);
+
+        if (vid is null)
+            return set.Sprites;
+
+        foreach (var sprite in _layers[(int)vid.Layer].Items)
+        {
+            if (sprite is not null && sprite.Vid == vid && sprite.Animation < SpriteAnimation.Death)
+            {
+                set.Sprites.Add(sprite);
+            }
+        }
+
+        return set.Sprites;
+    }
+
+    [EngineRoutine(0x0040fa00)]
+    private void PauseOff()
+    {
+        if (!IsPaused)
+            return;
+
+        for (int layer = 0; layer < LayerCount; layer++)
+        {
+            foreach (var entry in _layers[layer].Items)
+            {
+                entry?.LastTickTime = _pausedAt;
+            }
+        }
+
+        Session.CurrentTime = _pausedAt;
+        Session.PreviousCurrentTime = _pausedAt - ResumeFrameTime;
+        _flags &= ~MapFlags.Paused;
+    }
+
+    [EngineRoutine(0x00411440)]
+    private void DeleteExtraVid()
+    {
+        for (int layer = 0; layer < LayerCount; layer++)
+        {
+            var list = _layers[layer];
+            for (int i = list.Count - 1; i >= 0; i--)
+            {
+                var sprite = list[i];
+
+                if (sprite is not null && sprite.Vid.FileType.HasFlag(VidType.FrameVector))
+                {
+                    DeleteSprite(sprite);
+                }
+            }
+        }
+
+        for (int i = _vidCount - 1; i >= 0; i--)
+        {
+            if (_vids[i] is not null && _vids[i]!.FileType.HasFlag(VidType.FrameVector))
+            {
+                _vids[i]!.Destruct(Session);
+                _vids[i] = null;
+            }
+        }
+
+        while (_vidCount > 0 && _vids[_vidCount - 1] is null)
+        {
+            _vidCount--;
+        }
+    }
+
+    [EngineRoutine(0x0043ad70)]
+    private void LoadGroups(ref Resource reader)
+    {
+        while (TryReadPointer(ref reader, out var first))
+        {
+            var group = new Group(_groupHead, first);
+            while (TryReadPointer(ref reader, out var sprite))
+            {
+                group.Add(sprite!);
+            }
+        }
+    }
+
+    [EngineRoutine(0x0043adf0)]
+    private void RemoveFromGroups(Sprite sprite)
+    {
+        var group = _groupHead.Next;
+
+        while (group != _groupHead)
+        {
+            var next = group.Next;
+
+            if (group.Remove(sprite))
+            {
+                Release(sprite);
+
+                if (group.Members.Count == 0)
+                {
+                    group.Unlink();
+                }
+            }
+
+            group = next;
         }
     }
 }

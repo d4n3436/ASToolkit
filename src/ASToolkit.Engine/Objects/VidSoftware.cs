@@ -14,11 +14,11 @@ public partial class VidSoftware : Vid
     private protected const int TrueColorPaletteSize = PaletteEntries * sizeof(uint);
     private protected const int HighColorPaletteSize = PaletteEntries * sizeof(ushort);
     private protected const int ArmyPalettes = 4;
-    private const int HeadFieldsSize = 5 * sizeof(short);
-    private const int PackedPaletteSize = PaletteEntries * 3;
     private protected const int AliasBody = sizeof(short);
     private protected const ushort HighColorGreenMask = 0x7fe0;
     private protected const ushort HighColorBlueMask = 0x1f;
+    private const int HeadFieldsSize = 5 * sizeof(short);
+    private const int PackedPaletteSize = PaletteEntries * 3;
     private const int HeightGridSide = 256;
     private const int HeightGridLimit = 0x800;
     private const int HeightCellShift = 3;
@@ -31,17 +31,6 @@ public partial class VidSoftware : Vid
 
     private int _bufferSize;
     private byte[] _buffer = [];
-
-    [EngineRoutine(0x00415280)]
-    private protected VidSoftware(VidSoftware source)
-        : base(source)
-    {
-        Format = source.Format;
-        FrameOffsets = source.FrameOffsets;
-        _bufferSize = source._bufferSize;
-        _buffer = source._buffer;
-        CopyHeights(source);
-    }
 
     /// <summary>
     /// Initializes a new instance of the <see cref="VidSoftware"/> class.
@@ -57,6 +46,17 @@ public partial class VidSoftware : Vid
         : base(id, gameObject, weapons, file, totalFrames)
     {
         Format = format;
+    }
+
+    [EngineRoutine(0x00415280)]
+    private protected VidSoftware(VidSoftware source)
+        : base(source)
+    {
+        Format = source.Format;
+        FrameOffsets = source.FrameOffsets;
+        _bufferSize = source._bufferSize;
+        _buffer = source._buffer;
+        CopyHeights(source);
     }
 
     /// <summary>
@@ -83,9 +83,6 @@ public partial class VidSoftware : Vid
     /// Gets a value indicating whether the sprite file draws to the 16-bit back buffer.
     /// </summary>
     protected virtual bool IsHighColor => false;
-
-    [EngineRoutine(0x004153e0)]
-    internal override Vid CreateMirror() => new VidSoftware(this);
 
     /// <summary>
     /// Gets the size of one palette in bytes.
@@ -114,6 +111,9 @@ public partial class VidSoftware : Vid
             entries[i] = gamma.Apply(entries[i]);
         }
     }
+
+    [EngineRoutine(0x004153e0)]
+    internal override Vid CreateMirror() => new VidSoftware(this);
 
     [EngineRoutine(0x00415440)]
     internal override void Destruct(GameSession session)
@@ -322,6 +322,24 @@ public partial class VidSoftware : Vid
         SetHeightFrameStarts(starts);
     }
 
+    [EngineRoutine(0x00415e90)]
+    internal ObjectLayer GetLayer()
+    {
+        if (IsBuiltTerrainClass)
+            return FileType.HasFlag(VidType.Blended) ? ObjectLayer.BuiltAlpha : ObjectLayer.Built;
+
+        if (Properties.HasFlag(ObjectProperties.Ground))
+            return ObjectLayer.SoftwareGround;
+
+        if (Properties.HasFlag(ObjectProperties.AlwaysTop))
+            return ObjectLayer.SoftwareTop;
+
+        if (FileType.HasFlag(VidType.Blended))
+            return ObjectLayer.SoftwareAlpha;
+
+        return !Properties.HasFlag(ObjectProperties.BuildSizeToGridZ) && !Properties.HasFlag(ObjectProperties.BuildVidZToGridZ) ? ObjectLayer.Software : ObjectLayer.SoftwareGrid;
+    }
+
     [EngineRoutine(0x004162b0)]
     internal override void SetGamma(Gamma gamma, int army, Gamma ambient, GameSession session)
     {
@@ -385,23 +403,5 @@ public partial class VidSoftware : Vid
         var slot = _buffer.AsSpan(size * army, size);
         _buffer.AsSpan(size * ArmyPalettes, size).CopyTo(slot);
         ApplyGamma(slot, ambientApplies ? gamma.Add(ambient) : gamma);
-    }
-
-    [EngineRoutine(0x00415e90)]
-    internal ObjectLayer GetLayer()
-    {
-        if (IsBuiltTerrainClass)
-            return FileType.HasFlag(VidType.Blended) ? ObjectLayer.BuiltAlpha : ObjectLayer.Built;
-
-        if (Properties.HasFlag(ObjectProperties.Ground))
-            return ObjectLayer.SoftwareGround;
-
-        if (Properties.HasFlag(ObjectProperties.AlwaysTop))
-            return ObjectLayer.SoftwareTop;
-
-        if (FileType.HasFlag(VidType.Blended))
-            return ObjectLayer.SoftwareAlpha;
-
-        return !Properties.HasFlag(ObjectProperties.BuildSizeToGridZ) && !Properties.HasFlag(ObjectProperties.BuildVidZToGridZ) ? ObjectLayer.Software : ObjectLayer.SoftwareGrid;
     }
 }

@@ -32,6 +32,13 @@ public sealed partial class Graphics
     /// </summary>
     public Screen? Capture { get; private set; }
 
+    [EngineRoutine(0x00414fd0)]
+    internal static uint PackColor(int red, int green, int blue) => PackColor(byte.MaxValue, red, green, blue);
+
+    [EngineRoutine(0x00431b60)]
+    internal static uint PackColor(int alpha, int red, int green, int blue) =>
+        (uint)((((Math.Clamp(alpha, 0, byte.MaxValue) << 8 | Math.Clamp(red, 0, byte.MaxValue)) << 8 | Math.Clamp(green, 0, byte.MaxValue)) << 8) | Math.Clamp(blue, 0, byte.MaxValue));
+
     [EngineRoutine(0x00402690)]
     internal void Effect(Map map, int effect, int first, int second, int duration)
     {
@@ -96,12 +103,12 @@ public sealed partial class Graphics
         return (int)(unchecked(map.RealCurrentTime * 100 - EffectStartTimes[effect] * 100) / (uint)EffectDurations[effect]);
     }
 
-    [EngineRoutine(0x00414fd0)]
-    internal static uint PackColor(int red, int green, int blue) => PackColor(byte.MaxValue, red, green, blue);
-
-    [EngineRoutine(0x00431b60)]
-    internal static uint PackColor(int alpha, int red, int green, int blue) =>
-        (uint)((((Math.Clamp(alpha, 0, byte.MaxValue) << 8 | Math.Clamp(red, 0, byte.MaxValue)) << 8 | Math.Clamp(green, 0, byte.MaxValue)) << 8) | Math.Clamp(blue, 0, byte.MaxValue));
+    private void ClearFades()
+    {
+        EffectStartTimes[(int)ScreenEffect.FadeOut] = 0;
+        EffectStartTimes[(int)ScreenEffect.FadeIn] = 0;
+        EffectStartTimes[(int)ScreenEffect.Fade] = 0;
+    }
 
     [EngineRoutine(0x004311a0)]
     private void UpdateEffects(Map map, bool draw)
@@ -227,28 +234,6 @@ public sealed partial class Graphics
         }
     }
 
-    [EngineRoutine(0x00434180)]
-    private void DrawFlash(Screen screen, uint color)
-    {
-        SetRenderState(RenderState.SpecularEnable, 0);
-        SetAlphaBlend(BlendFactor.DestinationColor, BlendFactor.One);
-        ScreenPrimitives.FillRectangle(screen, new Rectangle(Point.Empty, screen.Size), color, Blend.Source, Blend.Destination);
-    }
-
-    [EngineRoutine(0x00434060)]
-    private void DrawFade(Screen screen, uint color)
-    {
-        SetAlphaBlend(BlendFactor.Zero, BlendFactor.InverseSourceColor);
-        ScreenPrimitives.FillRectangle(screen, new Rectangle(Point.Empty, screen.Size), color, Blend.Source, Blend.Destination);
-    }
-
-    private void ClearFades()
-    {
-        EffectStartTimes[(int)ScreenEffect.FadeOut] = 0;
-        EffectStartTimes[(int)ScreenEffect.FadeIn] = 0;
-        EffectStartTimes[(int)ScreenEffect.Fade] = 0;
-    }
-
     private bool TryAdvanceEffect(ScreenEffect effect, uint realTime, bool isShown, out uint elapsed, out uint length)
     {
         uint start = EffectStartTimes[(int)effect];
@@ -265,4 +250,18 @@ public sealed partial class Graphics
 
     private void DrawGrayFade(uint strength) => DrawFade(Screen!, (strength << 8 | strength) << 8 | strength);
 
+    [EngineRoutine(0x00434060)]
+    private void DrawFade(Screen screen, uint color)
+    {
+        SetAlphaBlend(BlendFactor.Zero, BlendFactor.InverseSourceColor);
+        ScreenPrimitives.FillRectangle(screen, new Rectangle(Point.Empty, screen.Size), color, Blend.Source, Blend.Destination);
+    }
+
+    [EngineRoutine(0x00434180)]
+    private void DrawFlash(Screen screen, uint color)
+    {
+        SetRenderState(RenderState.SpecularEnable, 0);
+        SetAlphaBlend(BlendFactor.DestinationColor, BlendFactor.One);
+        ScreenPrimitives.FillRectangle(screen, new Rectangle(Point.Empty, screen.Size), color, Blend.Source, Blend.Destination);
+    }
 }

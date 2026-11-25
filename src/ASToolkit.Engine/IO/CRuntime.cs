@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 
 namespace ASToolkit.Engine.IO;
@@ -10,6 +11,7 @@ public static partial class CRuntime
     internal const byte LineFeed = (byte)'\n';
     internal const byte CarriageReturn = (byte)'\r';
     private const int NoDigit = 16;
+    private const double FtolLimit = 9223372036854775808.0;
 
     internal static ReadOnlySpan<byte> LineEnd => "\r\n"u8;
 
@@ -39,34 +41,6 @@ public static partial class CRuntime
     /// <param name="character">The character.</param>
     /// <returns><see langword="true"/> if the character is white space; otherwise, <see langword="false"/>.</returns>
     public static bool IsWhiteSpace(byte character) => character == ' ' || character is >= 0x09 and <= 0x0d;
-
-    /// <summary>
-    /// Converts the uppercase ASCII letters of a text to lowercase in place (<c>_strlwr</c>).
-    /// </summary>
-    /// <param name="text">The text.</param>
-    [EngineRoutine(0x00479c60)]
-    public static void ToLowerInPlace(Span<byte> text)
-    {
-        while (!text.IsEmpty)
-        {
-            Ascii.ToLowerInPlace(text, out int converted);
-            text = text[Math.Min(converted + 1, text.Length)..];
-        }
-    }
-
-    /// <summary>
-    /// Converts the lowercase ASCII letters of a text to uppercase in place (<c>_strupr</c>).
-    /// </summary>
-    /// <param name="text">The text.</param>
-    [EngineRoutine(0x00479cfe)]
-    public static void ToUpperInPlace(Span<byte> text)
-    {
-        while (!text.IsEmpty)
-        {
-            Ascii.ToUpperInPlace(text, out int converted);
-            text = text[Math.Min(converted + 1, text.Length)..];
-        }
-    }
 
     /// <summary>
     /// Reads a decimal number after any leading white space and an optional sign (<c>atoi</c>).
@@ -144,14 +118,112 @@ public static partial class CRuntime
         return true;
     }
 
-    [EngineRoutine(0x0046d3fe)]
-    internal static bool IsSpace(byte character) => IsWhiteSpace(character) || character > sbyte.MaxValue && HighSpaces.Contains(character);
+    /// <summary>
+    /// Converts the uppercase ASCII letters of a text to lowercase in place (<c>_strlwr</c>).
+    /// </summary>
+    /// <param name="text">The text.</param>
+    [EngineRoutine(0x00479c60)]
+    public static void ToLowerInPlace(Span<byte> text)
+    {
+        while (!text.IsEmpty)
+        {
+            Ascii.ToLowerInPlace(text, out int converted);
+            text = text[Math.Min(converted + 1, text.Length)..];
+        }
+    }
+
+    /// <summary>
+    /// Converts the lowercase ASCII letters of a text to uppercase in place (<c>_strupr</c>).
+    /// </summary>
+    /// <param name="text">The text.</param>
+    [EngineRoutine(0x00479cfe)]
+    public static void ToUpperInPlace(Span<byte> text)
+    {
+        while (!text.IsEmpty)
+        {
+            Ascii.ToUpperInPlace(text, out int converted);
+            text = text[Math.Min(converted + 1, text.Length)..];
+        }
+    }
+
+    [EngineRoutine(0x0046b9ac)]
+    internal static int Ftol(double value) => Math.Abs(value) < FtolLimit ? (int)(long)value : 0;
+
+    [EngineRoutine(0x0046c069)]
+    internal static byte[] Format(ReadOnlySpan<byte> format, bool isText, ReadOnlySpan<byte> text, int number)
+    {
+        var output = new List<byte>(format.Length);
+        bool isConsumed = false;
+        int i = 0;
+        while (i < format.Length)
+        {
+            byte current = format[i++];
+            if (current != (byte)'%')
+            {
+                output.Add(current);
+                continue;
+            }
+
+            int start = i - 1;
+            bool isZeroPadded = i < format.Length && format[i] == (byte)'0';
+            if (isZeroPadded)
+            {
+                i++;
+            }
+
+            int width = 0;
+            while (i < format.Length && format[i] is >= (byte)'0' and <= (byte)'9')
+            {
+                width = width * 10 + format[i++] - '0';
+            }
+
+            byte conversion = i < format.Length ? format[i++] : (byte)0;
+            bool isWidthUsed = isZeroPadded || width != 0;
+            if (isConsumed || conversion == (byte)'s' && (isWidthUsed || !isText) || conversion == (byte)'c' && (isWidthUsed || isText) || conversion == (byte)'i' && isText ||
+                conversion is not ((byte)'s' or (byte)'c' or (byte)'i'))
+            {
+                throw new NotSupportedException($"The Printf conversion '{Encoding.ASCII.GetString(format[start..i])}' is not supported.");
+            }
+
+            isConsumed = true;
+            if (conversion == (byte)'s')
+            {
+                foreach (byte b in text)
+                {
+                    output.Add(b);
+                }
+            }
+            else if (conversion == (byte)'c')
+            {
+                output.Add((byte)number);
+            }
+            else
+            {
+                string digits = number.ToString(CultureInfo.InvariantCulture);
+                if (isZeroPadded)
+                {
+                    digits = number < 0 ? "-" + digits[1..].PadLeft(Math.Max(width - 1, 0), '0') : digits.PadLeft(width, '0');
+                }
+                else
+                {
+                    digits = digits.PadLeft(width);
+                }
+
+                output.AddRange(Encoding.ASCII.GetBytes(digits));
+            }
+        }
+
+        return output.ToArray();
+    }
+
+    [EngineRoutine(0x0046d3a8)]
+    internal static bool IsAlpha(byte character) => char.IsAsciiLetter((char)character) || character > sbyte.MaxValue && HighLetters.Contains(character);
 
     [EngineRoutine(0x0046d3d6)]
     internal static bool IsDigit(byte character) => char.IsAsciiDigit((char)character) || character > sbyte.MaxValue && HighDigits.Contains(character);
 
-    [EngineRoutine(0x0046d3a8)]
-    internal static bool IsAlpha(byte character) => char.IsAsciiLetter((char)character) || character > sbyte.MaxValue && HighLetters.Contains(character);
+    [EngineRoutine(0x0046d3fe)]
+    internal static bool IsSpace(byte character) => IsWhiteSpace(character) || character > sbyte.MaxValue && HighSpaces.Contains(character);
 
     [EngineRoutine(0x0046d426)]
     internal static bool IsAlphanumeric(byte character) => char.IsAsciiLetterOrDigit((char)character) || character > sbyte.MaxValue && HighLettersOrDigits.Contains(character);

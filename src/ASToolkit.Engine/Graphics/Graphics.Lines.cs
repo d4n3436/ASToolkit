@@ -9,8 +9,27 @@ public sealed partial class Graphics
     private const float MaxLineCoordinate = 10000;
     private const uint DebugTextColor = 0xff00ff00;
 
-    [EngineRoutine(0x00434420)]
-    internal void DrawFormattedText(Vector2 position, string text) => DrawDeviceText(position, DebugTextColor, GameTextEncoding.Cyrillic.GetBytes(text));
+    [EngineRoutine(0x0041eba0)]
+    internal void SetPixel(Vector2 point, uint color)
+    {
+        if (Screen is null)
+            return;
+
+        var viewport = Screen.Viewport;
+        if (!(viewport.Left <= point.X && point.X < viewport.Right && viewport.Top <= point.Y && point.Y < viewport.Bottom))
+            return;
+
+        LockDepth();
+        int index = Screen.Pitch * (int)point.Y + (int)point.X;
+        if (Screen.IsTrueColor)
+        {
+            Screen.TrueColorPixels[index] = color;
+        }
+        else
+        {
+            Screen.HighColorPixels[index] = Screen.Format.Pack(color);
+        }
+    }
 
     [EngineRoutine(0x00433da0)]
     internal void Box(Map map, Vector2 topLeft, Vector2 bottomRight, uint color)
@@ -72,27 +91,8 @@ public sealed partial class Graphics
         SetPixel(end, color);
     }
 
-    [EngineRoutine(0x0041eba0)]
-    internal void SetPixel(Vector2 point, uint color)
-    {
-        if (Screen is null)
-            return;
-
-        var viewport = Screen.Viewport;
-        if (!(viewport.Left <= point.X && point.X < viewport.Right && viewport.Top <= point.Y && point.Y < viewport.Bottom))
-            return;
-
-        LockDepth();
-        int index = Screen.Pitch * (int)point.Y + (int)point.X;
-        if (Screen.IsTrueColor)
-        {
-            Screen.TrueColorPixels[index] = color;
-        }
-        else
-        {
-            Screen.HighColorPixels[index] = Screen.Format.Pack(color);
-        }
-    }
+    [EngineRoutine(0x00434420)]
+    internal void DrawFormattedText(Vector2 position, string text) => DrawDeviceText(position, DebugTextColor, GameTextEncoding.Cyrillic.GetBytes(text));
 
     private static float ClampLineCoordinate(Map map, float value, ReadOnlySpan<byte> name)
     {

@@ -23,6 +23,7 @@ internal sealed class OggMusic
     private int _writeOffset;
     private int _endState;
 
+    [EngineRoutine(0x0041c310)]
     public OggMusic(ReadOnlyMemory<byte> name, string path, MusicTrackFormat format, ISoundDevice? device, MyError? error)
     {
         _error = error;
@@ -62,6 +63,17 @@ internal sealed class OggMusic
         _isPlaying = true;
     }
 
+    [EngineRoutine(0x0041c540)]
+    public void Stop(uint realTime)
+    {
+        _isPlaying = false;
+
+        if (HasBuffer)
+        {
+            _buffer.Stop(realTime);
+        }
+    }
+
     [EngineRoutine(0x0041c560)]
     public void Pause(uint realTime)
     {
@@ -77,17 +89,6 @@ internal sealed class OggMusic
         if (_isPlaying && HasBuffer)
         {
             _buffer.Play(true, realTime);
-        }
-    }
-
-    [EngineRoutine(0x0041c540)]
-    public void Stop(uint realTime)
-    {
-        _isPlaying = false;
-
-        if (HasBuffer)
-        {
-            _buffer.Stop(realTime);
         }
     }
 
@@ -111,6 +112,9 @@ internal sealed class OggMusic
 
         return _isPlaying;
     }
+
+    [EngineRoutine(0x0041c5e0)]
+    public void SetVolume(int volume) => Volume = volume;
 
     [EngineRoutine(0x0041c600)]
     public void Update(uint realTime)
@@ -154,7 +158,4 @@ internal sealed class OggMusic
             Stop(realTime);
         }
     }
-
-    [EngineRoutine(0x0041c5e0)]
-    public void SetVolume(int volume) => Volume = volume;
 }

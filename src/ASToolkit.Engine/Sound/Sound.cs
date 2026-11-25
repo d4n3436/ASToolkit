@@ -16,12 +16,15 @@ public sealed class Sound
     /// Represents the volume of a sound heard at full loudness, in hundredths of a decibel.
     /// </summary>
     public const int FullLoudness = 0;
+
     internal const int OggReadSize = 0x1000;
+    internal const int NoSound = -1;
+    internal const int NoBuffer = -1;
+    internal const int LoopHold = 100;
+    internal const int MixLatency = 10;
     private const int SfxRecordSize = 72;
     private const int RequestCount = 32;
     private const int VoiceCount = 16;
-    internal const int NoSound = -1;
-    internal const int NoBuffer = -1;
     private const int PriorityLevel = 2;
     private const int NormalLevel = 1;
     private const int DeviceReady = 0;
@@ -40,11 +43,9 @@ public sealed class Sound
     private const int LoudnessScale = 2;
     private const int MergeReach = 100;
     private const int RepeatWindow = 50;
-    internal const int LoopHold = 100;
     private const int TrackCheckMask = 15;
     private const uint FadeWindow = 1000;
     private const int FadeStart = -1;
-    internal const int MixLatency = 10;
     private const int PcmSampleSize = 2;
     private const int FormatMinimumSize = 14;
     private const int WaveBufferFlags = 0xc2;
@@ -56,12 +57,12 @@ public sealed class Sound
     private readonly IGameFileSystem _fileSystem;
     private readonly ISoundDevice? _device;
     private readonly TimeProvider _time;
-    private Sfx[] _sfx = [];
     private readonly SoundBuffer[] _duplicates = new SoundBuffer[VoiceCount];
     private readonly SfxRequest[] _requests = new SfxRequest[RequestCount];
     private readonly SfxBuffer[] _voices = new SfxBuffer[VoiceCount];
     private readonly Dictionary<string, MusicTrackFormat> _trackFormats = [];
     private readonly nint _window;
+    private Sfx[] _sfx = [];
     private int _soundVolume = FullVolume;
     private int _musicVolume = NoSound;
     private int _fade;
@@ -70,23 +71,6 @@ public sealed class Sound
     private OggMusic? _music;
     private uint _fadeStartedAt;
     private int _deviceState = DeviceReleased;
-
-    /// <summary>
-    /// Creates the sound system with the sounds of the game's object resource and loads the samples of every sound.
-    /// </summary>
-    /// <param name="fileSystem">The file system that holds the samples and tracks.</param>
-    /// <param name="device">The sound device, or <see langword="null"/> to time voices and music from their lengths.</param>
-    /// <param name="isDisabled"><see langword="true"/> to load nothing and ignore every request; otherwise, <see langword="false"/>.</param>
-    /// <param name="isHighQuality"><see langword="true"/> for high-quality sound; otherwise, <see langword="false"/>.</param>
-    /// <param name="window">The window handle to notify when a track ends.</param>
-    /// <returns>The sound system.</returns>
-    public static Sound Create(IGameFileSystem fileSystem, ISoundDevice? device = null, bool isDisabled = false, bool isHighQuality = false, nint window = 0)
-    {
-        var resource = new Resource();
-        Map.OpenObjects(fileSystem, null, ref resource);
-
-        return new Sound(ref resource, fileSystem, null, device, isDisabled, isHighQuality, window);
-    }
 
     [EngineRoutine(0x0041cba0)]
     internal Sound(ref Resource resource, IGameFileSystem fileSystem, MyError? error, ISoundDevice? device = null, bool isDisabled = false, bool isHighQuality = false, nint window = 0, TimeProvider? time = null)
@@ -151,6 +135,10 @@ public sealed class Sound
         }
     }
 
+    internal int SoundBufferCount => _sfx.Length * SfxRecord.MaxSamples;
+
+    internal Span<SoundBuffer> Duplicates => _duplicates;
+
     private static ReadOnlySpan<byte> OggExtensions => ".Ogg.OGG.ogg"u8;
 
     private static ReadOnlySpan<byte> SfxTag => "SFX "u8;
@@ -158,6 +146,23 @@ public sealed class Sound
     private int PlayToState { get; set; } = NoSound;
 
     private int PlayToPosition { get; set; } = NoSound;
+
+    /// <summary>
+    /// Creates the sound system with the sounds of the game's object resource and loads the samples of every sound.
+    /// </summary>
+    /// <param name="fileSystem">The file system that holds the samples and tracks.</param>
+    /// <param name="device">The sound device, or <see langword="null"/> to time voices and music from their lengths.</param>
+    /// <param name="isDisabled"><see langword="true"/> to load nothing and ignore every request; otherwise, <see langword="false"/>.</param>
+    /// <param name="isHighQuality"><see langword="true"/> for high-quality sound; otherwise, <see langword="false"/>.</param>
+    /// <param name="window">The window handle to notify when a track ends.</param>
+    /// <returns>The sound system.</returns>
+    public static Sound Create(IGameFileSystem fileSystem, ISoundDevice? device = null, bool isDisabled = false, bool isHighQuality = false, nint window = 0)
+    {
+        var resource = new Resource();
+        Map.OpenObjects(fileSystem, null, ref resource);
+
+        return new Sound(ref resource, fileSystem, null, device, isDisabled, isHighQuality, window);
+    }
 
     /// <summary>
     /// Determines whether a music track is playing or looping.
@@ -209,11 +214,69 @@ public sealed class Sound
     }
 
     /// <summary>
-    /// Determines whether a sound loops and keeps one voice alive while it is requested.
+    /// Releases the sound device.
+    /// </summary>
+    [EngineRoutine(0x0041d050)]
+    public void DisableSound()
+    {
+        if (_deviceState != DeviceReady)
+            return;
+
+        ReleaseDevice();
+    }
+
+    /// <summary>
+    /// Stops the music, releases the sound device and restores the volume of the auxiliary and wave output devices.
+    /// </summary>
+    [EngineRoutine(0x0041d080)]
+    public void Disable()
+    {
+        DisableMusic();
+        DisableSound();
+    }
+
+    /// <summary>
+    /// Stops the voices of a sound, or every voice.
+    /// </summary>
+    /// <param name="id">The sound, or -1 to stop every voice.</param>
+    /// <param name="realTime">The real time in milliseconds.</param>
+    [EngineRoutine(0x0041d560)]
+    public void StopSfx(int id, uint realTime)
+    {
+        if (_deviceState != DeviceReady)
+            return;
+
+        if (id == NoSound)
+        {
+            StopSound(realTime);
+
+            return;
+        }
+
+        var voices = _voices.AsSpan();
+        for (int v = 0; v < voices.Length; v++)
+        {
+            if (voices[v].Id == id)
+            {
+                voices[v].Destroy(this);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Requests a sound heard from a point relative to the center of the screen.
     /// </summary>
     /// <param name="id">The sound.</param>
-    /// <returns><see langword="true"/> for a loaded looping sound; otherwise, <see langword="false"/>.</returns>
-    public bool IsLooped(int id) => IsValid(id) && _sfx[id].Record.VoiceLimit == LoopedLimit;
+    /// <param name="offset">The distance from the center of the screen in pixels.</param>
+    [EngineRoutine(0x0041d5b0)]
+    public void PlayAt(int id, Vector2 offset)
+    {
+        int across = (int)offset.X;
+        int down = (int)offset.Y;
+        int acrossLevel = unchecked(-GetMagnitude(across) * LoudnessScale);
+        int downLevel = unchecked(-GetMagnitude(down) * LoudnessScale);
+        PlaySfx(id, unchecked(across * PanScale), Math.Min(acrossLevel, downLevel));
+    }
 
     /// <summary>
     /// Requests a sound for the end of the frame.
@@ -269,66 +332,6 @@ public sealed class Sound
         if (replaced != 0 || !isRequested)
         {
             requests[replaced] = new SfxRequest(id, pan, level);
-        }
-    }
-
-    /// <summary>
-    /// Requests a sound heard from a point relative to the center of the screen.
-    /// </summary>
-    /// <param name="id">The sound.</param>
-    /// <param name="offset">The distance from the center of the screen in pixels.</param>
-    [EngineRoutine(0x0041d5b0)]
-    public void PlayAt(int id, Vector2 offset)
-    {
-        int across = (int)offset.X;
-        int down = (int)offset.Y;
-        int acrossLevel = unchecked(-GetMagnitude(across) * LoudnessScale);
-        int downLevel = unchecked(-GetMagnitude(down) * LoudnessScale);
-        PlaySfx(id, unchecked(across * PanScale), Math.Min(acrossLevel, downLevel));
-    }
-
-    private void MusicTact(GameRandom random, uint realTime)
-    {
-        var music = _music;
-
-        if (music is null)
-            return;
-
-        music.Update(realTime);
-        bool isNextTrack;
-
-        if (_fade < 0)
-        {
-            if (_fadeStartedAt == 0 || realTime - _fadeStartedAt > FadeWindow)
-            {
-                _fadeStartedAt = realTime;
-            }
-
-            music.SetVolume(_fade + (_musicVolume >= 0 ? (_musicVolume - FullVolume) * VolumeScale : 0));
-            _fade -= (int)((realTime - _fadeStartedAt) / 2);
-            isNextTrack = _fade < QuietestVolume;
-
-            if (isNextTrack)
-            {
-                _fade = 0;
-                _fadeStartedAt = 0;
-            }
-        }
-        else
-        {
-            isNextTrack = (random.Next() & TrackCheckMask) == 0 && !music.IsPlaying(realTime);
-        }
-
-        if (isNextTrack)
-        {
-            if (_trackName.Length == 0)
-            {
-                StopMusic(realTime);
-            }
-            else
-            {
-                PlayFile(_trackName, _loop, realTime);
-            }
         }
     }
 
@@ -455,60 +458,11 @@ public sealed class Sound
     }
 
     /// <summary>
-    /// Stops the voices of a sound, or every voice.
+    /// Determines whether a sound loops and keeps one voice alive while it is requested.
     /// </summary>
-    /// <param name="id">The sound, or -1 to stop every voice.</param>
-    /// <param name="realTime">The real time in milliseconds.</param>
-    [EngineRoutine(0x0041d560)]
-    public void StopSfx(int id, uint realTime)
-    {
-        if (_deviceState != DeviceReady)
-            return;
-
-        if (id == NoSound)
-        {
-            StopSound(realTime);
-
-            return;
-        }
-
-        var voices = _voices.AsSpan();
-        for (int v = 0; v < voices.Length; v++)
-        {
-            if (voices[v].Id == id)
-            {
-                voices[v].Destroy(this);
-            }
-        }
-    }
-
-    /// <summary>
-    /// Sets the volume of later sound requests.
-    /// </summary>
-    /// <param name="volume">The volume from 0 to 100.</param>
-    [EngineRoutine(0x0041ddc0)]
-    public void VolumeSound(int volume) => _soundVolume = volume < 0 ? 0 : Math.Min(volume, FullVolume);
-
-    /// <summary>
-    /// Plays a music track and fades the current one out first.
-    /// </summary>
-    /// <param name="name">The path of the track.</param>
-    /// <param name="loop">Any nonzero value to play the track again when it ends.</param>
-    /// <param name="realTime">The real time in milliseconds.</param>
-    [EngineRoutine(0x0041dec0)]
-    public void FadeAndPlayFile(ReadOnlySpan<byte> name, int loop, uint realTime)
-    {
-        if (_music is null)
-        {
-            PlayFile(name.ToArray(), loop, realTime);
-
-            return;
-        }
-
-        _fade = FadeStart;
-        _trackName = name.ToArray();
-        _loop = loop;
-    }
+    /// <param name="id">The sound.</param>
+    /// <returns><see langword="true"/> for a loaded looping sound; otherwise, <see langword="false"/>.</returns>
+    public bool IsLooped(int id) => IsValid(id) && _sfx[id].Record.VoiceLimit == LoopedLimit;
 
     /// <summary>
     /// Stops the music and clears the remembered track to play again.
@@ -526,6 +480,35 @@ public sealed class Sound
 
         return (_device?.SendMusicCommand("close FWMUSIC"u8) ?? 0) != 0;
     }
+
+    /// <summary>
+    /// Pauses the music and every voice that plays.
+    /// </summary>
+    /// <param name="realTime">The real time in milliseconds.</param>
+    [EngineRoutine(0x0041dd80)]
+    public void Pause(uint realTime)
+    {
+        PauseMusic(realTime);
+        PauseSound(realTime);
+    }
+
+    /// <summary>
+    /// Resumes the music and every voice that was playing.
+    /// </summary>
+    /// <param name="realTime">The real time in milliseconds.</param>
+    [EngineRoutine(0x0041dda0)]
+    public void Resume(uint realTime)
+    {
+        ResumeMusic(realTime);
+        ResumeSound(realTime);
+    }
+
+    /// <summary>
+    /// Sets the volume of later sound requests.
+    /// </summary>
+    /// <param name="volume">The volume from 0 to 100.</param>
+    [EngineRoutine(0x0041ddc0)]
+    public void VolumeSound(int volume) => _soundVolume = volume < 0 ? 0 : Math.Min(volume, FullVolume);
 
     /// <summary>
     /// Sets the volume of the music, removing the track at 0 and starting the remembered one when the volume is above 0.
@@ -563,56 +546,24 @@ public sealed class Sound
     }
 
     /// <summary>
-    /// Releases the sound device.
+    /// Plays a music track and fades the current one out first.
     /// </summary>
-    [EngineRoutine(0x0041d050)]
-    public void DisableSound()
+    /// <param name="name">The path of the track.</param>
+    /// <param name="loop">Any nonzero value to play the track again when it ends.</param>
+    /// <param name="realTime">The real time in milliseconds.</param>
+    [EngineRoutine(0x0041dec0)]
+    public void FadeAndPlayFile(ReadOnlySpan<byte> name, int loop, uint realTime)
     {
-        if (_deviceState != DeviceReady)
+        if (_music is null)
+        {
+            PlayFile(name.ToArray(), loop, realTime);
+
             return;
+        }
 
-        ReleaseDevice();
-    }
-
-    /// <summary>
-    /// Stops the music, releases the sound device and restores the volume of the auxiliary and wave output devices.
-    /// </summary>
-    [EngineRoutine(0x0041d080)]
-    public void Disable()
-    {
-        DisableMusic();
-        DisableSound();
-    }
-
-    /// <summary>
-    /// Pauses the music and every voice that plays.
-    /// </summary>
-    /// <param name="realTime">The real time in milliseconds.</param>
-    [EngineRoutine(0x0041dd80)]
-    public void Pause(uint realTime)
-    {
-        PauseMusic(realTime);
-        PauseSound(realTime);
-    }
-
-    /// <summary>
-    /// Resumes the music and every voice that was playing.
-    /// </summary>
-    /// <param name="realTime">The real time in milliseconds.</param>
-    [EngineRoutine(0x0041dda0)]
-    public void Resume(uint realTime)
-    {
-        ResumeMusic(realTime);
-        ResumeSound(realTime);
-    }
-
-    internal bool IsValid(int id) => id >= 0 && id < _sfx.Length && _sfx[id].Count > 0;
-
-    private static int GetMagnitude(int value)
-    {
-        int sign = value >> 31;
-
-        return unchecked((value ^ sign) - sign);
+        _fade = FadeStart;
+        _trackName = name.ToArray();
+        _loop = loop;
     }
 
     internal static bool IsOgg(ReadOnlySpan<byte> path)
@@ -626,53 +577,149 @@ public sealed class Sound
         return false;
     }
 
-    private bool IsInvalid(int id)
+    internal bool IsValid(int id) => id >= 0 && id < _sfx.Length && _sfx[id].Count > 0;
+
+    internal ref SoundBuffer GetBuffer(int handle) => ref handle < SoundBufferCount ? ref _sfx[handle / SfxRecord.MaxSamples].Buffers[handle % SfxRecord.MaxSamples] : ref _duplicates[handle - SoundBufferCount];
+
+    internal bool IsDuplicate(int handle) => handle >= SoundBufferCount;
+
+    internal void ReleaseBuffer(int handle)
     {
-        if (IsValid(id))
-            return false;
-
-        if (_sfx.Length > 0)
+        if (IsDuplicate(handle))
         {
-            Error?.Error("SOUND"u8, LogError.Invalid, 0);
+            _duplicates[handle - SoundBufferCount] = default;
         }
-
-        return true;
+        else
+        {
+            GetBuffer(handle).References--;
+        }
     }
 
-    [EngineRoutine(0x0041d110)]
-    private void LoadSfx(ref Resource resource)
+    [EngineRoutine(0x0041e190)]
+    internal void ReloadBuffers()
     {
-        uint start = GameSession.TimeGetTime(_time);
+        for (int id = 0; id < _sfx.Length; id++)
+        {
+            _sfx[id].Load(this, id, _sfx[id].Record);
+        }
+    }
+
+    [EngineRoutine(0x0041e1d0)]
+    internal SoundBuffer LoadOgg(ReadOnlySpan<byte> path, int sound, int variant, ref int size, out ReadOnlyMemory<byte> file)
+    {
+        file = default;
+
         if (_deviceState != DeviceReady)
-            return;
+            return default;
 
-        if (!resource.IsOpen)
+        if (path.IsEmpty || !_fileSystem.TryRead(Encoding.ASCII.GetString(path), out file))
         {
-            Error?.Error("SOUND"u8, LogError.Open, 0, "res"u8);
-            return;
+            Error?.Error("SOUND"u8, LogError.Open, 0, path);
+
+            return default;
         }
 
-        int count = resource.CountRecords(SfxTag);
-        if (count == 0)
+        var track = new VorbisResource(file);
+
+        if (track.SampleRate <= 0 || track.Channels <= 0)
         {
-            Error?.Error("SOUND"u8, LogError.Section, 0, SfxTag);
-            return;
+            Error?.Error("SOUND"u8, LogError.Invalid, 0, path);
+
+            return default;
         }
 
-        _sfx = new Sfx[count];
-        if (resource.GoBegin(SfxTag) != Resource.Found)
-            return;
+        int blockAlign = track.Channels * PcmSampleSize;
+        var format = new WaveFormat(1, (ushort)track.Channels, (uint)track.SampleRate, (uint)(track.SampleRate * blockAlign), (ushort)blockAlign, PcmSampleSize * 8, OggFormatExtraSize);
 
-        int id = 0;
-        do
+        if (size == 0)
         {
-            _sfx[id] = new Sfx();
-            _sfx[id].Load(this, id, new SfxRecord(resource.Record.ToArray()));
-            id++;
+            size = (int)(track.SampleCount * blockAlign);
         }
-        while (resource.GoNextSub(SfxTag) == Resource.Found);
 
-        Error?.Log($"LoadSFX::No   ={count,-15}   sizeof(SFX)   ={SfxRecordSize,-5}    load time     ={GameSession.TimeGetTime(_time) - start}ms Quality={(IsHighQuality ? 1 : 0)}");
+        int result = _device?.CreateSampleBuffer(sound, variant, format, size, OggBufferFlags) ?? 0;
+
+        if (result < 0)
+        {
+            Error?.Error("SOUND"u8, LogError.Create, result, "SoundBuffer for ogg"u8);
+
+            return default;
+        }
+
+        return new SoundBuffer(track.SampleCount * MillisecondsPerSecond / track.SampleRate, 1, sound, variant);
+    }
+
+    [EngineRoutine(0x0041e370)]
+    internal SoundBuffer LoadWave(ref Resource resource, ReadOnlySpan<byte> path, int sound, int variant)
+    {
+        if (_deviceState != DeviceReady)
+            return default;
+
+        if (resource.Open(_fileSystem, Error, path, Resource.AnyTag) != 0)
+            return default;
+
+        if (resource.GoBegin("fmt "u8) != 0)
+        {
+            Error?.Log($"!!!ERROR!!!SFX:'{MyError.Decode(path)}' 'fmt ' not found");
+
+            return default;
+        }
+
+        if (resource.ChunkSize < FormatMinimumSize)
+        {
+            Error?.Log($"!!!ERROR!!!SFX:'{MyError.Decode(path)}' incorrect size {resource.ChunkSize}");
+
+            return default;
+        }
+
+        Span<byte> header = stackalloc byte[Unsafe.SizeOf<WaveFormat>()];
+        resource.Read(header);
+        var format = MemoryMarshal.Read<WaveFormat>(header);
+
+        if (resource.GoNext("data"u8) != 0 && resource.GoBegin("data"u8) != 0)
+        {
+            Error?.Log($"!!!ERROR!!!SFX:'{MyError.Decode(path)}' 'data' not found");
+
+            return default;
+        }
+
+        int result = _device?.CreateSampleBuffer(sound, variant, format, resource.ChunkSize, WaveBufferFlags) ?? 0;
+
+        if (result < 0)
+        {
+            Error?.Error("SOUND"u8, LogError.Create, result, "SoundBuffer"u8);
+
+            return default;
+        }
+
+        int bytesPerSecond = (int)format.SamplesPerSec * format.BlockAlign;
+
+        return new SoundBuffer(bytesPerSecond <= 0 ? 0 : resource.ChunkSize * MillisecondsPerSecond / bytesPerSecond, 1, sound, variant);
+    }
+
+    private static int GetMagnitude(int value)
+    {
+        int sign = value >> 31;
+
+        return unchecked((value ^ sign) - sign);
+    }
+
+    private OggMusic CreateMusic(ReadOnlyMemory<byte> name)
+    {
+        // TODO: Port the DirectShow music class for tracks that are not ogg
+        string path = Encoding.ASCII.GetString(name.Span);
+
+        if (!_trackFormats.TryGetValue(path, out var format))
+        {
+            if (_fileSystem.TryRead(path, out var data))
+            {
+                var track = new VorbisResource(data);
+                format = new MusicTrackFormat(track.SampleRate * track.Channels * PcmSampleSize, (int)(track.SampleCount * track.Channels * PcmSampleSize));
+            }
+
+            _trackFormats[path] = format;
+        }
+
+        return new OggMusic(name, path, format, _device, Error);
     }
 
     [EngineRoutine(0x0041cd30)]
@@ -783,175 +830,51 @@ public sealed class Sound
         _deviceState = DeviceReleased;
     }
 
-    [EngineRoutine(0x0041db80)]
-    private bool PauseMusic(uint realTime)
+    [EngineRoutine(0x0041d0a0)]
+    private void DisableMusic()
     {
-        _music?.Pause(realTime);
+        _music = null;
+        _device?.SendMusicCommand("stop FWMUSIC"u8);
+        _device?.SendMusicCommand("close FWMUSIC"u8);
 
-        return (_device?.SendMusicCommand("stop FWMUSIC"u8, _window) ?? 0) != 0;
+        _fade = 0;
+        PlayToPosition = NoSound;
     }
 
-    [EngineRoutine(0x0041dbd0)]
-    private bool ResumeMusic(uint realTime)
+    [EngineRoutine(0x0041d110)]
+    private void LoadSfx(ref Resource resource)
     {
-        _music?.Resume(realTime);
-
-        string command = PlayToState < 0 ? "play FWMUSIC notify" : $"play FWMUSIC to {PlayToPosition + 1} notify";
-
-        return (_device?.SendMusicCommand(Encoding.ASCII.GetBytes(command), _window) ?? 0) != 0;
-    }
-
-    [EngineRoutine(0x0041dd10)]
-    private void PauseSound(uint realTime)
-    {
+        uint start = GameSession.TimeGetTime(_time);
         if (_deviceState != DeviceReady)
             return;
 
-        var voices = _voices.AsSpan();
-        for (int v = 0; v < voices.Length; v++)
+        if (!resource.IsOpen)
         {
-            ref var voice = ref voices[v];
-
-            if (voice.IsPlaying && voice.Buffer != NoBuffer)
-            {
-                GetBuffer(voice.Buffer).Stop(realTime);
-                _device?.StopVoice(v);
-            }
+            Error?.Error("SOUND"u8, LogError.Open, 0, "res"u8);
+            return;
         }
-    }
 
-    [EngineRoutine(0x0041dd50)]
-    private void ResumeSound(uint realTime)
-    {
-        if (_deviceState != DeviceReady)
+        int count = resource.CountRecords(SfxTag);
+        if (count == 0)
+        {
+            Error?.Error("SOUND"u8, LogError.Section, 0, SfxTag);
+            return;
+        }
+
+        _sfx = new Sfx[count];
+        if (resource.GoBegin(SfxTag) != Resource.Found)
             return;
 
-        var voices = _voices.AsSpan();
-        for (int v = 0; v < voices.Length; v++)
+        int id = 0;
+        do
         {
-            voices[v].Resume(this, v, realTime);
+            _sfx[id] = new Sfx();
+            _sfx[id].Load(this, id, new SfxRecord(resource.Record.ToArray()));
+            id++;
         }
-    }
+        while (resource.GoNextSub(SfxTag) == Resource.Found);
 
-    [EngineRoutine(0x0041e190)]
-    internal void ReloadBuffers()
-    {
-        for (int id = 0; id < _sfx.Length; id++)
-        {
-            _sfx[id].Load(this, id, _sfx[id].Record);
-        }
-    }
-
-    [EngineRoutine(0x0041e370)]
-    internal SoundBuffer LoadWave(ref Resource resource, ReadOnlySpan<byte> path, int sound, int variant)
-    {
-        if (_deviceState != DeviceReady)
-            return default;
-
-        if (resource.Open(_fileSystem, Error, path, Resource.AnyTag) != 0)
-            return default;
-
-        if (resource.GoBegin("fmt "u8) != 0)
-        {
-            Error?.Log($"!!!ERROR!!!SFX:'{MyError.Decode(path)}' 'fmt ' not found");
-
-            return default;
-        }
-
-        if (resource.ChunkSize < FormatMinimumSize)
-        {
-            Error?.Log($"!!!ERROR!!!SFX:'{MyError.Decode(path)}' incorrect size {resource.ChunkSize}");
-
-            return default;
-        }
-
-        Span<byte> header = stackalloc byte[Unsafe.SizeOf<WaveFormat>()];
-        resource.Read(header);
-        var format = MemoryMarshal.Read<WaveFormat>(header);
-
-        if (resource.GoNext("data"u8) != 0 && resource.GoBegin("data"u8) != 0)
-        {
-            Error?.Log($"!!!ERROR!!!SFX:'{MyError.Decode(path)}' 'data' not found");
-
-            return default;
-        }
-
-        int result = _device?.CreateSampleBuffer(sound, variant, format, resource.ChunkSize, WaveBufferFlags) ?? 0;
-
-        if (result < 0)
-        {
-            Error?.Error("SOUND"u8, LogError.Create, result, "SoundBuffer"u8);
-
-            return default;
-        }
-
-        int bytesPerSecond = (int)format.SamplesPerSec * format.BlockAlign;
-
-        return new SoundBuffer(bytesPerSecond <= 0 ? 0 : resource.ChunkSize * MillisecondsPerSecond / bytesPerSecond, 1, sound, variant);
-    }
-
-    [EngineRoutine(0x0041e1d0)]
-    internal SoundBuffer LoadOgg(ReadOnlySpan<byte> path, int sound, int variant, ref int size, out ReadOnlyMemory<byte> file)
-    {
-        file = default;
-
-        if (_deviceState != DeviceReady)
-            return default;
-
-        if (path.IsEmpty || !_fileSystem.TryRead(Encoding.ASCII.GetString(path), out file))
-        {
-            Error?.Error("SOUND"u8, LogError.Open, 0, path);
-
-            return default;
-        }
-
-        var track = new VorbisResource(file);
-
-        if (track.SampleRate <= 0 || track.Channels <= 0)
-        {
-            Error?.Error("SOUND"u8, LogError.Invalid, 0, path);
-
-            return default;
-        }
-
-        int blockAlign = track.Channels * PcmSampleSize;
-        var format = new WaveFormat(1, (ushort)track.Channels, (uint)track.SampleRate, (uint)(track.SampleRate * blockAlign), (ushort)blockAlign, PcmSampleSize * 8, OggFormatExtraSize);
-
-        if (size == 0)
-        {
-            size = (int)(track.SampleCount * blockAlign);
-        }
-
-        int result = _device?.CreateSampleBuffer(sound, variant, format, size, OggBufferFlags) ?? 0;
-
-        if (result < 0)
-        {
-            Error?.Error("SOUND"u8, LogError.Create, result, "SoundBuffer for ogg"u8);
-
-            return default;
-        }
-
-        return new SoundBuffer(track.SampleCount * MillisecondsPerSecond / track.SampleRate, 1, sound, variant);
-    }
-
-    internal int SoundBufferCount => _sfx.Length * SfxRecord.MaxSamples;
-
-    internal Span<SoundBuffer> Duplicates => _duplicates;
-
-    internal ref SoundBuffer GetBuffer(int handle) => ref handle < SoundBufferCount ? ref _sfx[handle / SfxRecord.MaxSamples].Buffers[handle % SfxRecord.MaxSamples] : ref _duplicates[handle - SoundBufferCount];
-
-    internal bool IsDuplicate(int handle) => handle >= SoundBufferCount;
-
-    internal void ReleaseBuffer(int handle)
-    {
-        if (IsDuplicate(handle))
-        {
-            _duplicates[handle - SoundBufferCount] = default;
-        }
-        else
-        {
-            GetBuffer(handle).References--;
-        }
+        Error?.Log($"LoadSFX::No   ={count,-15}   sizeof(SFX)   ={SfxRecordSize,-5}    load time     ={GameSession.TimeGetTime(_time) - start}ms Quality={(IsHighQuality ? 1 : 0)}");
     }
 
     [EngineRoutine(0x0041d430)]
@@ -999,6 +922,82 @@ public sealed class Sound
         return picked;
     }
 
+    private bool IsInvalid(int id)
+    {
+        if (IsValid(id))
+            return false;
+
+        if (_sfx.Length > 0)
+        {
+            Error?.Error("SOUND"u8, LogError.Invalid, 0);
+        }
+
+        return true;
+    }
+
+    private void MusicTact(GameRandom random, uint realTime)
+    {
+        var music = _music;
+
+        if (music is null)
+            return;
+
+        music.Update(realTime);
+        bool isNextTrack;
+
+        if (_fade < 0)
+        {
+            if (_fadeStartedAt == 0 || realTime - _fadeStartedAt > FadeWindow)
+            {
+                _fadeStartedAt = realTime;
+            }
+
+            music.SetVolume(_fade + (_musicVolume >= 0 ? (_musicVolume - FullVolume) * VolumeScale : 0));
+            _fade -= (int)((realTime - _fadeStartedAt) / 2);
+            isNextTrack = _fade < QuietestVolume;
+
+            if (isNextTrack)
+            {
+                _fade = 0;
+                _fadeStartedAt = 0;
+            }
+        }
+        else
+        {
+            isNextTrack = (random.Next() & TrackCheckMask) == 0 && !music.IsPlaying(realTime);
+        }
+
+        if (isNextTrack)
+        {
+            if (_trackName.Length == 0)
+            {
+                StopMusic(realTime);
+            }
+            else
+            {
+                PlayFile(_trackName, _loop, realTime);
+            }
+        }
+    }
+
+    [EngineRoutine(0x0041db80)]
+    private bool PauseMusic(uint realTime)
+    {
+        _music?.Pause(realTime);
+
+        return (_device?.SendMusicCommand("stop FWMUSIC"u8, _window) ?? 0) != 0;
+    }
+
+    [EngineRoutine(0x0041dbd0)]
+    private bool ResumeMusic(uint realTime)
+    {
+        _music?.Resume(realTime);
+
+        string command = PlayToState < 0 ? "play FWMUSIC notify" : $"play FWMUSIC to {PlayToPosition + 1} notify";
+
+        return (_device?.SendMusicCommand(Encoding.ASCII.GetBytes(command), _window) ?? 0) != 0;
+    }
+
     [EngineRoutine(0x0041dcd0)]
     private void StopSound(uint realTime)
     {
@@ -1006,6 +1005,48 @@ public sealed class Sound
         for (int v = 0; v < voices.Length; v++)
         {
             StopVoice(ref voices[v], realTime);
+        }
+    }
+
+    [EngineRoutine(0x0041dd10)]
+    private void PauseSound(uint realTime)
+    {
+        if (_deviceState != DeviceReady)
+            return;
+
+        var voices = _voices.AsSpan();
+        for (int v = 0; v < voices.Length; v++)
+        {
+            ref var voice = ref voices[v];
+
+            if (voice.IsPlaying && voice.Buffer != NoBuffer)
+            {
+                GetBuffer(voice.Buffer).Stop(realTime);
+                _device?.StopVoice(v);
+            }
+        }
+    }
+
+    private void StopVoice(ref SfxBuffer voice, uint realTime)
+    {
+        voice.IsPlaying = false;
+
+        if (voice.Buffer != NoBuffer)
+        {
+            GetBuffer(voice.Buffer).Stop(realTime);
+        }
+    }
+
+    [EngineRoutine(0x0041dd50)]
+    private void ResumeSound(uint realTime)
+    {
+        if (_deviceState != DeviceReady)
+            return;
+
+        var voices = _voices.AsSpan();
+        for (int v = 0; v < voices.Length; v++)
+        {
+            voices[v].Resume(this, v, realTime);
         }
     }
 
@@ -1037,46 +1078,5 @@ public sealed class Sound
         _music.Play(realTime);
 
         return 0;
-    }
-
-    [EngineRoutine(0x0041c310)]
-    private OggMusic CreateMusic(ReadOnlyMemory<byte> name)
-    {
-        // TODO: Port the DirectShow music class for tracks that are not ogg
-        string path = Encoding.ASCII.GetString(name.Span);
-
-        if (!_trackFormats.TryGetValue(path, out var format))
-        {
-            if (_fileSystem.TryRead(path, out var data))
-            {
-                var track = new VorbisResource(data);
-                format = new MusicTrackFormat(track.SampleRate * track.Channels * PcmSampleSize, (int)(track.SampleCount * track.Channels * PcmSampleSize));
-            }
-
-            _trackFormats[path] = format;
-        }
-
-        return new OggMusic(name, path, format, _device, Error);
-    }
-
-    [EngineRoutine(0x0041d0a0)]
-    private void DisableMusic()
-    {
-        _music = null;
-        _device?.SendMusicCommand("stop FWMUSIC"u8);
-        _device?.SendMusicCommand("close FWMUSIC"u8);
-
-        _fade = 0;
-        PlayToPosition = NoSound;
-    }
-
-    private void StopVoice(ref SfxBuffer voice, uint realTime)
-    {
-        voice.IsPlaying = false;
-
-        if (voice.Buffer != NoBuffer)
-        {
-            GetBuffer(voice.Buffer).Stop(realTime);
-        }
     }
 }

@@ -51,6 +51,7 @@ public class Vid
     /// Represents the army value that sets the gamma of every army.
     /// </summary>
     public const int AllArmies = 4;
+
     private const float BallisticRise = 1.1f;
     private const float BallisticDrop = 0.9f;
     private const int CoefficientScale = 16;
@@ -118,6 +119,7 @@ public class Vid
     /// <param name="totalFrames">The frame count of the sprite file.</param>
     /// <param name="layer">The update list of sprites of the object ID.</param>
     /// <param name="file">The sprite file, or <see langword="null"/> without one.</param>
+    [EngineRoutine(0x00413710)]
     protected Vid(KnownObject id, in GameObject gameObject, AlienShooterWeaponRecord[] weapons, int spriteSpeed, int totalFrames, ObjectLayer layer, VidResource? file)
     {
         Id = id;
@@ -645,12 +647,6 @@ public class Vid
     }
 
     /// <summary>
-    /// Sets the update list of sprites of this object ID.
-    /// </summary>
-    [EngineRoutine(0x00413880)]
-    public virtual void SetLayer() => Layer = ObjectLayer.Ground;
-
-    /// <summary>
     /// Sets the frame duration of every state.
     /// </summary>
     /// <param name="duration">The frame duration in milliseconds.</param>
@@ -658,6 +654,40 @@ public class Vid
     {
         SpriteSpeed = (ushort)duration;
         Array.Fill(_durations, duration);
+    }
+
+    /// <summary>
+    /// Returns the length of a state's animation.
+    /// </summary>
+    /// <param name="animation">The state.</param>
+    /// <returns>The length in milliseconds.</returns>
+    public int GetAnimationDuration(SpriteAnimation animation) => Math.Max(1, _frameCounts[(int)animation]) * GetVisualFrameDuration(animation);
+
+    /// <summary>
+    /// Returns the frame duration of a state.
+    /// </summary>
+    /// <param name="animation">The state.</param>
+    /// <returns>The duration in milliseconds.</returns>
+    public int GetVisualFrameDuration(SpriteAnimation animation) => _durations[(int)animation];
+
+    /// <summary>
+    /// Sets the update list of sprites of this object ID.
+    /// </summary>
+    [EngineRoutine(0x00413880)]
+    public virtual void SetLayer() => Layer = ObjectLayer.Ground;
+
+    /// <summary>
+    /// Returns where a link sits relative to a sprite of this object ID facing a direction.
+    /// </summary>
+    /// <param name="link">The shared data of the link's object ID.</param>
+    /// <param name="direction">The direction of the sprite.</param>
+    /// <returns>The offset from the sprite's position.</returns>
+    public Vector3 GetLinkOffset(Vid link, Angle direction)
+    {
+        if (link.Properties.HasFlag(ObjectProperties.FixedOffset))
+            return LinkOffset with { Y = -LinkOffset.Y };
+
+        return new Vector3(direction.Cosine * LinkOffset.X + direction.Sine * LinkOffset.Y, direction.ProjectedSine * LinkOffset.X - direction.ProjectedCosine * LinkOffset.Y, LinkOffset.Z);
     }
 
     /// <summary>
@@ -681,18 +711,18 @@ public class Vid
     }
 
     /// <summary>
-    /// Returns the frame duration of a state.
+    /// Hides or shows the sprites of this object ID and of every object ID linked to it.
     /// </summary>
-    /// <param name="animation">The state.</param>
-    /// <returns>The duration in milliseconds.</returns>
-    public int GetVisualFrameDuration(SpriteAnimation animation) => _durations[(int)animation];
-
-    /// <summary>
-    /// Returns the length of a state's animation.
-    /// </summary>
-    /// <param name="animation">The state.</param>
-    /// <returns>The length in milliseconds.</returns>
-    public int GetAnimationDuration(SpriteAnimation animation) => Math.Max(1, _frameCounts[(int)animation]) * GetVisualFrameDuration(animation);
+    /// <param name="hidden"><see langword="true"/> to hide the sprites.</param>
+    [EngineRoutine(0x00414840)]
+    public void SetPropHide(bool hidden)
+    {
+        IsHidden = hidden;
+        for (var link = LinkVid; link is not null; link = link.LinkVid)
+        {
+            link.IsHidden = hidden;
+        }
+    }
 
     /// <summary>
     /// Returns the vertical speed that carries a launched sprite of this object ID up or down a rise over a distance, within its vertical speed limit.
@@ -726,26 +756,26 @@ public class Vid
     }
 
     /// <summary>
-    /// Returns the direction of the direction frame a sprite of this object ID shows for a direction.
+    /// Determines whether sprites of this object ID have a fight child and a weapon.
     /// </summary>
-    /// <param name="direction">The direction.</param>
-    /// <returns>The frame's direction, or the direction itself if sprites of this object ID don't use direction frames.</returns>
-    [EngineRoutine(0x00442e00)]
-    public Angle GetFrameDirection(Angle direction) => Directions != 0 ? direction.GetFrameDirection(Directions) : direction;
+    /// <returns><see langword="true"/> if sprites of this object ID are armed with a weapon of their own; otherwise, <see langword="false"/>.</returns>
+    [EngineRoutine(0x0043a1e0)]
+    public bool CanFight() => FightChild != 0 && WeaponIndex != 0;
 
     /// <summary>
-    /// Returns where a link sits relative to a sprite of this object ID facing a direction.
+    /// Returns the ammunition a sprite of this object ID holds when full.
     /// </summary>
-    /// <param name="link">The shared data of the link's object ID.</param>
-    /// <param name="direction">The direction of the sprite.</param>
-    /// <returns>The offset from the sprite's position.</returns>
-    public Vector3 GetLinkOffset(Vid link, Angle direction)
-    {
-        if (link.Properties.HasFlag(ObjectProperties.FixedOffset))
-            return LinkOffset with { Y = -LinkOffset.Y };
+    /// <returns>The ammunition of the linked object ID's weapon if that object ID can fight; otherwise, the ammunition of this object ID's weapon.</returns>
+    [EngineRoutine(0x0043a200)]
+    public int GetMaxAmmo() => LinkVid is not null && LinkVid.CanFight() ? LinkVid.Weapon.Ammo : Weapon.Ammo;
 
-        return new Vector3(direction.Cosine * LinkOffset.X + direction.Sine * LinkOffset.Y, direction.ProjectedSine * LinkOffset.X - direction.ProjectedCosine * LinkOffset.Y, LinkOffset.Z);
-    }
+    /// <summary>
+    /// Returns the health of a new sprite of this object ID for an army.
+    /// </summary>
+    /// <param name="army">The army, masked to 0 to 3.</param>
+    /// <returns>The health.</returns>
+    [EngineRoutine(0x0043a230)]
+    public int GetArmyMaxHp(int army) => _armyMaxHp[army & ArmyMask];
 
     /// <summary>
     /// Returns the number of living sprites of this object ID in an army.
@@ -793,141 +823,31 @@ public class Vid
     public int GetTotalRecolored() => _recolored[3] + _recolored[2] + _recolored[1] + _recolored[0];
 
     /// <summary>
-    /// Returns the health of a new sprite of this object ID for an army.
-    /// </summary>
-    /// <param name="army">The army, masked to 0 to 3.</param>
-    /// <returns>The health.</returns>
-    [EngineRoutine(0x0043a230)]
-    public int GetArmyMaxHp(int army) => _armyMaxHp[army & ArmyMask];
-
-    [EngineRoutine(0x0043a1c0)]
-    internal int RealDirection(Angle direction) => ((DirectionOffset + direction.Value) & 0xff) * Directions >> 8;
-
-    /// <summary>
-    /// Determines whether sprites of this object ID have a fight child and a weapon.
-    /// </summary>
-    /// <returns><see langword="true"/> if sprites of this object ID are armed with a weapon of their own; otherwise, <see langword="false"/>.</returns>
-    [EngineRoutine(0x0043a1e0)]
-    public bool CanFight() => FightChild != 0 && WeaponIndex != 0;
-
-    /// <summary>
-    /// Returns the ammunition a sprite of this object ID holds when full.
-    /// </summary>
-    /// <returns>The ammunition of the linked object ID's weapon if that object ID can fight; otherwise, the ammunition of this object ID's weapon.</returns>
-    [EngineRoutine(0x0043a200)]
-    public int GetMaxAmmo() => LinkVid is not null && LinkVid.CanFight() ? LinkVid.Weapon.Ammo : Weapon.Ammo;
-
-    /// <summary>
     /// Determines whether sprites of this object ID are born as smoke.
     /// </summary>
     /// <returns><see langword="true"/> if the object is born as smoke; otherwise, <see langword="false"/>.</returns>
     [EngineRoutine(0x0043a320)]
     public bool IsBirthAsSmoke() => Properties.HasFlag(ObjectProperties.BirthAsSmoke);
 
-    [EngineRoutine(0x004145b0)]
-    internal void SetGridZ(Sprite sprite)
-    {
-        var map = sprite.Map;
-        if (sprite == map.Mouse || HeightPoints.Count == 0)
-            return;
-
-        bool permanent = !map.HasFlag(MapFlags.AppMenu) && Class == SpriteClass.BuiltTerrain;
-
-        foreach (var point in GetHeightPoints(sprite.Frame))
-        {
-            var cell = new Vector3(sprite.Position.X + point.X, sprite.Position.Y + point.Y, sprite.Position.Z + point.Z);
-
-            if (permanent)
-            {
-                map.SetGroundZ(cell);
-            }
-            else
-            {
-                map.SetTempGroundZ(cell);
-            }
-        }
-    }
-
-    [EngineRoutine(0x004146b0)]
-    internal void ResetGridZ(Sprite sprite)
-    {
-        var map = sprite.Map;
-        if (sprite == map.Mouse || HeightPoints.Count == 0 || !map.HasFlag(MapFlags.AppMenu) && Class == SpriteClass.BuiltTerrain)
-            return;
-
-        foreach (var point in GetHeightPoints(sprite.Frame))
-        {
-            map.ClearTempGroundZ(new Vector3(sprite.Position.X + point.X, sprite.Position.Y + point.Y, sprite.Position.Z + point.Z));
-        }
-    }
-
     /// <summary>
-    /// Hides or shows the sprites of this object ID and of every object ID linked to it.
+    /// Returns the direction of the direction frame a sprite of this object ID shows for a direction.
     /// </summary>
-    /// <param name="hidden"><see langword="true"/> to hide the sprites.</param>
-    [EngineRoutine(0x00414840)]
-    public void SetPropHide(bool hidden)
+    /// <param name="direction">The direction.</param>
+    /// <returns>The frame's direction, or the direction itself if sprites of this object ID don't use direction frames.</returns>
+    [EngineRoutine(0x00442e00)]
+    public Angle GetFrameDirection(Angle direction) => Directions != 0 ? direction.GetFrameDirection(Directions) : direction;
+
+    internal static Vid CreateEmpty(KnownObject id, in GameObject gameObject, int spriteSpeed, ObjectLayer layer)
     {
-        IsHidden = hidden;
-        for (var link = LinkVid; link is not null; link = link.LinkVid)
-        {
-            link.IsHidden = hidden;
-        }
+        var vid = new Vid(id, gameObject, [default], spriteSpeed, 0, layer, null);
+        vid.Half = new Vector2(gameObject.Size.X * 0.5f, gameObject.Size.Y * 0.5f);
+        vid.Scale = Vector3.One;
+        Array.Fill(vid._durations, spriteSpeed);
+
+        return vid;
     }
 
-    [EngineRoutine(0x00414890)]
-    internal void SetHpCoeff(Map map, int army, int percent)
-    {
-        army &= 3;
-        for (var vid = this; vid is not null; vid = vid.LinkVid)
-        {
-            int previous = vid.ArmyMaxHp[army];
-            if (percent >= 0)
-            {
-                vid.ArmyMaxHp[army] = vid.MaxHp * percent / Map.Percent;
-            }
-
-            if (vid.MaxHp == 0)
-                continue;
-
-            var list = map.GetLayer((int)vid.Layer);
-            for (int i = list.Count - 1; i >= 0; i--)
-            {
-                var sprite = list[i];
-                if (sprite is not null && sprite.Vid == vid && ((int)sprite.Army & 3) == army)
-                {
-                    sprite.ChangeHp(sprite.Hp * vid.ArmyMaxHp[army] * CoefficientScale / previous / CoefficientScale);
-                }
-            }
-        }
-    }
-
-    [EngineRoutine(0x00414990)]
-    internal void SetMaxHp(Map map, int army, int maxHp)
-    {
-        army &= 3;
-        for (var vid = this; vid is not null; vid = vid.LinkVid)
-        {
-            int previous = vid.ArmyMaxHp[army];
-            if (maxHp >= 0)
-            {
-                vid.ArmyMaxHp[army] = maxHp;
-            }
-
-            if (vid.MaxHp == 0)
-                continue;
-
-            var list = map.GetLayer((int)vid.Layer);
-            for (int i = list.Count - 1; i >= 0; i--)
-            {
-                var sprite = list[i];
-                if (sprite is not null && sprite.Vid == vid && ((int)sprite.Army & 3) == army)
-                {
-                    sprite.ChangeHp(sprite.Hp * vid.ArmyMaxHp[army] * HpScale / previous / HpScale);
-                }
-            }
-        }
-    }
+    internal static Vid CreateDefault() => CreateEmpty(KnownObject.None, new GameObject(SpriteClass.Primitive, DefaultSize), Map.DefaultSpriteSpeed, ObjectLayer.Menu);
 
     [EngineRoutine(0x00413860)]
     internal virtual Vid CreateMirror()
@@ -937,8 +857,6 @@ public class Vid
 
         return mirror;
     }
-
-    internal static Vid CreateDefault() => CreateEmpty(KnownObject.None, new GameObject(SpriteClass.Primitive, DefaultSize), Map.DefaultSpriteSpeed, ObjectLayer.Menu);
 
     [EngineRoutine(0x004138b0)]
     internal virtual void Destruct(GameSession session)
@@ -962,36 +880,9 @@ public class Vid
         previous.NextMirror = next;
     }
 
-    private protected void CopyHeights(Vid source)
-    {
-        HeightPoints.AddRange(source.HeightPoints);
-        _heightFrameStarts = source._heightFrameStarts;
-    }
-
-    [EngineRoutine(0x00413710)]
-    internal static Vid CreateEmpty(KnownObject id, in GameObject gameObject, int spriteSpeed, ObjectLayer layer)
-    {
-        var vid = new Vid(id, gameObject, [default], spriteSpeed, 0, layer, null);
-        vid.Half = new Vector2(gameObject.Size.X * 0.5f, gameObject.Size.Y * 0.5f);
-        vid.Scale = Vector3.One;
-        Array.Fill(vid._durations, spriteSpeed);
-
-        return vid;
-    }
-
-    internal void SetWeapons(AlienShooterWeaponRecord[] weapons) => _weapons = weapons;
-
-    internal int GetFrameCount(SpriteAnimation state) => _frameCounts[(int)state];
-
-    internal int GetFirstFrame(SpriteAnimation state) => _firstFrames[(int)state];
-
-    internal int GetFramesPerDirection(SpriteAnimation state) => _framesPerDirection[(int)state];
-
-    internal virtual void Load(in VidResource file, ReadOnlyMemory<byte> data, GameSession session)
-    {
-    }
-
-    internal virtual void SetGamma(Gamma gamma, int army, Gamma ambient, GameSession session) => StoreGamma(gamma, army, session.Error);
+    [EngineRoutine(0x00413a30)]
+    internal void Report(MyError? error, LogError code, int value, ReadOnlySpan<byte> text) =>
+        error?.Error($"VID [{(int)Id}-{Name}]", code, value, text);
 
     [EngineRoutine(0x00413c30)]
     internal void LoadParameters(in GameObject record, MyError? error, Sound? sound, bool resetBuiltTerrain)
@@ -1167,9 +1058,113 @@ public class Vid
         }
     }
 
-    [EngineRoutine(0x00413a30)]
-    internal void Report(MyError? error, LogError code, int value, ReadOnlySpan<byte> text) =>
-        error?.Error($"VID [{(int)Id}-{Name}]", code, value, text);
+    [EngineRoutine(0x004145b0)]
+    internal void SetGridZ(Sprite sprite)
+    {
+        var map = sprite.Map;
+        if (sprite == map.Mouse || HeightPoints.Count == 0)
+            return;
+
+        bool permanent = !map.HasFlag(MapFlags.AppMenu) && Class == SpriteClass.BuiltTerrain;
+
+        foreach (var point in GetHeightPoints(sprite.Frame))
+        {
+            var cell = new Vector3(sprite.Position.X + point.X, sprite.Position.Y + point.Y, sprite.Position.Z + point.Z);
+
+            if (permanent)
+            {
+                map.SetGroundZ(cell);
+            }
+            else
+            {
+                map.SetTempGroundZ(cell);
+            }
+        }
+    }
+
+    [EngineRoutine(0x004146b0)]
+    internal void ResetGridZ(Sprite sprite)
+    {
+        var map = sprite.Map;
+        if (sprite == map.Mouse || HeightPoints.Count == 0 || !map.HasFlag(MapFlags.AppMenu) && Class == SpriteClass.BuiltTerrain)
+            return;
+
+        foreach (var point in GetHeightPoints(sprite.Frame))
+        {
+            map.ClearTempGroundZ(new Vector3(sprite.Position.X + point.X, sprite.Position.Y + point.Y, sprite.Position.Z + point.Z));
+        }
+    }
+
+    [EngineRoutine(0x00414890)]
+    internal void SetHpCoeff(Map map, int army, int percent)
+    {
+        army &= 3;
+        for (var vid = this; vid is not null; vid = vid.LinkVid)
+        {
+            int previous = vid.ArmyMaxHp[army];
+            if (percent >= 0)
+            {
+                vid.ArmyMaxHp[army] = vid.MaxHp * percent / Map.Percent;
+            }
+
+            if (vid.MaxHp == 0)
+                continue;
+
+            var list = map.GetLayer((int)vid.Layer);
+            for (int i = list.Count - 1; i >= 0; i--)
+            {
+                var sprite = list[i];
+                if (sprite is not null && sprite.Vid == vid && ((int)sprite.Army & 3) == army)
+                {
+                    sprite.ChangeHp(sprite.Hp * vid.ArmyMaxHp[army] * CoefficientScale / previous / CoefficientScale);
+                }
+            }
+        }
+    }
+
+    [EngineRoutine(0x00414990)]
+    internal void SetMaxHp(Map map, int army, int maxHp)
+    {
+        army &= 3;
+        for (var vid = this; vid is not null; vid = vid.LinkVid)
+        {
+            int previous = vid.ArmyMaxHp[army];
+            if (maxHp >= 0)
+            {
+                vid.ArmyMaxHp[army] = maxHp;
+            }
+
+            if (vid.MaxHp == 0)
+                continue;
+
+            var list = map.GetLayer((int)vid.Layer);
+            for (int i = list.Count - 1; i >= 0; i--)
+            {
+                var sprite = list[i];
+                if (sprite is not null && sprite.Vid == vid && ((int)sprite.Army & 3) == army)
+                {
+                    sprite.ChangeHp(sprite.Hp * vid.ArmyMaxHp[army] * HpScale / previous / HpScale);
+                }
+            }
+        }
+    }
+
+    [EngineRoutine(0x0043a1c0)]
+    internal int RealDirection(Angle direction) => ((DirectionOffset + direction.Value) & 0xff) * Directions >> 8;
+
+    internal void SetWeapons(AlienShooterWeaponRecord[] weapons) => _weapons = weapons;
+
+    internal int GetFrameCount(SpriteAnimation state) => _frameCounts[(int)state];
+
+    internal int GetFirstFrame(SpriteAnimation state) => _firstFrames[(int)state];
+
+    internal int GetFramesPerDirection(SpriteAnimation state) => _framesPerDirection[(int)state];
+
+    internal virtual void Load(in VidResource file, ReadOnlyMemory<byte> data, GameSession session)
+    {
+    }
+
+    internal virtual void SetGamma(Gamma gamma, int army, Gamma ambient, GameSession session) => StoreGamma(gamma, army, session.Error);
 
     internal ReadOnlySpan<Vector3> GetHeightPoints(int frame)
     {
@@ -1204,16 +1199,22 @@ public class Vid
         }
     }
 
+    private protected void CopyHeights(Vid source)
+    {
+        HeightPoints.AddRange(source.HeightPoints);
+        _heightFrameStarts = source._heightFrameStarts;
+    }
+
     private protected Gamma GetGamma(Map map, Sprite sprite)
     {
         var gamma = ObjectGamma.Add(sprite.GetGamma());
         return Properties.HasFlag(ObjectProperties.Gamma) ? gamma : gamma.Add(map.Session.Graphics.Gamma);
     }
 
+    private static float ScaleRate(float rate, float scale) => rate.IsExactly(Unlimited) ? rate : rate * scale;
+
     private int GetAnimationTime(SpriteAnimation animation) =>
         _frameCounts[(int)animation] * (_durations[(int)animation] == 0 ? SpriteSpeed : _durations[(int)animation]);
-
-    private static float ScaleRate(float rate, float scale) => rate.IsExactly(Unlimited) ? rate : rate * scale;
 
     private void CopyRecord(in GameObject record)
     {

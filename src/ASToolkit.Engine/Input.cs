@@ -65,6 +65,47 @@ public sealed class Input
     public Point WindowOrigin { get; private set; }
 
     /// <summary>
+    /// Returns the input as a demo frame.
+    /// </summary>
+    /// <returns>The demo input.</returns>
+    [EngineRoutine(0x00426330)]
+    public DemoInput Save() => new(Flags, Wheel, Cursor, ScreenCursor, Key, (int)VirtualKey);
+
+    /// <summary>
+    /// Loads the input of a demo frame.
+    /// </summary>
+    /// <param name="input">The demo frame's input.</param>
+    [EngineRoutine(0x00426350)]
+    public void Load(in DemoInput input)
+    {
+        Flags = input.Flags;
+        Wheel = input.Wheel;
+        Cursor = input.Cursor;
+        ScreenCursor = input.ScreenCursor;
+        Key = input.Key;
+        VirtualKey = (VirtualKey)input.VirtualKey;
+    }
+
+    /// <summary>
+    /// Posts a window message for the next frame.
+    /// </summary>
+    /// <param name="message">The message.</param>
+    /// <param name="wParam">The message's first parameter.</param>
+    /// <param name="lParam">The message's second parameter.</param>
+    public void PostMessage(WindowMessageId message, int wParam, int lParam) => _messages.Enqueue(new WindowMessage(message, wParam, lParam));
+
+    /// <summary>
+    /// Posts the key-down and character messages of a key press.
+    /// </summary>
+    /// <param name="virtualKey">The virtual key code of the key.</param>
+    /// <param name="character">The character the key types.</param>
+    public void PostKey(VirtualKey virtualKey, int character)
+    {
+        PostMessage(WindowMessageId.KeyDown, (int)virtualKey, 0);
+        PostMessage(WindowMessageId.Char, character, 0);
+    }
+
+    /// <summary>
     /// Clears the input that lasts one frame.
     /// </summary>
     [EngineRoutine(0x00426d40)]
@@ -85,47 +126,6 @@ public sealed class Input
         {
             Flags &= ~InputFlags.Second;
         }
-    }
-
-    /// <summary>
-    /// Loads the input of a demo frame.
-    /// </summary>
-    /// <param name="input">The demo frame's input.</param>
-    [EngineRoutine(0x00426350)]
-    public void Load(in DemoInput input)
-    {
-        Flags = input.Flags;
-        Wheel = input.Wheel;
-        Cursor = input.Cursor;
-        ScreenCursor = input.ScreenCursor;
-        Key = input.Key;
-        VirtualKey = (VirtualKey)input.VirtualKey;
-    }
-
-    /// <summary>
-    /// Returns the input as a demo frame.
-    /// </summary>
-    /// <returns>The demo input.</returns>
-    [EngineRoutine(0x00426330)]
-    public DemoInput Save() => new(Flags, Wheel, Cursor, ScreenCursor, Key, (int)VirtualKey);
-
-    /// <summary>
-    /// Posts a window message for the next frame.
-    /// </summary>
-    /// <param name="message">The message.</param>
-    /// <param name="wParam">The message's first parameter.</param>
-    /// <param name="lParam">The message's second parameter.</param>
-    public void PostMessage(WindowMessageId message, int wParam, int lParam) => _messages.Enqueue(new WindowMessage(message, wParam, lParam));
-
-    /// <summary>
-    /// Posts the key-down and character messages of a key press.
-    /// </summary>
-    /// <param name="virtualKey">The virtual key code of the key.</param>
-    /// <param name="character">The character the key types.</param>
-    public void PostKey(VirtualKey virtualKey, int character)
-    {
-        PostMessage(WindowMessageId.KeyDown, (int)virtualKey, 0);
-        PostMessage(WindowMessageId.Char, character, 0);
     }
 
     [EngineRoutine(0x00425d80)]
@@ -274,21 +274,6 @@ public sealed class Input
     [EngineRoutine(0x00426da0)]
     internal void ClearRightClick() => ClearClick(InputFlags.RightClick, VirtualKey.RightButton);
 
-    private void ClearClick(InputFlags click, VirtualKey button)
-    {
-        var flags = Flags;
-        Flags = flags & ~click;
-        if (_settings.First.Primary == button)
-        {
-            Flags = flags & ~(click | InputFlags.First);
-        }
-
-        if (_settings.Second.Primary == button)
-        {
-            Flags &= ~InputFlags.Second;
-        }
-    }
-
     private InputFlags GetKeyFlag(VirtualKey virtualKey)
     {
         if (_settings.Left.Matches(virtualKey))
@@ -313,5 +298,20 @@ public sealed class Input
             return InputFlags.Shift;
 
         return virtualKey == VirtualKey.Control ? InputFlags.Ctrl : InputFlags.None;
+    }
+
+    private void ClearClick(InputFlags click, VirtualKey button)
+    {
+        var flags = Flags;
+        Flags = flags & ~click;
+        if (_settings.First.Primary == button)
+        {
+            Flags = flags & ~(click | InputFlags.First);
+        }
+
+        if (_settings.Second.Primary == button)
+        {
+            Flags &= ~InputFlags.Second;
+        }
     }
 }

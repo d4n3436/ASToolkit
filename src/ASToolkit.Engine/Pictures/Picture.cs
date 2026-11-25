@@ -101,14 +101,14 @@ public partial class Picture : IDisposable
     }
 
     /// <summary>
-    /// Goes to the next frame of every image.
+    /// Releases the pixels of every image.
     /// </summary>
-    [EngineRoutine(0x00428fa0)]
-    public virtual void Advance()
+    [EngineRoutine(0x00428e90)]
+    public virtual void Reset()
     {
-        Colors.Advance();
-        Alpha.Advance();
-        Depth.Advance();
+        Colors.Image.Reset();
+        Alpha.Image.Reset();
+        Depth.Image.Reset();
     }
 
     /// <summary>
@@ -123,13 +123,13 @@ public partial class Picture : IDisposable
     }
 
     /// <summary>
-    /// Releases the pixels of every image.
+    /// Goes to the next frame of every image.
     /// </summary>
-    [EngineRoutine(0x00428e90)]
-    public virtual void Reset()
+    [EngineRoutine(0x00428fa0)]
+    public virtual void Advance()
     {
-        Colors.Image.Reset();
-        Alpha.Image.Reset();
-        Depth.Image.Reset();
+        Colors.Advance();
+        Alpha.Advance();
+        Depth.Advance();
     }
 }

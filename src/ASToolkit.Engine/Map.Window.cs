@@ -48,19 +48,10 @@ public partial class Map
             case MenuCommand.Screenshot:
                 var now = Session.Time.GetLocalNow();
                 string path = $"{ScreenshotFolder}{now.ToString(ScreenshotDateFormat, CultureInfo.InvariantCulture)} {now.ToString(ScreenshotTimeFormat, CultureInfo.InvariantCulture)}{ScreenshotExtension}";
-                path = MyError.ReplaceFirst(MyError.ReplaceFirst(MyError.ReplaceFirst(path, ':', 'h'), ':', 'm'), ':', 's');
+                path = path.ReplaceFirst(':', 'h').ReplaceFirst(':', 'm').ReplaceFirst(':', 's');
                 Session.Graphics.SaveScreen(FileSystem, path, new Rectangle(Point.Empty, System.Drawing.Size.Truncate(Session.Graphics.ScreenSize)));
                 break;
         }
-    }
-
-    [EngineRoutine(0x0040c400)]
-    private ReadOnlyMemory<byte> OpenSaveDialog()
-    {
-        Session.Graphics.BeginPause();
-        Session.Graphics.EndPause();
-
-        return default;
     }
 
     [EngineRoutine(0x0040b930)]
@@ -113,5 +104,14 @@ public partial class Map
         }
 
         return false;
+    }
+
+    [EngineRoutine(0x0040c400)]
+    private ReadOnlyMemory<byte> OpenSaveDialog()
+    {
+        Session.Graphics.BeginPause();
+        Session.Graphics.EndPause();
+
+        return default;
     }
 }

@@ -16,6 +16,40 @@ public partial class Sprite
     private const int MaxPushDepth = 4;
     private const int OppositeDirectionTolerance = 16;
 
+    [EngineRoutine(0x00443810)]
+    internal Sprite? CanPlaceWithCrush(Vector3 point)
+    {
+        var vid = Vid;
+
+        if (vid.MoveMask == 0)
+            return null;
+
+        if (!Map.CanStandOnGround(vid, point))
+            return Map.Mouse;
+
+        var half = vid.Half;
+        float height = vid.Size.Z;
+        Map.Sprites.FirstHashInBox(point.AsVector2() - half, point.AsVector2() + half);
+        for (var other = Map.Sprites.NextHashInBox(); other is not null; other = Map.Sprites.NextHashInBox())
+        {
+            var otherVid = other.Vid;
+            if (other == this || other.Animation >= SpriteAnimation.Death || MathF.Abs(other.Position.X - point.X) >= otherVid.Half.X + half.X ||
+                MathF.Abs(other.Position.Y - point.Y) >= otherVid.Half.Y + half.Y || point.Z > otherVid.Size.Z + other.Position.Z ||
+                other.Position.Z > point.Z + height)
+                continue;
+
+            if ((vid.MoveMask & otherVid.MoveMask) != 0)
+                return other;
+
+            if (otherVid.Properties.HasFlag(ObjectProperties.Crush))
+            {
+                Map.Action(other, ActionCode.Damage, CrushDamage);
+            }
+        }
+
+        return null;
+    }
+
     [EngineRoutine(0x00443c40)]
     internal Sprite? CanPlaceWithCrushAndGlide(ref Vector3 next, int depth = 0)
     {
@@ -145,47 +179,6 @@ public partial class Sprite
     [EngineRoutine(0x00444620)]
     internal bool DirectRouteIntersection(ref Vector3 target) => Map.Sprites.CheckLine(Vid, Position, ref target);
 
-    [EngineRoutine(0x00443810)]
-    internal Sprite? CanPlaceWithCrush(Vector3 point)
-    {
-        var vid = Vid;
-
-        if (vid.MoveMask == 0)
-            return null;
-
-        if (!Map.CanStandOnGround(vid, point))
-            return Map.Mouse;
-
-        var half = vid.Half;
-        float height = vid.Size.Z;
-        Map.Sprites.FirstHashInBox(point.AsVector2() - half, point.AsVector2() + half);
-        for (var other = Map.Sprites.NextHashInBox(); other is not null; other = Map.Sprites.NextHashInBox())
-        {
-            var otherVid = other.Vid;
-            if (other == this || other.Animation >= SpriteAnimation.Death || MathF.Abs(other.Position.X - point.X) >= otherVid.Half.X + half.X ||
-                MathF.Abs(other.Position.Y - point.Y) >= otherVid.Half.Y + half.Y || point.Z > otherVid.Size.Z + other.Position.Z ||
-                other.Position.Z > point.Z + height)
-                continue;
-
-            if ((vid.MoveMask & otherVid.MoveMask) != 0)
-                return other;
-
-            if (otherVid.Properties.HasFlag(ObjectProperties.Crush))
-            {
-                Map.Action(other, ActionCode.Damage, CrushDamage);
-            }
-        }
-
-        return null;
-    }
-
-    private bool FindCollision(Vector3 position, [NotNullWhen(true)] out Sprite? collision)
-    {
-        collision = CanPlace(position);
-
-        return collision is not null;
-    }
-
     [EngineRoutine(0x004433f0)]
     private Sprite? CanPlace(Vector3 position)
     {
@@ -217,5 +210,12 @@ public partial class Sprite
         }
 
         return null;
+    }
+
+    private bool FindCollision(Vector3 position, [NotNullWhen(true)] out Sprite? collision)
+    {
+        collision = CanPlace(position);
+
+        return collision is not null;
     }
 }

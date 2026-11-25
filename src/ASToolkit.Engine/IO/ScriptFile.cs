@@ -19,18 +19,6 @@ internal sealed class ScriptFile : IDisposable
 
     public bool IsEnd { get; private set; }
 
-    public int ReadChar()
-    {
-        if (_position >= _data.Length)
-        {
-            IsEnd = true;
-
-            return -1;
-        }
-
-        return _data[_position++];
-    }
-
     [EngineRoutine(0x00406510)]
     public ReadOnlyMemory<byte> ReadLine()
     {
@@ -63,6 +51,18 @@ internal sealed class ScriptFile : IDisposable
         line.AddRange(chunk[..(count - 1)]);
 
         return line.ToArray();
+    }
+
+    public int ReadChar()
+    {
+        if (_position >= _data.Length)
+        {
+            IsEnd = true;
+
+            return -1;
+        }
+
+        return _data[_position++];
     }
 
     [EngineRoutine(0x00439bc0)]

@@ -51,6 +51,34 @@ public sealed class Man : Unit
     [EngineRoutine(0x00454660)]
     internal override void Destruct() => base.Destruct();
 
+    [EngineRoutine(0x00454670)]
+    internal override void MoveTact()
+    {
+        int elapsed = Map.FrameTime;
+        var next = MoveTactCalculateCoordinates(elapsed);
+
+        if (Position.AsVector2() != next.AsVector2() && next is { X: >= 0, Y: >= 0 } && next.X < Map.Size.Width && next.Y < Map.Size.Height)
+        {
+            if (CanPlaceWithCrushAndGlide(ref next) is null)
+            {
+                ChangeCoor(next);
+            }
+        }
+
+        var goal = Goal;
+
+        if (goal is null || Command != Command.Move)
+            return;
+
+        var direction = DirectionTo(goal) + (Speed < 0 ? Angle.HalfTurn : 0);
+        RotateTact(RotateForGlide(direction), elapsed);
+
+        if (this is { HasReachedX: true, HasReachedY: true } || IsTouching(goal.Position.AsVector2(), goal.Vid.Half))
+        {
+            Stop();
+        }
+    }
+
     [EngineRoutine(0x00454800)]
     internal override int Action(ActionCode act, int var1, int var2, int var3, Sprite? target)
     {
@@ -206,34 +234,6 @@ public sealed class Man : Unit
         }
 
         return base.Action(act, var1, var2, var3, target);
-    }
-
-    [EngineRoutine(0x00454670)]
-    internal override void MoveTact()
-    {
-        int elapsed = Map.FrameTime;
-        var next = MoveTactCalculateCoordinates(elapsed);
-
-        if (Position.AsVector2() != next.AsVector2() && next is { X: >= 0, Y: >= 0 } && next.X < Map.Size.Width && next.Y < Map.Size.Height)
-        {
-            if (CanPlaceWithCrushAndGlide(ref next) is null)
-            {
-                ChangeCoor(next);
-            }
-        }
-
-        var goal = Goal;
-
-        if (goal is null || Command != Command.Move)
-            return;
-
-        var direction = DirectionTo(goal) + (Speed < 0 ? Angle.HalfTurn : 0);
-        RotateTact(RotateForGlide(direction), elapsed);
-
-        if (this is { HasReachedX: true, HasReachedY: true } || IsTouching(goal.Position.AsVector2(), goal.Vid.Half))
-        {
-            Stop();
-        }
     }
 
     [EngineRoutine(0x00455070)]

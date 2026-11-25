@@ -67,48 +67,6 @@ public sealed class Cannon : Sprite
     /// </summary>
     public bool IsClimbing { get; set; }
 
-    [EngineRoutine(0x00448950)]
-    internal override int Action(ActionCode act, int var1, int var2, int var3, Sprite? target)
-    {
-        if (act != ActionCode.NextCommand)
-            return base.Action(act, var1, var2, var3, target);
-
-        var state = Animation;
-
-        if (state == SpriteAnimation.Fight)
-        {
-            ChangeAnimation(SpriteAnimation.Death);
-        }
-        else if (state < SpriteAnimation.Death)
-        {
-            if (Position.Z < DeepFall)
-            {
-                ChangeAnimation(SpriteAnimation.Death2);
-            }
-            else if (!Speed.IsExactlyZero())
-            {
-                ChangeAnimation(SpriteAnimation.Go);
-            }
-            else if (state > SpriteAnimation.Open && state != SpriteAnimation.StandOpen)
-            {
-                ChangeAnimation(SpriteAnimation.Stand);
-            }
-        }
-
-        return 0;
-    }
-
-    [EngineRoutine(0x004489e0)]
-    internal override void DeletePointerToSprite(Sprite removed)
-    {
-        if (Goal == removed)
-        {
-            Goal = Map.ConstructGoal(removed.Position);
-        }
-
-        base.DeletePointerToSprite(removed);
-    }
-
     [EngineRoutine(0x00448130)]
     internal override void MoveTact()
     {
@@ -271,5 +229,47 @@ public sealed class Cannon : Sprite
             Stop();
             ChangeAnimation(SpriteAnimation.Death);
         }
+    }
+
+    [EngineRoutine(0x00448950)]
+    internal override int Action(ActionCode act, int var1, int var2, int var3, Sprite? target)
+    {
+        if (act != ActionCode.NextCommand)
+            return base.Action(act, var1, var2, var3, target);
+
+        var state = Animation;
+
+        if (state == SpriteAnimation.Fight)
+        {
+            ChangeAnimation(SpriteAnimation.Death);
+        }
+        else if (state < SpriteAnimation.Death)
+        {
+            if (Position.Z < DeepFall)
+            {
+                ChangeAnimation(SpriteAnimation.Death2);
+            }
+            else if (!Speed.IsExactlyZero())
+            {
+                ChangeAnimation(SpriteAnimation.Go);
+            }
+            else if (state > SpriteAnimation.Open && state != SpriteAnimation.StandOpen)
+            {
+                ChangeAnimation(SpriteAnimation.Stand);
+            }
+        }
+
+        return 0;
+    }
+
+    [EngineRoutine(0x004489e0)]
+    internal override void DeletePointerToSprite(Sprite removed)
+    {
+        if (Goal == removed)
+        {
+            Goal = Map.ConstructGoal(removed.Position);
+        }
+
+        base.DeletePointerToSprite(removed);
     }
 }

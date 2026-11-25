@@ -19,6 +19,7 @@ public sealed class SpritePartReader
     private readonly string _gameFolder;
     private readonly ObjectTable _objects;
     private readonly Dictionary<string, VidResource?> _files = new(StringComparer.OrdinalIgnoreCase);
+
     private readonly Dictionary<(string Path, int Frame), Vector3[]> _points = [];
 
     /// <summary>

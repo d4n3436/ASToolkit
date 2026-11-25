@@ -55,10 +55,6 @@ public partial class Sprite
     private SpriteFlags _flags;
     private Angle _direction;
 
-    private static ReadOnlySpan<byte> ItemMark => [1];
-
-    private static ReadOnlySpan<byte> CommandEnd => ";"u8;
-
     /// <summary>
     /// Initializes a new instance of the <see cref="Sprite"/> class on a map, placing it, giving it its army, health and first state, and adding it to the map's update lists and spatial hash.
     /// </summary>
@@ -333,8 +329,6 @@ public partial class Sprite
     /// </summary>
     public MyList<Act> ActionStack { get; }
 
-    internal ExtraSpriteData? ExtraData { get; private set; }
-
     /// <summary>
     /// Gets a value indicating whether the sprite carries extra data (lifetime, keyframe track, stream period and top speed of its own).
     /// </summary>
@@ -453,94 +447,24 @@ public partial class Sprite
     /// </summary>
     public Sprite? ArmedLink => Link is not null && Link.Vid == Vid.LinkVid && Link.Vid.CanFight() ? Link : null;
 
+    internal ExtraSpriteData? ExtraData { get; private set; }
+
     internal Map Map { get; }
 
     internal AttackResult AttackResult { get; set; }
 
-    /// <summary>
-    /// Adds an item at the end of the sprite's items.
-    /// </summary>
-    /// <param name="item">The item.</param>
-    [EngineRoutine(0x00446760)]
-    public void InsertItem(int item)
-    {
-        EnsureExtraData();
+    private static ReadOnlySpan<byte> ItemMark => [1];
 
-        ExtraData!.Items.Insert(item);
-    }
+    private static ReadOnlySpan<byte> CommandEnd => ";"u8;
 
     /// <summary>
-    /// Adds an item unless the sprite already holds it.
+    /// Draws the sprite with the frames of its object ID.
     /// </summary>
-    /// <param name="item">The item.</param>
-    /// <returns><see langword="true"/> if the item was added; otherwise, <see langword="false"/>.</returns>
-    [EngineRoutine(0x00446810)]
-    public bool InsertUniqueItem(int item)
-    {
-        if (GetItemNumber(item) >= 0)
-            return false;
-
-        InsertItem(item);
-
-        return true;
-    }
-
-    /// <summary>
-    /// Returns the index of an item, found by searching from the end.
-    /// </summary>
-    /// <param name="item">The item.</param>
-    /// <returns>The index, or -1 when the sprite does not hold the item.</returns>
-    public int GetItemNumber(int item) => ExtraData?.Items.Location(item) ?? -1;
-
-
-    /// <summary>
-    /// Returns the health of this sprite, or of its armed link, scaled from 0 to 255 of the maximum.
-    /// </summary>
-    /// <returns>The scaled health.</returns>
-    [EngineRoutine(0x00444360)]
-    public int PercentHp()
-    {
-        var link = ArmedLink;
-
-        if (link is not null)
-        {
-            int linkMax = link.Vid.ArmyMaxHp[(int)link.Army & Vid.ArmyMask];
-
-            if (linkMax != 0)
-                return link.Hp * HpShare / linkMax;
-        }
-
-        int max = Vid.ArmyMaxHp[(int)Army & Vid.ArmyMask];
-
-        return max != 0 ? Hp * HpShare / max : 0;
-    }
-
-    /// <summary>
-    /// Determines whether this sprite or its armed link can attack the type of another sprite.
-    /// </summary>
-    /// <param name="target">The sprite to attack.</param>
-    /// <returns><see langword="true"/> if a weapon of this sprite targets the type of <paramref name="target"/>; otherwise, <see langword="false"/>.</returns>
-    [EngineRoutine(0x00445f30)]
-    public bool CanAttackThisSprite(Sprite? target)
-    {
-        if (target is null)
-            return false;
-
-        if (Vid.FightChild != 0 && Vid.WeaponIndex != 0 && (Vid.Weapon.Targets & target.Vid.SpriteType) != 0)
-            return true;
-
-        var link = ArmedLink;
-
-        return link is not null && (link.Vid.Weapon.Targets & target.Vid.SpriteType) != 0;
-    }
-
-    /// <summary>
-    /// Returns the direction from this sprite to another sprite.
-    /// </summary>
-    /// <param name="other">The other sprite.</param>
-    /// <returns>The direction.</returns>
-    [EngineRoutine(0x004474b0)]
-    public Angle DirectionTo(Sprite other) => Angle.FromOffset((other.Position - Position).AsVector2());
+    /// <param name="screen">The screen to draw to.</param>
+    /// <param name="map">The map.</param>
+    /// <param name="shift">The top left corner of the view, in map pixels.</param>
+    [EngineRoutine(0x0040ec40)]
+    public virtual void Draw(Screen screen, Map map, Vector2 shift) => Vid.Draw(screen, map, this, shift);
 
     /// <summary>
     /// Determines whether this sprite touches a target on the ground plane.
@@ -553,33 +477,6 @@ public partial class Sprite
         var reach = Vid.Half + targetHalf;
 
         return Math.Abs(Position.X - target.X) < reach.X && Math.Abs(Position.Y - target.Y) < reach.Y;
-    }
-
-    /// <summary>
-    /// Creates the sprite's extra data if it does not exist yet.
-    /// </summary>
-    public void EnsureExtraData()
-    {
-        if (!HasExtraData)
-        {
-            CreateExtraData();
-        }
-    }
-
-    /// <summary>
-    /// Creates the sprite's extra data, giving it its own lifetime, keyframe track, stream period and top speed.
-    /// </summary>
-    public void CreateExtraData() => ExtraData = new ExtraSpriteData(this);
-
-    /// <summary>
-    /// Sets the gamma applied to the sprite while it is drawn.
-    /// </summary>
-    /// <param name="gamma">The gamma.</param>
-    [EngineRoutine(0x00443070)]
-    public void SetGamma(Gamma gamma)
-    {
-        EnsureExtraData();
-        ExtraData!.GammaOverride = gamma;
     }
 
     /// <summary>
@@ -619,40 +516,43 @@ public partial class Sprite
     }
 
     /// <summary>
-    /// Changes the sprite's state and passes it on to its link, always for a death state and otherwise when the link is unarmed, isn't moved by
-    /// the wind and isn't attacking or dying.
+    /// Hides this sprite and every sprite of its link chain.
     /// </summary>
-    /// <param name="state">The state.</param>
-    [EngineRoutine(0x00442ee0)]
-    public void ChangeAnimation(SpriteAnimation state)
+    [EngineRoutine(0x00442620)]
+    public void InvisibleOn()
     {
-        if ((int)state > MaxAnimation)
+        IsInvisible = true;
+
+        foreach (var link in EnumerateLinks())
         {
-            Map.Session.Error.Error($"SPRITE {(int)Vid.Id}", LogError.Invalid, (int)state, "new_animation in ChangeAnimation"u8);
-
-            return;
+            link.IsInvisible = true;
         }
+    }
 
-        var link = Link;
+    /// <summary>
+    /// Shows this sprite and every sprite of its link chain.
+    /// </summary>
+    [EngineRoutine(0x00442640)]
+    public void InvisibleOff()
+    {
+        IsInvisible = false;
 
-        if (link is not null && link.Vid == Vid.LinkVid && (state >= SpriteAnimation.Death || link.Vid.WeaponIndex == 0 &&
-            !link.Vid.Properties.HasFlag(ObjectProperties.Wind) && link.Animation is not SpriteAnimation.Fight and < SpriteAnimation.Death))
+        foreach (var link in EnumerateLinks())
         {
-            link.ChangeAnimation(state);
+            link.IsInvisible = false;
         }
+    }
 
-        if (Animation == state)
-            return;
-
-        HasPlayedStateSound = false;
-        var layout = Vid;
-        var direction = GetShownDirection(_direction);
-
-        FirstFrame = layout.GetFirstFrame(state) + layout.RealDirection(direction) * layout.GetFramesPerDirection(state);
-        Frame = FirstFrame;
-        Animation = state;
-        LastFrame = state > SpriteAnimation.Unload && layout.GetFrameCount(state) == 0
-            ? FirstFrame : FirstFrame + layout.GetFramesPerDirection(state) - 1;
+    /// <summary>
+    /// Returns the sprites of this sprite's <see cref="Link"/> chain, nearest first.
+    /// </summary>
+    /// <returns>The sprites of the chain.</returns>
+    public IEnumerable<Sprite> EnumerateLinks()
+    {
+        for (var link = Link; link is not null; link = link.Link)
+        {
+            yield return link;
+        }
     }
 
     /// <summary>
@@ -702,6 +602,96 @@ public partial class Sprite
         }
 
         _direction = direction;
+    }
+
+    /// <summary>
+    /// Changes the sprite's state and passes it on to its link, always for a death state and otherwise when the link is unarmed, isn't moved by
+    /// the wind and isn't attacking or dying.
+    /// </summary>
+    /// <param name="state">The state.</param>
+    [EngineRoutine(0x00442ee0)]
+    public void ChangeAnimation(SpriteAnimation state)
+    {
+        if ((int)state > MaxAnimation)
+        {
+            Map.Session.Error.Error($"SPRITE {(int)Vid.Id}", LogError.Invalid, (int)state, "new_animation in ChangeAnimation"u8);
+
+            return;
+        }
+
+        var link = Link;
+
+        if (link is not null && link.Vid == Vid.LinkVid && (state >= SpriteAnimation.Death || link.Vid.WeaponIndex == 0 &&
+            !link.Vid.Properties.HasFlag(ObjectProperties.Wind) && link.Animation is not SpriteAnimation.Fight and < SpriteAnimation.Death))
+        {
+            link.ChangeAnimation(state);
+        }
+
+        if (Animation == state)
+            return;
+
+        HasPlayedStateSound = false;
+        var layout = Vid;
+        var direction = GetShownDirection(_direction);
+
+        FirstFrame = layout.GetFirstFrame(state) + layout.RealDirection(direction) * layout.GetFramesPerDirection(state);
+        Frame = FirstFrame;
+        Animation = state;
+        LastFrame = state > SpriteAnimation.Unload && layout.GetFrameCount(state) == 0
+            ? FirstFrame : FirstFrame + layout.GetFramesPerDirection(state) - 1;
+    }
+
+    /// <summary>
+    /// Sets the gamma applied to the sprite while it is drawn.
+    /// </summary>
+    /// <param name="gamma">The gamma.</param>
+    [EngineRoutine(0x00443070)]
+    public void SetGamma(Gamma gamma)
+    {
+        EnsureExtraData();
+        ExtraData!.GammaOverride = gamma;
+    }
+
+    /// <summary>
+    /// Returns the gamma of the sprite, made of its own gamma or its army's, plus the gamma of the current keyframe.
+    /// </summary>
+    /// <returns>The gamma.</returns>
+    [EngineRoutine(0x004430b0)]
+    public Gamma GetGamma()
+    {
+        var gamma = HasExtraData && (GammaOverride.Negative != 0 || GammaOverride.Positive != 0) ? GammaOverride : Vid.Gammas[(int)Army & Vid.ArmyMask];
+        if (!Vid.HasColorKeyframes)
+            return gamma;
+
+        ref readonly var weapon = ref Vid.Weapon;
+        int blue = (int)weapon.Interpolate(weapon.BlueKeys, (int)KeyframePosition, KeyframePosition);
+        int green = (int)weapon.Interpolate(weapon.GreenKeys, (int)KeyframePosition, KeyframePosition);
+        int red = (int)weapon.Interpolate(weapon.RedKeys, (int)KeyframePosition, KeyframePosition);
+        int alpha = Math.Clamp((int)weapon.Interpolate(weapon.AlphaKeys, (int)KeyframePosition, KeyframePosition), -byte.MaxValue, byte.MaxValue);
+        var keyframe = alpha < 0 ? new Gamma((uint)(alpha * -(1 << GammaAlphaShift)), 0) : new Gamma(0, (uint)alpha << GammaAlphaShift);
+        return gamma.Add(keyframe.WithRed(red).WithGreen(green).WithBlue(blue));
+    }
+
+    /// <summary>
+    /// Returns the health of this sprite, or of its armed link, scaled from 0 to 255 of the maximum.
+    /// </summary>
+    /// <returns>The scaled health.</returns>
+    [EngineRoutine(0x00444360)]
+    public int PercentHp()
+    {
+        var link = ArmedLink;
+
+        if (link is not null)
+        {
+            int linkMax = link.Vid.ArmyMaxHp[(int)link.Army & Vid.ArmyMask];
+
+            if (linkMax != 0)
+                return link.Hp * HpShare / linkMax;
+        }
+
+        int max = Vid.ArmyMaxHp[(int)Army & Vid.ArmyMask];
+
+        return max != 0 ? Hp * HpShare / max : 0;
     }
 
     /// <summary>
@@ -782,213 +772,112 @@ public partial class Sprite
     }
 
     /// <summary>
-    /// Hides this sprite and every sprite of its link chain.
+    /// Plays a sound from a sprite's position on the screen.
     /// </summary>
-    [EngineRoutine(0x00442620)]
-    public void InvisibleOn()
+    /// <param name="id">The sound ID.</param>
+    [EngineRoutine(0x00445470)]
+    public void PlaySfx(int id)
     {
-        IsInvisible = true;
-
-        foreach (var link in EnumerateLinks())
-        {
-            link.IsInvisible = true;
-        }
+        Map.Sound.PlayAt(id, Position.ToDrawPosition() - Map.Shift - Map.Session.Graphics.ScreenSize.ToVector2() * Map.HalfShare);
     }
 
     /// <summary>
-    /// Shows this sprite and every sprite of its link chain.
+    /// Determines whether this sprite or its armed link can attack the type of another sprite.
     /// </summary>
-    [EngineRoutine(0x00442640)]
-    public void InvisibleOff()
+    /// <param name="target">The sprite to attack.</param>
+    /// <returns><see langword="true"/> if a weapon of this sprite targets the type of <paramref name="target"/>; otherwise, <see langword="false"/>.</returns>
+    [EngineRoutine(0x00445f30)]
+    public bool CanAttackThisSprite(Sprite? target)
     {
-        IsInvisible = false;
+        if (target is null)
+            return false;
 
-        foreach (var link in EnumerateLinks())
-        {
-            link.IsInvisible = false;
-        }
-    }
+        if (Vid.FightChild != 0 && Vid.WeaponIndex != 0 && (Vid.Weapon.Targets & target.Vid.SpriteType) != 0)
+            return true;
 
-    /// <summary>
-    /// Returns the sprites of this sprite's <see cref="Link"/> chain, nearest first.
-    /// </summary>
-    /// <returns>The sprites of the chain.</returns>
-    public IEnumerable<Sprite> EnumerateLinks()
-    {
-        for (var link = Link; link is not null; link = link.Link)
-        {
-            yield return link;
-        }
-    }
-
-    /// <summary>
-    /// Draws the sprite with the frames of its object ID.
-    /// </summary>
-    /// <param name="screen">The screen to draw to.</param>
-    /// <param name="map">The map.</param>
-    /// <param name="shift">The top left corner of the view, in map pixels.</param>
-    [EngineRoutine(0x0040ec40)]
-    public virtual void Draw(Screen screen, Map map, Vector2 shift) => Vid.Draw(screen, map, this, shift);
-
-    /// <summary>
-    /// Returns the gamma of the sprite, made of its own gamma or its army's, plus the gamma of the current keyframe.
-    /// </summary>
-    /// <returns>The gamma.</returns>
-    [EngineRoutine(0x004430b0)]
-    public Gamma GetGamma()
-    {
-        var gamma = HasExtraData && (GammaOverride.Negative != 0 || GammaOverride.Positive != 0) ? GammaOverride : Vid.Gammas[(int)Army & Vid.ArmyMask];
-        if (!Vid.HasColorKeyframes)
-            return gamma;
-
-        ref readonly var weapon = ref Vid.Weapon;
-        int blue = (int)weapon.Interpolate(weapon.BlueKeys, (int)KeyframePosition, KeyframePosition);
-        int green = (int)weapon.Interpolate(weapon.GreenKeys, (int)KeyframePosition, KeyframePosition);
-        int red = (int)weapon.Interpolate(weapon.RedKeys, (int)KeyframePosition, KeyframePosition);
-        int alpha = Math.Clamp((int)weapon.Interpolate(weapon.AlphaKeys, (int)KeyframePosition, KeyframePosition), -byte.MaxValue, byte.MaxValue);
-        var keyframe = alpha < 0 ? new Gamma((uint)(alpha * -(1 << GammaAlphaShift)), 0) : new Gamma(0, (uint)alpha << GammaAlphaShift);
-        return gamma.Add(keyframe.WithRed(red).WithGreen(green).WithBlue(blue));
-    }
-
-    internal void ReplaceVid(Vid vid) => Vid = vid;
-
-    internal void SetAnimationValue(SpriteAnimation state) => Animation = state;
-
-    [EngineRoutine(0x00440030)]
-    internal void ChangeCoor(Vector3 position)
-    {
-        var delta = position - Position;
-        for (var sprite = this; sprite is not null; sprite = sprite.Link)
-        {
-            sprite.Vid.ResetGridZ(this);
-
-            if (SpriteCollector.IsHashed(sprite.Vid))
-            {
-                Map.Sprites.ChangeCoor(sprite, sprite.Position.AsVector2() + delta.AsVector2());
-            }
-
-            uint realTime = Map.RealCurrentTime;
-
-            if (sprite.ExtraData is not null && sprite.ExtraData.PreviousPositionRealTime != realTime)
-            {
-                sprite.ExtraData.PreviousPositionRealTime = realTime;
-                sprite.ExtraData.PreviousPosition = sprite.Position;
-            }
-
-            sprite.Position += delta;
-            sprite.Vid.SetGridZ(this);
-        }
-    }
-
-    internal void ChangeZCoor(float z) => ChangeCoor(Position with { Z = z });
-
-    [EngineRoutine(0x004460b0)]
-    internal AttackResult AttackTact(int elapsed)
-    {
         var link = ArmedLink;
 
-        if (link is not null)
-        {
-            var result = link.AttackTact(elapsed);
-
-            if (result != AttackResult.NoTarget)
-                return result;
-
-            return HasGoal ? AttackResult.NoOrder : AttackResult.NoTarget;
-        }
-
-        if (Vid.FightChild == 0 || Vid.WeaponIndex == 0)
-            return AttackResult.Unarmed;
-
-        if (!HasGoal)
-        {
-            FaceOwner(elapsed, Timer == 0);
-
-            return AttackResult.NoTarget;
-        }
-
-        if (IsReloading)
-        {
-            RotateTact(MeasureDirectionToGoal(), elapsed);
-
-            return AttackResult.Busy;
-        }
-
-        if (Command is not (Command.Attack or Command.OneAttack or Command.DistAttack))
-        {
-            FaceOwner(elapsed, Timer == 0);
-
-            return AttackResult.NoOrder;
-        }
-
-        float distance = Position.AsVector2().NearLength(GoalPosition.AsVector2());
-        bool inRange = Owner is null || Command == Command.DistAttack || distance < Vid.Weapon.BattleRange && distance > Vid.Weapon.MinRange;
-        bool aimed = inRange && (RotateTact(MeasureDirectionToGoal(), elapsed) == default || Vid.CanAttackWhileTurning);
-
-        if (!inRange)
-        {
-            FaceOwner(elapsed, true);
-        }
-
-        if (distance <= Vid.Weapon.BattleRange)
-        {
-            if (!aimed)
-                return AttackResult.Busy;
-
-            int count = Vid.ChildCounts[(int)SpriteAnimation.Fight];
-
-            if (Map.Action(this, ActionCode.GetAmmo) < Math.Abs(count))
-                return AttackResult.NoAmmo;
-
-            Map.Action(this, ActionCode.AddAmmo, -count);
-
-            ChangeAnimation(SpriteAnimation.Fight);
-            Timer = Vid.Weapon.ReloadTime + ReloadTimerOffset;
-
-            return AttackResult.Attacked;
-        }
-
-        if (Command == Command.Attack)
-            return AttackResult.Approach;
-
-        return distance < Vid.Weapon.DetectRange * 2 ? AttackResult.Pursue : AttackResult.GiveUp;
+        return link is not null && (link.Vid.Weapon.Targets & target.Vid.SpriteType) != 0;
     }
 
-    [EngineRoutine(0x0043fa00)]
-    internal bool MoveTactMapLimit(Vector2 position, int elapsed)
+    /// <summary>
+    /// Creates the child objects that the sprite's object ID lists for a state.
+    /// </summary>
+    /// <param name="state">The state whose children to create.</param>
+    [EngineRoutine(0x00446430)]
+    public void CreateChildFor(SpriteAnimation state)
     {
-        var size = Map.Size;
-
-        if (!(position.X >= 0))
+        if (Vid.ChildVids[(int)state] is not null)
         {
-            RotateTact(Angle.East, elapsed);
-
-            return true;
+            CreateChildAs(state);
         }
 
-        if (!(position.Y >= 0))
+        int sound = Vid.Sounds[(int)state];
+
+        if (sound != 0)
         {
-            RotateTact(Angle.South, elapsed);
-
-            return true;
+            PlaySfx(sound);
         }
-
-        if (!(position.X < size.Width))
-        {
-            RotateTact(Angle.West, elapsed);
-
-            return true;
-        }
-
-        if (!(position.Y < size.Height))
-        {
-            RotateTact(Angle.North, elapsed);
-
-            return true;
-        }
-
-        return false;
     }
+
+    /// <summary>
+    /// Adds an item at the end of the sprite's items.
+    /// </summary>
+    /// <param name="item">The item.</param>
+    [EngineRoutine(0x00446760)]
+    public void InsertItem(int item)
+    {
+        EnsureExtraData();
+
+        ExtraData!.Items.Insert(item);
+    }
+
+    /// <summary>
+    /// Creates the sprite's extra data if it does not exist yet.
+    /// </summary>
+    public void EnsureExtraData()
+    {
+        if (!HasExtraData)
+        {
+            CreateExtraData();
+        }
+    }
+
+    /// <summary>
+    /// Creates the sprite's extra data, giving it its own lifetime, keyframe track, stream period and top speed.
+    /// </summary>
+    public void CreateExtraData() => ExtraData = new ExtraSpriteData(this);
+
+    /// <summary>
+    /// Adds an item unless the sprite already holds it.
+    /// </summary>
+    /// <param name="item">The item.</param>
+    /// <returns><see langword="true"/> if the item was added; otherwise, <see langword="false"/>.</returns>
+    [EngineRoutine(0x00446810)]
+    public bool InsertUniqueItem(int item)
+    {
+        if (GetItemNumber(item) >= 0)
+            return false;
+
+        InsertItem(item);
+
+        return true;
+    }
+
+    /// <summary>
+    /// Returns the index of an item, found by searching from the end.
+    /// </summary>
+    /// <param name="item">The item.</param>
+    /// <returns>The index, or -1 when the sprite does not hold the item.</returns>
+    public int GetItemNumber(int item) => ExtraData?.Items.Location(item) ?? -1;
+
+    /// <summary>
+    /// Returns the direction from this sprite to another sprite.
+    /// </summary>
+    /// <param name="other">The other sprite.</param>
+    /// <returns>The direction.</returns>
+    [EngineRoutine(0x004474b0)]
+    public Angle DirectionTo(Sprite other) => Angle.FromOffset((other.Position - Position).AsVector2());
 
     [EngineRoutine(0x0043f520)]
     internal virtual void Destruct()
@@ -1047,7 +936,33 @@ public partial class Sprite
         Handle = 0;
     }
 
-    internal virtual int Action(ActionCode act, int var1, int var2, int var3, Sprite? target) => SpriteAction(act, var1, var2, var3, target);
+    [EngineRoutine(0x0043f720)]
+    internal virtual void DeletePointerToSprite(Sprite removed)
+    {
+        Link?.DeletePointerToSprite(removed);
+
+        if (Goal == removed)
+        {
+            if (Animation == SpriteAnimation.Fight)
+            {
+                SetCommand(Command.OneAttack, Map.ConstructGoal(removed.Position));
+            }
+            else
+            {
+                SetCommand(Command.None);
+            }
+        }
+
+        for (int i = 0; i < ActionStack.Count; i++)
+        {
+            var order = ActionStack[i];
+
+            if (order.Target == removed && Act.HasSpriteTarget((ActionCode)order.Value))
+            {
+                ActionStack[i] = order with { Value = Act.ForgottenOrder, Var1 = 0, Target = null };
+            }
+        }
+    }
 
     [EngineRoutine(0x0043f820)]
     internal virtual void MoveTact()
@@ -1096,31 +1011,65 @@ public partial class Sprite
         }
     }
 
-    [EngineRoutine(0x0043f720)]
-    internal virtual void DeletePointerToSprite(Sprite removed)
+    [EngineRoutine(0x0043fa00)]
+    internal bool MoveTactMapLimit(Vector2 position, int elapsed)
     {
-        Link?.DeletePointerToSprite(removed);
+        var size = Map.Size;
 
-        if (Goal == removed)
+        if (!(position.X >= 0))
         {
-            if (Animation == SpriteAnimation.Fight)
-            {
-                SetCommand(Command.OneAttack, Map.ConstructGoal(removed.Position));
-            }
-            else
-            {
-                SetCommand(Command.None);
-            }
+            RotateTact(Angle.East, elapsed);
+
+            return true;
         }
 
-        for (int i = 0; i < ActionStack.Count; i++)
+        if (!(position.Y >= 0))
         {
-            var order = ActionStack[i];
+            RotateTact(Angle.South, elapsed);
 
-            if (order.Target == removed && Act.HasSpriteTarget((ActionCode)order.Value))
+            return true;
+        }
+
+        if (!(position.X < size.Width))
+        {
+            RotateTact(Angle.West, elapsed);
+
+            return true;
+        }
+
+        if (!(position.Y < size.Height))
+        {
+            RotateTact(Angle.North, elapsed);
+
+            return true;
+        }
+
+        return false;
+    }
+
+    [EngineRoutine(0x00440030)]
+    internal void ChangeCoor(Vector3 position)
+    {
+        var delta = position - Position;
+        for (var sprite = this; sprite is not null; sprite = sprite.Link)
+        {
+            sprite.Vid.ResetGridZ(this);
+
+            if (SpriteCollector.IsHashed(sprite.Vid))
             {
-                ActionStack[i] = order with { Value = Act.ForgottenOrder, Var1 = 0, Target = null };
+                Map.Sprites.ChangeCoor(sprite, sprite.Position.AsVector2() + delta.AsVector2());
             }
+
+            uint realTime = Map.RealCurrentTime;
+
+            if (sprite.ExtraData is not null && sprite.ExtraData.PreviousPositionRealTime != realTime)
+            {
+                sprite.ExtraData.PreviousPositionRealTime = realTime;
+                sprite.ExtraData.PreviousPosition = sprite.Position;
+            }
+
+            sprite.Position += delta;
+            sprite.Vid.SetGridZ(this);
         }
     }
 
@@ -1179,50 +1128,44 @@ public partial class Sprite
         }
     }
 
-    private protected static void KeepHoverHeight(Sprite sprite, Vid vid, float hover, ref Vector3 next)
+    [EngineRoutine(0x004429f0)]
+    internal bool RemoveFromUpdates()
     {
-        if (sprite.Position.Z.IsExactly(next.Z) || vid.Properties.HasFlag(ObjectProperties.Gravity) || hover.IsExactlyZero())
-            return;
+        Link?.RemoveFromUpdates();
 
-        float height = hover;
-
-        if (hover <= sprite.Position.Z)
-        {
-            if (sprite.Position.Z <= hover)
-            {
-                height = next.Z;
-
-                if (!vid.Properties.HasFlag(ObjectProperties.SelfMoving))
-                {
-                    next.Z = height;
-                    sprite.VerticalSpeed = 0;
-                }
-            }
-            else if (next.Z < hover)
-            {
-                next.Z = height;
-                sprite.VerticalSpeed = 0;
-            }
-        }
-        else if (hover <= next.Z)
-        {
-            next.Z = height;
-            sprite.VerticalSpeed = 0;
-        }
+        return Map.RemoveFromLayer(this);
     }
 
-    [EngineRoutine(0x00444a00)]
-    private protected void BreakLink()
+    [EngineRoutine(0x00442a10)]
+    internal void AddToUpdates()
     {
-        Link?.Owner = Owner;
+        Link?.AddToUpdates();
 
-        if (Owner is not null)
+        Map.AddToLayer(this);
+    }
+
+    internal void ReplaceVid(Vid vid) => Vid = vid;
+
+    internal void ChangeZCoor(float z) => ChangeCoor(Position with { Z = z });
+
+    [EngineRoutine(0x00444970)]
+    internal int AddLink(Sprite? link)
+    {
+        if (link is null || link.Owner is not null)
+            return 1;
+
+        var previous = Link;
+
+        if (previous is not null)
         {
-            Owner.Link = Link;
-            Owner = null;
+            previous.Owner = null;
+            link.AddLinkToLast(previous);
         }
 
-        Link = null;
+        Link = link;
+        link.Owner = this;
+
+        return 0;
     }
 
     [EngineRoutine(0x004449c0)]
@@ -1239,58 +1182,6 @@ public partial class Sprite
 
         last.Link = link;
         link.Owner = last;
-    }
-
-    private Angle GetShownDirection(Angle direction)
-    {
-        if (VerticalSpeed.IsExactlyZero() || !Vid.Properties.HasFlag(ObjectProperties.VerticalDirection))
-            return direction;
-
-        return Angle.FromOffset(new Vector2(direction.Vector.X * Speed * VelocityScale, -(direction.Vector.Y * Speed + VerticalSpeed) * VelocityScale));
-    }
-
-    private void FaceOwner(int elapsed, bool idle)
-    {
-        if (Owner is not null && idle)
-        {
-            RotateTact(Owner.Direction, elapsed);
-        }
-    }
-
-    [EngineRoutine(0x004463a0)]
-    private Angle MeasureDirectionToGoal()
-    {
-        var offset = GoalPosition - Position;
-        return Angle.Aim(new Point((int)offset.X, (int)offset.Y));
-    }
-
-    [EngineRoutine(0x004454d0)]
-    internal void ChangeHp(int hp)
-    {
-        if (hp < 1 && Vid.MaxHp != 0)
-        {
-            if (Animation < SpriteAnimation.Death)
-            {
-                int army = (int)Army & 3;
-                Vid.Killed[army]++;
-                ChangeAnimation(Vid.ArmyMaxHp[army] < Hp - hp && Vid.ChildVids[(int)SpriteAnimation.Death2] is not null ? SpriteAnimation.Death2 : SpriteAnimation.Death);
-            }
-
-            return;
-        }
-
-        int half = Vid.ArmyMaxHp[(int)Army & 3] / 2;
-        if (half < hp && Hp <= half)
-        {
-            DestroyLink(Vid.ChildVids[(int)SpriteAnimation.Wound]);
-        }
-
-        if (hp <= half && half < Hp)
-        {
-            ChangeAnimation(SpriteAnimation.Wound);
-        }
-
-        Hp = hp;
     }
 
     [EngineRoutine(0x00444a30)]
@@ -1315,26 +1206,6 @@ public partial class Sprite
         link.Link = null;
         link.Owner = null;
         Map.DeleteSprite(link);
-    }
-
-    [EngineRoutine(0x00444970)]
-    internal int AddLink(Sprite? link)
-    {
-        if (link is null || link.Owner is not null)
-            return 1;
-
-        var previous = Link;
-
-        if (previous is not null)
-        {
-            previous.Owner = null;
-            link.AddLinkToLast(previous);
-        }
-
-        Link = link;
-        link.Owner = this;
-
-        return 0;
     }
 
     [EngineRoutine(0x00444dd0)]
@@ -1475,182 +1346,33 @@ public partial class Sprite
         }
     }
 
-    internal void CreateChildAs(SpriteAnimation state)
+    [EngineRoutine(0x004454d0)]
+    internal void ChangeHp(int hp)
     {
-        var previous = Animation;
-        SetAnimationValue(state);
-        CreateChild();
-        SetAnimationValue(previous);
-    }
-
-    [EngineRoutine(0x00445770)]
-    internal void CreateLink()
-    {
-        var vid = Vid.LinkVid;
-
-        if (vid is null || Link?.Vid == vid || vid.NotCreatedAsChild != 0)
-            return;
-
-        var position = Position + Vid.GetLinkOffset(vid, Direction);
-        var link = Map.CreateSprite(vid, position, Direction);
-        AddLink(link);
-
-        if (Link is null)
+        if (hp < 1 && Vid.MaxHp != 0)
         {
-            Map.Session.Error.Error($"SPRITE {(int)Vid.Id}", LogError.Create, 0, "link"u8);
-
-            return;
-        }
-
-        Link.ChangeArmy((int)Army);
-    }
-
-    /// <summary>
-    /// Plays a sound from a sprite's position on the screen.
-    /// </summary>
-    /// <param name="id">The sound ID.</param>
-    [EngineRoutine(0x00445470)]
-    public void PlaySfx(int id)
-    {
-        Map.Sound.PlayAt(id, Position.ToDrawPosition() - Map.Shift - Map.Session.Graphics.ScreenSize.ToVector2() * Map.HalfShare);
-    }
-
-    [EngineRoutine(0x00445fb0)]
-    internal void Attack(Sprite? target)
-    {
-        var vid = Vid;
-
-        if (vid.Class == SpriteClass.Linker && vid.FightChild != 0)
-        {
-            var state = Animation;
-            SetAnimationValue(SpriteAnimation.Fight);
-            SetCommand(Command.OneAttack, target);
-            CreateChild();
-            SetAnimationValue(state);
-            SetCommand(Command.None);
-
-            return;
-        }
-
-        // TODO: Port the trains; the IsTrain action of the attack test answers for every class
-        if (target is null || target.Vid == Map.EmptyVid || CanAttackThisSprite(target) || vid.Class == SpriteClass.Cannon ||
-            Map.Action(this, ActionCode.IsTrain) != 0)
-        {
-            SetCommand(Command.Attack, target);
-        }
-    }
-
-    /// <summary>
-    /// Creates the child objects that the sprite's object ID lists for a state.
-    /// </summary>
-    /// <param name="state">The state whose children to create.</param>
-    [EngineRoutine(0x00446430)]
-    public void CreateChildFor(SpriteAnimation state)
-    {
-        if (Vid.ChildVids[(int)state] is not null)
-        {
-            CreateChildAs(state);
-        }
-
-        int sound = Vid.Sounds[(int)state];
-
-        if (sound != 0)
-        {
-            PlaySfx(sound);
-        }
-    }
-
-    [EngineRoutine(0x00446480)]
-    internal ReadOnlyMemory<byte> GetTextItems()
-    {
-        if (Items.Count == 0)
-            return default;
-
-        var text = new List<byte>();
-        foreach (int item in Items)
-        {
-            text.AddRange(ItemMark);
-            AppendNumber(text, item);
-        }
-
-        text.AddRange(Map.ItemsEnd);
-
-        return text.ToArray();
-    }
-
-    [EngineRoutine(0x00446570)]
-    internal void SetTextItems(ReadOnlyMemory<byte> text)
-    {
-        if (text.IsEmpty)
-            return;
-
-        EnsureExtraData();
-        text = Map.GetAfter(text, ItemMark);
-        int item = 0;
-        while (!text.IsEmpty)
-        {
-            if (CRuntime.TryScanInteger(text.Span, out int scanned))
+            if (Animation < SpriteAnimation.Death)
             {
-                item = scanned;
+                int army = (int)Army & 3;
+                Vid.Killed[army]++;
+                ChangeAnimation(Vid.ArmyMaxHp[army] < Hp - hp && Vid.ChildVids[(int)SpriteAnimation.Death2] is not null ? SpriteAnimation.Death2 : SpriteAnimation.Death);
             }
 
-            ExtraData!.Items.Insert(item);
-            text = Map.GetAfter(text, ItemMark);
+            return;
         }
-    }
 
-    [EngineRoutine(0x004458a0)]
-    internal ReadOnlyMemory<byte> GetTextActions()
-    {
-        var text = new List<byte>();
-        foreach (var order in ActionStack.Items)
+        int half = Vid.ArmyMaxHp[(int)Army & 3] / 2;
+        if (half < hp && Hp <= half)
         {
-            text.Add(unchecked((byte)(order.Value + CommandBias)));
-            AppendNumber(text, order.Var1);
-            text.Add((byte)',');
-            AppendNumber(text, order.Var2);
-            text.Add((byte)',');
-            AppendNumber(text, order.Var3);
-            text.AddRange(CommandEnd);
+            DestroyLink(Vid.ChildVids[(int)SpriteAnimation.Wound]);
         }
 
-        return text.ToArray();
-    }
-
-    [EngineRoutine(0x00445990)]
-    internal void SetTextActions(ReadOnlyMemory<byte> text)
-    {
-        int var1 = 0, var2 = 0, var3 = 0;
-        while (!text.IsEmpty)
+        if (hp <= half && half < Hp)
         {
-            var rest = text.Span;
-            byte command = rest[0];
-            int i = 1;
-            if (CRuntime.TryScanInteger(rest[i..], out int scanned, out int length))
-            {
-                var1 = scanned;
-                i += length;
-                if (i < rest.Length && rest[i] == ',' && CRuntime.TryScanInteger(rest[(i + 1)..], out scanned, out length))
-                {
-                    var2 = scanned;
-                    i += 1 + length;
-                    if (i < rest.Length && rest[i] == ',' && CRuntime.TryScanInteger(rest[(i + 1)..], out scanned))
-                    {
-                        var3 = scanned;
-                    }
-                }
-            }
-
-            ActionStack.Insert(Map.CreateAct(command - CommandBias, var1, var2, var3));
-            text = Map.GetAfter(text, CommandEnd);
+            ChangeAnimation(SpriteAnimation.Wound);
         }
-    }
 
-    private static void AppendNumber(List<byte> text, int value)
-    {
-        Span<byte> number = stackalloc byte[11];
-        Utf8Formatter.TryFormat(value, number, out int length);
-        text.AddRange(number[..length]);
+        Hp = hp;
     }
 
     [EngineRoutine(0x004455c0)]
@@ -1723,20 +1445,73 @@ public partial class Sprite
         Map.Session.Graphics.DrawFormattedText(new Vector2(position.X - Map.Shift.X + Map.TextLineOffset, position.Y - position.Z - Map.Shift.Y), $"{(int)vid.Id}");
     }
 
-    [EngineRoutine(0x00442a10)]
-    internal void AddToUpdates()
+    [EngineRoutine(0x00445770)]
+    internal void CreateLink()
     {
-        Link?.AddToUpdates();
+        var vid = Vid.LinkVid;
 
-        Map.AddToLayer(this);
+        if (vid is null || Link?.Vid == vid || vid.NotCreatedAsChild != 0)
+            return;
+
+        var position = Position + Vid.GetLinkOffset(vid, Direction);
+        var link = Map.CreateSprite(vid, position, Direction);
+        AddLink(link);
+
+        if (Link is null)
+        {
+            Map.Session.Error.Error($"SPRITE {(int)Vid.Id}", LogError.Create, 0, "link"u8);
+
+            return;
+        }
+
+        Link.ChangeArmy((int)Army);
     }
 
-    [EngineRoutine(0x004429f0)]
-    internal bool RemoveFromUpdates()
+    [EngineRoutine(0x004458a0)]
+    internal ReadOnlyMemory<byte> GetTextActions()
     {
-        Link?.RemoveFromUpdates();
+        var text = new List<byte>();
+        foreach (var order in ActionStack.Items)
+        {
+            text.Add(unchecked((byte)(order.Value + CommandBias)));
+            AppendNumber(text, order.Var1);
+            text.Add((byte)',');
+            AppendNumber(text, order.Var2);
+            text.Add((byte)',');
+            AppendNumber(text, order.Var3);
+            text.AddRange(CommandEnd);
+        }
 
-        return Map.RemoveFromLayer(this);
+        return text.ToArray();
+    }
+
+    [EngineRoutine(0x00445990)]
+    internal void SetTextActions(ReadOnlyMemory<byte> text)
+    {
+        int var1 = 0, var2 = 0, var3 = 0;
+        while (!text.IsEmpty)
+        {
+            var rest = text.Span;
+            byte command = rest[0];
+            int i = 1;
+            if (CRuntime.TryScanInteger(rest[i..], out int scanned, out int length))
+            {
+                var1 = scanned;
+                i += length;
+                if (i < rest.Length && rest[i] == ',' && CRuntime.TryScanInteger(rest[(i + 1)..], out scanned, out length))
+                {
+                    var2 = scanned;
+                    i += 1 + length;
+                    if (i < rest.Length && rest[i] == ',' && CRuntime.TryScanInteger(rest[(i + 1)..], out scanned))
+                    {
+                        var3 = scanned;
+                    }
+                }
+            }
+
+            ActionStack.Insert(Map.CreateAct(command - CommandBias, var1, var2, var3));
+            text = text.After(CommandEnd);
+        }
     }
 
     [EngineRoutine(0x00445b10)]
@@ -1755,6 +1530,230 @@ public partial class Sprite
         }
 
         ActionStack.InsertFirst(order);
+    }
+
+    [EngineRoutine(0x00445fb0)]
+    internal void Attack(Sprite? target)
+    {
+        var vid = Vid;
+
+        if (vid.Class == SpriteClass.Linker && vid.FightChild != 0)
+        {
+            var state = Animation;
+            SetAnimationValue(SpriteAnimation.Fight);
+            SetCommand(Command.OneAttack, target);
+            CreateChild();
+            SetAnimationValue(state);
+            SetCommand(Command.None);
+
+            return;
+        }
+
+        // TODO: Port the trains; the IsTrain action of the attack test answers for every class
+        if (target is null || target.Vid == Map.EmptyVid || CanAttackThisSprite(target) || vid.Class == SpriteClass.Cannon ||
+            Map.Action(this, ActionCode.IsTrain) != 0)
+        {
+            SetCommand(Command.Attack, target);
+        }
+    }
+
+    [EngineRoutine(0x004460b0)]
+    internal AttackResult AttackTact(int elapsed)
+    {
+        var link = ArmedLink;
+
+        if (link is not null)
+        {
+            var result = link.AttackTact(elapsed);
+
+            if (result != AttackResult.NoTarget)
+                return result;
+
+            return HasGoal ? AttackResult.NoOrder : AttackResult.NoTarget;
+        }
+
+        if (Vid.FightChild == 0 || Vid.WeaponIndex == 0)
+            return AttackResult.Unarmed;
+
+        if (!HasGoal)
+        {
+            FaceOwner(elapsed, Timer == 0);
+
+            return AttackResult.NoTarget;
+        }
+
+        if (IsReloading)
+        {
+            RotateTact(MeasureDirectionToGoal(), elapsed);
+
+            return AttackResult.Busy;
+        }
+
+        if (Command is not (Command.Attack or Command.OneAttack or Command.DistAttack))
+        {
+            FaceOwner(elapsed, Timer == 0);
+
+            return AttackResult.NoOrder;
+        }
+
+        float distance = Position.AsVector2().NearLength(GoalPosition.AsVector2());
+        bool inRange = Owner is null || Command == Command.DistAttack || distance < Vid.Weapon.BattleRange && distance > Vid.Weapon.MinRange;
+        bool aimed = inRange && (RotateTact(MeasureDirectionToGoal(), elapsed) == default || Vid.CanAttackWhileTurning);
+
+        if (!inRange)
+        {
+            FaceOwner(elapsed, true);
+        }
+
+        if (distance <= Vid.Weapon.BattleRange)
+        {
+            if (!aimed)
+                return AttackResult.Busy;
+
+            int count = Vid.ChildCounts[(int)SpriteAnimation.Fight];
+
+            if (Map.Action(this, ActionCode.GetAmmo) < Math.Abs(count))
+                return AttackResult.NoAmmo;
+
+            Map.Action(this, ActionCode.AddAmmo, -count);
+
+            ChangeAnimation(SpriteAnimation.Fight);
+            Timer = Vid.Weapon.ReloadTime + ReloadTimerOffset;
+
+            return AttackResult.Attacked;
+        }
+
+        if (Command == Command.Attack)
+            return AttackResult.Approach;
+
+        return distance < Vid.Weapon.DetectRange * 2 ? AttackResult.Pursue : AttackResult.GiveUp;
+    }
+
+    internal virtual int Action(ActionCode act, int var1, int var2, int var3, Sprite? target) => SpriteAction(act, var1, var2, var3, target);
+
+    internal void CreateChildAs(SpriteAnimation state)
+    {
+        var previous = Animation;
+        SetAnimationValue(state);
+        CreateChild();
+        SetAnimationValue(previous);
+    }
+
+    internal void SetAnimationValue(SpriteAnimation state) => Animation = state;
+
+    [EngineRoutine(0x00446480)]
+    internal ReadOnlyMemory<byte> GetTextItems()
+    {
+        if (Items.Count == 0)
+            return default;
+
+        var text = new List<byte>();
+        foreach (int item in Items)
+        {
+            text.AddRange(ItemMark);
+            AppendNumber(text, item);
+        }
+
+        text.AddRange(Map.ItemsEnd);
+
+        return text.ToArray();
+    }
+
+    [EngineRoutine(0x00446570)]
+    internal void SetTextItems(ReadOnlyMemory<byte> text)
+    {
+        if (text.IsEmpty)
+            return;
+
+        EnsureExtraData();
+        text = text.After(ItemMark);
+        int item = 0;
+        while (!text.IsEmpty)
+        {
+            if (CRuntime.TryScanInteger(text.Span, out int scanned))
+            {
+                item = scanned;
+            }
+
+            ExtraData!.Items.Insert(item);
+            text = text.After(ItemMark);
+        }
+    }
+
+    private protected static void KeepHoverHeight(Sprite sprite, Vid vid, float hover, ref Vector3 next)
+    {
+        if (sprite.Position.Z.IsExactly(next.Z) || vid.Properties.HasFlag(ObjectProperties.Gravity) || hover.IsExactlyZero())
+            return;
+
+        float height = hover;
+
+        if (hover <= sprite.Position.Z)
+        {
+            if (sprite.Position.Z <= hover)
+            {
+                height = next.Z;
+
+                if (!vid.Properties.HasFlag(ObjectProperties.SelfMoving))
+                {
+                    next.Z = height;
+                    sprite.VerticalSpeed = 0;
+                }
+            }
+            else if (next.Z < hover)
+            {
+                next.Z = height;
+                sprite.VerticalSpeed = 0;
+            }
+        }
+        else if (hover <= next.Z)
+        {
+            next.Z = height;
+            sprite.VerticalSpeed = 0;
+        }
+    }
+
+    [EngineRoutine(0x00444a00)]
+    private protected void BreakLink()
+    {
+        Link?.Owner = Owner;
+
+        if (Owner is not null)
+        {
+            Owner.Link = Link;
+            Owner = null;
+        }
+
+        Link = null;
+    }
+
+    private static void AppendNumber(List<byte> text, int value)
+    {
+        Span<byte> number = stackalloc byte[11];
+        Utf8Formatter.TryFormat(value, number, out int length);
+        text.AddRange(number[..length]);
+    }
+
+    private Angle GetShownDirection(Angle direction)
+    {
+        if (VerticalSpeed.IsExactlyZero() || !Vid.Properties.HasFlag(ObjectProperties.VerticalDirection))
+            return direction;
+
+        return Angle.FromOffset(new Vector2(direction.Vector.X * Speed * VelocityScale, -(direction.Vector.Y * Speed + VerticalSpeed) * VelocityScale));
+    }
+
+    private void FaceOwner(int elapsed, bool idle)
+    {
+        if (Owner is not null && idle)
+        {
+            RotateTact(Owner.Direction, elapsed);
+        }
+    }
+
+    [EngineRoutine(0x004463a0)]
+    private Angle MeasureDirectionToGoal()
+    {
+        var offset = GoalPosition - Position;
+        return Angle.Aim(new Point((int)offset.X, (int)offset.Y));
     }
 
     private void SetFlag(SpriteFlags flag, bool isSet) => _flags = (isSet ? flag : SpriteFlags.None) | _flags & ~flag;

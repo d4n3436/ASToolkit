@@ -14,6 +14,7 @@ public sealed class BmpImage : PictureImage
     /// Represents the extension of BMP files.
     /// </summary>
     public const string Extension = ".bmp";
+
     private const int MinDepth = 8;
     private const int RowAlignment = 4;
 
@@ -60,6 +61,25 @@ public sealed class BmpImage : PictureImage
     }
 
     /// <summary>
+    /// Reopens the first file and goes to the first frame.
+    /// </summary>
+    [EngineRoutine(0x00428620)]
+    public override void Rewind()
+    {
+        if (!HasPixels)
+            return;
+
+        CloseFile();
+        Input = OpenFile(Name);
+        if (!ReadHeader(out _))
+            return;
+
+        Input!.Seek(DataOffset, SeekOrigin.Begin);
+        FrameIndex = -1;
+        Advance();
+    }
+
+    /// <summary>
     /// Goes to the next frame, read from the next numbered file, and back to the first frame after the last one.
     /// </summary>
     [EngineRoutine(0x004286a0)]
@@ -101,25 +121,6 @@ public sealed class BmpImage : PictureImage
                 Input.Seek(padding, SeekOrigin.Current);
             }
         }
-    }
-
-    /// <summary>
-    /// Reopens the first file and goes to the first frame.
-    /// </summary>
-    [EngineRoutine(0x00428620)]
-    public override void Rewind()
-    {
-        if (!HasPixels)
-            return;
-
-        CloseFile();
-        Input = OpenFile(Name);
-        if (!ReadHeader(out _))
-            return;
-
-        Input!.Seek(DataOffset, SeekOrigin.Begin);
-        FrameIndex = -1;
-        Advance();
     }
 
     [EngineRoutine(0x00428400)]

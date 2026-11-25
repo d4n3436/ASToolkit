@@ -47,8 +47,6 @@ public sealed partial class Script
     /// </summary>
     public int VariableCount => _stack.Count;
 
-    internal MyList<ScriptStack> Stack => _stack;
-
     /// <summary>
     /// Gets the names of the script.
     /// </summary>
@@ -68,6 +66,8 @@ public sealed partial class Script
         get => _stack[^1].Flags.HasFlag(ScriptStackFlags.Text);
     }
 
+    internal MyList<ScriptStack> Stack => _stack;
+
     internal MyError? Error
     {
         get;
@@ -80,14 +80,6 @@ public sealed partial class Script
     }
 
     private bool IsAlienShooter2 => Version == ScriptVersion.AlienShooter2;
-
-    /// <summary>
-    /// Returns a variable or stack slot.
-    /// </summary>
-    /// <param name="index">The index of the slot.</param>
-    /// <returns>The slot.</returns>
-    public ref ScriptStack GetSlot(int index) => ref _stack[index];
-
 
     /// <summary>
     /// Returns the code offset where a function's code ends, at the next function's start.
@@ -143,91 +135,17 @@ public sealed partial class Script
     public int PopNumber() => _stack.Pop().GetValue();
 
     /// <summary>
-    /// Pops a value from the stack as a sprite handle.
+    /// Returns a variable or stack slot.
     /// </summary>
-    /// <returns>The handle, or 0 if there is no handle. A nonzero number that isn't a sprite handle is logged.</returns>
-    [EngineRoutine(0x00439fd0)]
-    public int PopHandle()
-    {
-        ref readonly var slot = ref _stack[^1];
-        if (slot.Value != 0 && !slot.Flags.HasFlag(ScriptStackFlags.Sprite))
-        {
-            Error?.Error("LOGIC"u8, LogError.Text, 0, "this variable is not unit"u8);
-        }
-
-        return _stack.Pop().GetValue();
-    }
+    /// <param name="index">The index of the slot.</param>
+    /// <returns>The slot.</returns>
+    public ref ScriptStack GetSlot(int index) => ref _stack[index];
 
     /// <summary>
     /// Pops a value from the stack as text, with a number written in decimal.
     /// </summary>
     /// <returns>The text.</returns>
     public ReadOnlyMemory<byte> PopText() => _stack.Pop().GetText();
-
-    /// <summary>
-    /// Pushes a text onto the stack.
-    /// </summary>
-    /// <param name="text">The text.</param>
-    [EngineRoutine(0x00439ef0)]
-    public void PushText(ReadOnlyMemory<byte> text) => _stack.Insert(ScriptStack.FromText(text));
-
-    /// <summary>
-    /// Clears every variable that holds the handle of a deleted sprite.
-    /// </summary>
-    /// <param name="handle">The handle of the sprite.</param>
-    /// <returns>The number of variables cleared.</returns>
-    [EngineRoutine(0x00424460)]
-    public int DeletePointerToObject(int handle)
-    {
-        int cleared = 0;
-        for (int i = 0; i < _stack.Count; i++)
-        {
-            ref var slot = ref _stack[i];
-            if (slot.Flags.HasFlag(ScriptStackFlags.Sprite) && slot.Value == handle)
-            {
-                slot.Value = 0;
-                slot.Flags &= ~ScriptStackFlags.Sprite;
-                cleared++;
-            }
-        }
-
-        return cleared;
-    }
-
-    /// <summary>
-    /// Pushes a number onto the stack.
-    /// </summary>
-    /// <param name="value">The number.</param>
-    [EngineRoutine(0x0043a060)]
-    public void PushInt(int value) => _stack.Insert(ScriptStack.FromNumber(value));
-
-    /// <summary>
-    /// Pushes a sprite handle onto the stack.
-    /// </summary>
-    /// <param name="value">The handle, or 0 if there is no handle.</param>
-    [EngineRoutine(0x0043a0f0)]
-    public void PushSprite(int value) => _stack.Insert(ScriptStack.FromHandle(value));
-
-    [EngineRoutine(0x004231c0)]
-    internal ReadOnlyMemory<byte> GetVariableString(ReadOnlySpan<byte> reference)
-    {
-        int bracket = reference.IndexOf(VariableElementStart);
-        int index = _objects.Location(bracket < 0 ? reference : reference[..bracket]);
-        if (index < 0)
-        {
-            Error?.Log($"!!!ERROR!!! SCRIPT Can't find variable '{MyError.Decode(reference)}' in GetVariableString");
-            return default;
-        }
-
-        int element = ScriptStack.ParseNumber(bracket < 0 ? default : reference[(bracket + 1)..]);
-        ref var slot = ref GetSlot(_objects[index].Address + element);
-        if (slot.Flags.HasFlag(ScriptStackFlags.Number))
-        {
-            slot.Text = ScriptStack.FormatNumber(slot.Value);
-        }
-
-        return slot.Text;
-    }
 
     /// <summary>
     /// Runs a function of the script.
@@ -525,6 +443,87 @@ public sealed partial class Script
         RestoreStack(savedCount);
 
         return result;
+    }
+
+    /// <summary>
+    /// Clears every variable that holds the handle of a deleted sprite.
+    /// </summary>
+    /// <param name="handle">The handle of the sprite.</param>
+    /// <returns>The number of variables cleared.</returns>
+    [EngineRoutine(0x00424460)]
+    public int DeletePointerToObject(int handle)
+    {
+        int cleared = 0;
+        for (int i = 0; i < _stack.Count; i++)
+        {
+            ref var slot = ref _stack[i];
+            if (slot.Flags.HasFlag(ScriptStackFlags.Sprite) && slot.Value == handle)
+            {
+                slot.Value = 0;
+                slot.Flags &= ~ScriptStackFlags.Sprite;
+                cleared++;
+            }
+        }
+
+        return cleared;
+    }
+
+    /// <summary>
+    /// Pushes a text onto the stack.
+    /// </summary>
+    /// <param name="text">The text.</param>
+    [EngineRoutine(0x00439ef0)]
+    public void PushText(ReadOnlyMemory<byte> text) => _stack.Insert(ScriptStack.FromText(text));
+
+    /// <summary>
+    /// Pops a value from the stack as a sprite handle.
+    /// </summary>
+    /// <returns>The handle, or 0 if there is no handle. A nonzero number that isn't a sprite handle is logged.</returns>
+    [EngineRoutine(0x00439fd0)]
+    public int PopHandle()
+    {
+        ref readonly var slot = ref _stack[^1];
+        if (slot.Value != 0 && !slot.Flags.HasFlag(ScriptStackFlags.Sprite))
+        {
+            Error?.Error("LOGIC"u8, LogError.Text, 0, "this variable is not unit"u8);
+        }
+
+        return _stack.Pop().GetValue();
+    }
+
+    /// <summary>
+    /// Pushes a number onto the stack.
+    /// </summary>
+    /// <param name="value">The number.</param>
+    [EngineRoutine(0x0043a060)]
+    public void PushInt(int value) => _stack.Insert(ScriptStack.FromNumber(value));
+
+    /// <summary>
+    /// Pushes a sprite handle onto the stack.
+    /// </summary>
+    /// <param name="value">The handle, or 0 if there is no handle.</param>
+    [EngineRoutine(0x0043a0f0)]
+    public void PushSprite(int value) => _stack.Insert(ScriptStack.FromHandle(value));
+
+    [EngineRoutine(0x004231c0)]
+    internal ReadOnlyMemory<byte> GetVariableString(ReadOnlySpan<byte> reference)
+    {
+        int bracket = reference.IndexOf(VariableElementStart);
+        int index = _objects.Location(bracket < 0 ? reference : reference[..bracket]);
+        if (index < 0)
+        {
+            Error?.Log($"!!!ERROR!!! SCRIPT Can't find variable '{MyError.Decode(reference)}' in GetVariableString");
+            return default;
+        }
+
+        int element = (bracket < 0 ? default : reference[(bracket + 1)..]).ParseNumber();
+        ref var slot = ref GetSlot(_objects[index].Address + element);
+        if (slot.Flags.HasFlag(ScriptStackFlags.Number))
+        {
+            slot.Text = ScriptStack.FormatNumber(slot.Value);
+        }
+
+        return slot.Text;
     }
 
     private static void StoreCharacter(ref ScriptStack slot, int index, int character)

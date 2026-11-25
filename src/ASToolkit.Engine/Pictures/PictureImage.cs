@@ -21,6 +21,7 @@ public class PictureImage : IDisposable
     /// Represents the playback speed of a picture if its file doesn't specify one.
     /// </summary>
     protected const int DefaultSpeed = 0x47;
+
     private const int FirstDigitScanOffset = 2;
     private const int MaxNumberLength = 11;
     private const int StackNameLength = 256;
@@ -153,71 +154,6 @@ public class PictureImage : IDisposable
     }
 
     /// <summary>
-    /// Opens the picture file.
-    /// </summary>
-    /// <param name="name">The path of the picture file.</param>
-    /// <returns><see langword="true"/> if the picture file was opened; otherwise, <see langword="false"/>.</returns>
-    [EngineRoutine(0x00427610)]
-    public virtual bool Load(string name)
-    {
-        Reset();
-        if (name.Length == 0)
-        {
-            Report(LogError.Invalid, "filename"u8);
-            return false;
-        }
-
-        byte[] lower = Encoding.ASCII.GetBytes(name);
-        CRuntime.ToLowerInPlace(lower);
-        Name = Encoding.ASCII.GetString(lower);
-        Input = OpenFile(name);
-        if (Input is null)
-        {
-            Report(LogError.Open);
-            return false;
-        }
-
-        return true;
-    }
-
-    /// <summary>
-    /// Goes to the next frame, and back to the first frame after the last one.
-    /// </summary>
-    [EngineRoutine(0x004275f0)]
-    public virtual void Advance()
-    {
-        if (FrameCount == 0)
-            return;
-
-        FrameIndex++;
-        if (FrameIndex >= FrameCount)
-        {
-            Rewind();
-        }
-    }
-
-    /// <summary>
-    /// Goes back to the first frame.
-    /// </summary>
-    [EngineRoutine(0x004275b0)]
-    public virtual void Rewind()
-    {
-        if (!HasPixels)
-            return;
-
-        Input?.Seek(DataOffset, SeekOrigin.Begin);
-        FrameIndex = -1;
-        Advance();
-    }
-
-    /// <summary>
-    /// Determines whether a point is inside the picture.
-    /// </summary>
-    /// <param name="point">The point, in pixels from the top left corner.</param>
-    /// <returns><see langword="true"/> if the point is inside the picture; otherwise, <see langword="false"/>.</returns>
-    public bool Contains(Point point) => new Rectangle(Point.Empty, Size).Contains(point);
-
-    /// <summary>
     /// Gets the raw value of a pixel.
     /// </summary>
     /// <param name="point">The point of the pixel.</param>
@@ -289,6 +225,71 @@ public class PictureImage : IDisposable
             3 or 4 => pixel,
             _ => 0xff000000
         };
+    }
+
+    /// <summary>
+    /// Determines whether a point is inside the picture.
+    /// </summary>
+    /// <param name="point">The point, in pixels from the top left corner.</param>
+    /// <returns><see langword="true"/> if the point is inside the picture; otherwise, <see langword="false"/>.</returns>
+    public bool Contains(Point point) => new Rectangle(Point.Empty, Size).Contains(point);
+
+    /// <summary>
+    /// Goes back to the first frame.
+    /// </summary>
+    [EngineRoutine(0x004275b0)]
+    public virtual void Rewind()
+    {
+        if (!HasPixels)
+            return;
+
+        Input?.Seek(DataOffset, SeekOrigin.Begin);
+        FrameIndex = -1;
+        Advance();
+    }
+
+    /// <summary>
+    /// Goes to the next frame, and back to the first frame after the last one.
+    /// </summary>
+    [EngineRoutine(0x004275f0)]
+    public virtual void Advance()
+    {
+        if (FrameCount == 0)
+            return;
+
+        FrameIndex++;
+        if (FrameIndex >= FrameCount)
+        {
+            Rewind();
+        }
+    }
+
+    /// <summary>
+    /// Opens the picture file.
+    /// </summary>
+    /// <param name="name">The path of the picture file.</param>
+    /// <returns><see langword="true"/> if the picture file was opened; otherwise, <see langword="false"/>.</returns>
+    [EngineRoutine(0x00427610)]
+    public virtual bool Load(string name)
+    {
+        Reset();
+        if (name.Length == 0)
+        {
+            Report(LogError.Invalid, "filename"u8);
+            return false;
+        }
+
+        byte[] lower = Encoding.ASCII.GetBytes(name);
+        CRuntime.ToLowerInPlace(lower);
+        Name = Encoding.ASCII.GetString(lower);
+        Input = OpenFile(name);
+        if (Input is null)
+        {
+            Report(LogError.Open);
+            return false;
+        }
+
+        return true;
     }
 
     internal void Report(LogError code, ReadOnlySpan<byte> text = default, int value = 0) => Error?.Error($"PICTURE '{Name}'", code, value, text);
@@ -368,6 +369,15 @@ public class PictureImage : IDisposable
     }
 
     /// <summary>
+    /// Closes the open picture file.
+    /// </summary>
+    protected void CloseFile()
+    {
+        Input?.Dispose();
+        Input = null;
+    }
+
+    /// <summary>
     /// Opens a picture file for reading.
     /// </summary>
     /// <param name="name">The path of the picture file, relative to the game folder.</param>
@@ -376,15 +386,6 @@ public class PictureImage : IDisposable
     {
         string? path = GamePath.Resolve(GameFolder, name);
         return path is null ? null : new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 1);
-    }
-
-    /// <summary>
-    /// Closes the open picture file.
-    /// </summary>
-    protected void CloseFile()
-    {
-        Input?.Dispose();
-        Input = null;
     }
 
     private protected static bool IsDigit(char character) => character <= byte.MaxValue && CRuntime.IsDigit((byte)character);

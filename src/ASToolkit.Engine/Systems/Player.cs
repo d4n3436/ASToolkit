@@ -56,6 +56,19 @@ internal sealed class Player
     [EngineRoutine(0x0043a8c0)]
     public bool IsCleverEnemyAttack { get; set; }
 
+    [EngineRoutine(0x00413140)]
+    public void SetFlagman(Sprite? sprite)
+    {
+        sprite?.AddRef();
+
+        if (Flagman is not null)
+        {
+            _map.Release(Flagman);
+        }
+
+        Flagman = sprite;
+    }
+
     [EngineRoutine(0x00413360)]
     public void Reset()
     {
@@ -75,24 +88,23 @@ internal sealed class Player
         Money = StartMoney;
     }
 
-    [EngineRoutine(0x00413140)]
-    public void SetFlagman(Sprite? sprite)
-    {
-        sprite?.AddRef();
-
-        if (Flagman is not null)
-        {
-            _map.Release(Flagman);
-        }
-
-        Flagman = sprite;
-    }
-
     [EngineRoutine(0x00413440)]
     public void Load(ref Resource reader)
     {
         _map.TryReadPointer(ref reader, out var flagman);
         SetFlagman(flagman);
+    }
+
+    [EngineRoutine(0x004134c0)]
+    public ReadOnlyMemory<byte> GetMouseTipsString()
+    {
+        if (Hovered is null)
+            return default;
+
+        Span<byte> key = stackalloc byte[UnitKeyLength];
+        ((int)Hovered.Vid.Id).TryFormat(key, out int written, provider: CultureInfo.InvariantCulture);
+
+        return _map.Session.Strings?.GetString("Units"u8, key[..written]) ?? default;
     }
 
     [EngineRoutine(0x0043e9f0)]
@@ -307,17 +319,5 @@ internal sealed class Player
             _map.Release(removed);
             Hovered = null;
         }
-    }
-
-    [EngineRoutine(0x004134c0)]
-    public ReadOnlyMemory<byte> GetMouseTipsString()
-    {
-        if (Hovered is null)
-            return default;
-
-        Span<byte> key = stackalloc byte[UnitKeyLength];
-        ((int)Hovered.Vid.Id).TryFormat(key, out int written, provider: CultureInfo.InvariantCulture);
-
-        return _map.Session.Strings?.GetString("Units"u8, key[..written]) ?? default;
     }
 }

@@ -63,44 +63,6 @@ internal sealed class Message
         }
     }
 
-    [EngineRoutine(0x0042e4a0)]
-    public void Put(ReadOnlyMemory<byte> text, Vector2 target)
-    {
-        int lineHeight = GetLineHeight();
-
-        if (text.IsEmpty)
-            return;
-
-        _shownAt = _map.CurrentTime;
-        if (_lines[_count] is not null)
-        {
-            Shift();
-        }
-
-        float bottom = _map.Session.Graphics.Viewport.Top + (_count - 1) * lineHeight;
-        if (_lines[_count] is null)
-        {
-            var position = new Vector3(Origin.X, bottom + Origin.Y + ScreenDepth, ScreenDepth);
-            _lines[_count] = _map.CreateSprite(FindVid(_lineId), position, default);
-        }
-
-        var line = _lines[_count];
-        if (line is not null)
-        {
-            ((SText)line).SetText(text);
-        }
-
-        _targets[_count] = target;
-        if (target != Unset)
-        {
-            int halfLine = lineHeight / 2;
-            var position = new Vector3(Origin.X - MarkerIndent, bottom + halfLine + Origin.Y + ScreenDepth, ScreenDepth);
-            _markers[_count] = _map.CreateSprite(FindVid(_markerId), position, default);
-        }
-
-        _map.Sound.PlaySfx(MessageSound, 0, Sound.FullLoudness);
-    }
-
     [EngineRoutine(0x0042e2c0)]
     public void Tact()
     {
@@ -140,9 +102,43 @@ internal sealed class Message
         }
     }
 
-    private Vid FindVid(int id) => _map.FindVid((KnownObject)id) ?? _map.EmptyVid;
+    [EngineRoutine(0x0042e4a0)]
+    public void Put(ReadOnlyMemory<byte> text, Vector2 target)
+    {
+        int lineHeight = GetLineHeight();
 
-    private int GetLineHeight() => FindVid(_lineId).FrameSize.Height + 1;
+        if (text.IsEmpty)
+            return;
+
+        _shownAt = _map.CurrentTime;
+        if (_lines[_count] is not null)
+        {
+            Shift();
+        }
+
+        float bottom = _map.Session.Graphics.Viewport.Top + (_count - 1) * lineHeight;
+        if (_lines[_count] is null)
+        {
+            var position = new Vector3(Origin.X, bottom + Origin.Y + ScreenDepth, ScreenDepth);
+            _lines[_count] = _map.CreateSprite(FindVid(_lineId), position, default);
+        }
+
+        var line = _lines[_count];
+        if (line is not null)
+        {
+            ((SText)line).SetText(text);
+        }
+
+        _targets[_count] = target;
+        if (target != Unset)
+        {
+            int halfLine = lineHeight / 2;
+            var position = new Vector3(Origin.X - MarkerIndent, bottom + halfLine + Origin.Y + ScreenDepth, ScreenDepth);
+            _markers[_count] = _map.CreateSprite(FindVid(_markerId), position, default);
+        }
+
+        _map.Sound.PlaySfx(MessageSound, 0, Sound.FullLoudness);
+    }
 
     [EngineRoutine(0x0042e6a0)]
     private void Shift()
@@ -189,4 +185,8 @@ internal sealed class Message
 
     private void MoveOneLine(Sprite sprite, int lineHeight) =>
         sprite.ChangeCoor(sprite.Position with { Y = LineStep * lineHeight + sprite.Position.Y });
+
+    private int GetLineHeight() => FindVid(_lineId).FrameSize.Height + 1;
+
+    private Vid FindVid(int id) => _map.FindVid((KnownObject)id) ?? _map.EmptyVid;
 }

@@ -45,15 +45,6 @@ public partial class Map
         return new Vector3(at, position.Z);
     }
 
-    [EngineRoutine(0x00406e50)]
-    internal static ReadOnlyMemory<byte> GetAfter(ReadOnlyMemory<byte> text, ReadOnlySpan<byte> delimiter)
-    {
-        var source = CRuntime.GetString(text);
-        int index = source.Span.IndexOf(delimiter);
-
-        return index < 0 ? default : source[(index + delimiter.Length)..];
-    }
-
     internal Act CreateAct(int act, int var1, int var2, int var3) =>
         new(act, var1, var2, var3, Act.HasSpriteTarget((ActionCode)(act & byte.MaxValue)) ? FindSprite(var1) : null);
 

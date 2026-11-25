@@ -38,9 +38,6 @@ public sealed class VidDepthFaded : VidSoftware
     {
     }
 
-    [EngineRoutine(0x004127a0)]
-    internal override Vid CreateMirror() => new VidDepthFaded(this);
-
     /// <summary>
     /// Writes a run of faded colors that show through where the sprite is no deeper than what is drawn underneath and keep the alpha of the sprite.
     /// </summary>
@@ -106,29 +103,6 @@ public sealed class VidDepthFaded : VidSoftware
         }
     }
 
-    /// <inheritdoc/>
-    [EngineRoutine(0x0041b880)]
-    public override void SetLayer()
-    {
-        var properties = Properties;
-        if (properties.HasFlag(ObjectProperties.Ground))
-        {
-            Layer = ObjectLayer.Ground2;
-        }
-        else if (SpriteType == OldSpriteType.Region)
-        {
-            Layer = ObjectLayer.Region;
-        }
-        else if (!FileType.HasFlag(VidType.Blended))
-        {
-            Layer = ObjectLayer.Hardware;
-        }
-        else
-        {
-            Layer = !FileType.HasFlag(VidType.ZBuffer) && properties.HasFlag(ObjectProperties.Wave) ? ObjectLayer.AlphaGround : ObjectLayer.Alpha;
-        }
-    }
-
     /// <summary>
     /// Draws a sprite, faded by the depth buffer.
     /// </summary>
@@ -181,6 +155,32 @@ public sealed class VidDepthFaded : VidSoftware
         graphics.SetAlphaBlend(BlendFactor.SourceAlpha, BlendFactor.One);
         alpha.DrawFlatQuad(screen, destination, source, gamma, graphics.Blend);
     }
+
+    /// <inheritdoc/>
+    [EngineRoutine(0x0041b880)]
+    public override void SetLayer()
+    {
+        var properties = Properties;
+        if (properties.HasFlag(ObjectProperties.Ground))
+        {
+            Layer = ObjectLayer.Ground2;
+        }
+        else if (SpriteType == OldSpriteType.Region)
+        {
+            Layer = ObjectLayer.Region;
+        }
+        else if (!FileType.HasFlag(VidType.Blended))
+        {
+            Layer = ObjectLayer.Hardware;
+        }
+        else
+        {
+            Layer = !FileType.HasFlag(VidType.ZBuffer) && properties.HasFlag(ObjectProperties.Wave) ? ObjectLayer.AlphaGround : ObjectLayer.Alpha;
+        }
+    }
+
+    [EngineRoutine(0x004127a0)]
+    internal override Vid CreateMirror() => new VidDepthFaded(this);
 
     [EngineRoutine(0x004127e0)]
     internal override void SetGamma(Gamma gamma, int army, Gamma ambient, GameSession session) => StoreGamma(gamma, army, session.Error);

@@ -9,7 +9,7 @@ public partial class Map
     /// Represents the side of a ground-height cell in pixels.
     /// </summary>
     public const int GridZCellSize = 8;
-    
+
     private const float GridZCellScale = 0.125f;
     private const float PlayerFootprintInset = 3;
     private const float CornerInset = 2;
@@ -26,37 +26,6 @@ public partial class Map
         point.Y = ClampToMap(point.Y, Size.Height);
 
         return GetGridZCell((int)(point.Y * GridZCellScale), (int)(point.X * GridZCellScale));
-    }
-
-    /// <summary>
-    /// Returns the ground height an object stands at over its footprint.
-    /// </summary>
-    /// <param name="walker">The shared data of the walker's object ID.</param>
-    /// <param name="point">The point.</param>
-    /// <returns>The height.</returns>
-    [EngineRoutine(0x00411050)]
-    public float GetGroundZForMoveTo(Vid walker, Vector2 point)
-    {
-        if (walker.Class != SpriteClass.Man)
-        {
-            return GetGroundZ(point);
-        }
-
-        var inset = walker.Size.AsVector2() * 0.5f - new Vector2(PlayerFootprintInset);
-        float left = ClampToMap(point.X - inset.X, Size.Width) * GridZCellScale;
-        float right = ClampToMap(point.X + inset.X, Size.Width) * GridZCellScale;
-        float top = ClampToMap(point.Y - inset.Y, Size.Height) * GridZCellScale;
-        float bottom = ClampToMap(point.Y + inset.Y, Size.Height) * GridZCellScale;
-        int ground = -16383;
-        for (float row = top; row <= bottom; row += 1)
-        {
-            for (float column = left; column <= right; column += 1)
-            {
-                ground = Math.Max(ground, GetGridZCell((int)row, (int)column));
-            }
-        }
-
-        return ground;
     }
 
     /// <summary>
@@ -105,6 +74,37 @@ public partial class Map
     /// <param name="point">The point.</param>
     /// <returns><see langword="true"/> if the point is above the ground; otherwise, <see langword="false"/>.</returns>
     public bool IsAboveGround(Vid walker, Vector3 point) => point.Z >= GetGroundZForMoveTo(walker, point.AsVector2());
+
+    /// <summary>
+    /// Returns the ground height an object stands at over its footprint.
+    /// </summary>
+    /// <param name="walker">The shared data of the walker's object ID.</param>
+    /// <param name="point">The point.</param>
+    /// <returns>The height.</returns>
+    [EngineRoutine(0x00411050)]
+    public float GetGroundZForMoveTo(Vid walker, Vector2 point)
+    {
+        if (walker.Class != SpriteClass.Man)
+        {
+            return GetGroundZ(point);
+        }
+
+        var inset = walker.Size.AsVector2() * 0.5f - new Vector2(PlayerFootprintInset);
+        float left = ClampToMap(point.X - inset.X, Size.Width) * GridZCellScale;
+        float right = ClampToMap(point.X + inset.X, Size.Width) * GridZCellScale;
+        float top = ClampToMap(point.Y - inset.Y, Size.Height) * GridZCellScale;
+        float bottom = ClampToMap(point.Y + inset.Y, Size.Height) * GridZCellScale;
+        int ground = -16383;
+        for (float row = top; row <= bottom; row += 1)
+        {
+            for (float column = left; column <= right; column += 1)
+            {
+                ground = Math.Max(ground, GetGridZCell((int)row, (int)column));
+            }
+        }
+
+        return ground;
+    }
 
     [EngineRoutine(0x00411260)]
     internal void SetGroundZ(Vector3 position)

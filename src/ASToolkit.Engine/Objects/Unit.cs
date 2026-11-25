@@ -65,11 +65,6 @@ public class Unit : Terrain
     public bool IsActive => Behavior.HasFlag(WeaponBehavior.Active);
 
     /// <summary>
-    /// Fills the unit's ammunition.
-    /// </summary>
-    public void FillAmmo() => Ammo = Vid.GetMaxAmmo() * AmmoScale;
-
-    /// <summary>
     /// Returns the rounds the unit holds for its held weapon.
     /// </summary>
     /// <returns>The rounds.</returns>
@@ -100,11 +95,67 @@ public class Unit : Terrain
         return ammo;
     }
 
+    /// <summary>
+    /// Fills the unit's ammunition.
+    /// </summary>
+    public void FillAmmo() => Ammo = Vid.GetMaxAmmo() * AmmoScale;
+
     [EngineRoutine(0x00447240)]
     internal override void Destruct()
     {
         Map.DeletePointerToSprite(this);
         base.Destruct();
+    }
+
+    [EngineRoutine(0x00447260)]
+    internal override void MoveTact()
+    {
+        int elapsed = Map.FrameTime;
+        int framesPerSecond = Map.FramesPerSecond;
+        var next = MoveTactCalculateCoordinates(elapsed);
+
+        if (TurnTicks == 0)
+        {
+            if (HasGoal && !Speed.IsExactlyZero())
+            {
+                var goal = DirectionTo(Goal!);
+
+                if (Speed < 0)
+                {
+                    goal = goal.Opposite;
+                }
+                goal = RotateForGlide(goal);
+                RotateTact(goal, elapsed);
+
+                if (this is { HasReachedX: true, HasReachedY: true })
+                {
+                    Stop();
+                }
+            }
+        }
+        else
+        {
+            if (Math.Abs(TurnTicks) > framesPerSecond)
+            {
+                TurnTicks = Math.Sign(TurnTicks) * framesPerSecond / 2;
+            }
+            var goal = Direction + (TurnTicks > 0 ? Angle.QuarterTurn : -Angle.QuarterTurn);
+            RotateTact(goal, elapsed);
+            TurnTicks -= Math.Sign(TurnTicks);
+        }
+
+        if (next == Position)
+            return;
+
+        if (CanPlaceWithCrushAndGlide(ref next) is null)
+        {
+            MoveTactMapLimit(next.AsVector2(), elapsed);
+            ChangeCoor(next);
+        }
+        else if (TurnTicks == 0)
+        {
+            TurnTicks = (Map.Random.Next(2) == 0 ? -1 : 1) * framesPerSecond / 2;
+        }
     }
 
     [EngineRoutine(0x00447500)]
@@ -265,57 +316,6 @@ public class Unit : Terrain
                 return 0;
             default:
                 return base.Action(act, ref stream, version);
-        }
-    }
-
-    [EngineRoutine(0x00447260)]
-    internal override void MoveTact()
-    {
-        int elapsed = Map.FrameTime;
-        int framesPerSecond = Map.FramesPerSecond;
-        var next = MoveTactCalculateCoordinates(elapsed);
-
-        if (TurnTicks == 0)
-        {
-            if (HasGoal && !Speed.IsExactlyZero())
-            {
-                var goal = DirectionTo(Goal!);
-
-                if (Speed < 0)
-                {
-                    goal = goal.Opposite;
-                }
-                goal = RotateForGlide(goal);
-                RotateTact(goal, elapsed);
-
-                if (this is { HasReachedX: true, HasReachedY: true })
-                {
-                    Stop();
-                }
-            }
-        }
-        else
-        {
-            if (Math.Abs(TurnTicks) > framesPerSecond)
-            {
-                TurnTicks = Math.Sign(TurnTicks) * framesPerSecond / 2;
-            }
-            var goal = Direction + (TurnTicks > 0 ? Angle.QuarterTurn : -Angle.QuarterTurn);
-            RotateTact(goal, elapsed);
-            TurnTicks -= Math.Sign(TurnTicks);
-        }
-
-        if (next == Position)
-            return;
-
-        if (CanPlaceWithCrushAndGlide(ref next) is null)
-        {
-            MoveTactMapLimit(next.AsVector2(), elapsed);
-            ChangeCoor(next);
-        }
-        else if (TurnTicks == 0)
-        {
-            TurnTicks = (Map.Random.Next(2) == 0 ? -1 : 1) * framesPerSecond / 2;
         }
     }
 

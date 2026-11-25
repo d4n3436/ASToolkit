@@ -29,7 +29,7 @@ internal sealed class MyError : IDisposable
         var now = time.GetLocalNow();
         string clock = now.ToString(TimeFormat, CultureInfo.InvariantCulture);
         string date = now.ToString(DateFormat, CultureInfo.InvariantCulture);
-        string path = ReplaceFirst(ReplaceFirst($"{NamePrefix}{date} {clock}{NameExtension}", ':', 'h'), ':', 'm');
+        string path = $"{NamePrefix}{date} {clock}{NameExtension}".ReplaceFirst(':', 'h').ReplaceFirst(':', 'm');
         if (!isTimestamped)
         {
             path = LastPath;
@@ -48,8 +48,6 @@ internal sealed class MyError : IDisposable
     }
 
     public bool IsOpen => _stream is not null;
-
-    public static string Decode(ReadOnlySpan<byte> text) => GameTextEncoding.Cyrillic.GetString(CRuntime.GetString(text));
 
     public static string FormatError(LogError code, int value, ReadOnlySpan<byte> text)
     {
@@ -76,14 +74,7 @@ internal sealed class MyError : IDisposable
         };
     }
 
-    [EngineRoutine(0x00408950)]
-    public void Log(string text)
-    {
-        if (_stream is null)
-            return;
-
-        WriteLine(GameTextEncoding.Cyrillic.GetBytes(text));
-    }
+    public static string Decode(ReadOnlySpan<byte> text) => GameTextEncoding.Cyrillic.GetString(CRuntime.GetString(text));
 
     public void Log(ReadOnlySpan<byte> text)
     {
@@ -92,29 +83,6 @@ internal sealed class MyError : IDisposable
 
         WriteLine(text);
     }
-
-    [EngineRoutine(0x004089b0)]
-    public void Fatal(string text)
-    {
-        Log(text);
-        _stream?.Dispose();
-        _stream = null;
-    }
-
-    [EngineRoutine(0x00408840)]
-    public void Window(string text) => Log(text);
-
-    [EngineRoutine(0x00408e00)]
-    public void Error(string tag, LogError code, int value, ReadOnlySpan<byte> text = default)
-    {
-        if (_stream is null)
-            return;
-
-        string time = _time.GetLocalNow().ToString(TimeFormat, CultureInfo.InvariantCulture);
-        Log($"!!!ERROR {time}!!!{tag}: {FormatError(code, value, text)}");
-    }
-
-    public void Error(ReadOnlySpan<byte> tag, LogError code, int value, ReadOnlySpan<byte> text = default) => Error(Decode(tag), code, value, text);
 
     [EngineRoutine(0x00408770)]
     public void Dispose()
@@ -134,13 +102,37 @@ internal sealed class MyError : IDisposable
         }
     }
 
-    [EngineRoutine(0x00406c90)]
-    internal static string ReplaceFirst(string text, char from, char to)
-    {
-        int index = text.IndexOf(from);
+    [EngineRoutine(0x00408840)]
+    public void Window(string text) => Log(text);
 
-        return index < 0 ? text : string.Concat(text.AsSpan(0, index), new ReadOnlySpan<char>(in to), text.AsSpan(index + 1));
+    [EngineRoutine(0x00408950)]
+    public void Log(string text)
+    {
+        if (_stream is null)
+            return;
+
+        WriteLine(GameTextEncoding.Cyrillic.GetBytes(text));
     }
+
+    [EngineRoutine(0x004089b0)]
+    public void Fatal(string text)
+    {
+        Log(text);
+        _stream?.Dispose();
+        _stream = null;
+    }
+
+    [EngineRoutine(0x00408e00)]
+    public void Error(string tag, LogError code, int value, ReadOnlySpan<byte> text = default)
+    {
+        if (_stream is null)
+            return;
+
+        string time = _time.GetLocalNow().ToString(TimeFormat, CultureInfo.InvariantCulture);
+        Log($"!!!ERROR {time}!!!{tag}: {FormatError(code, value, text)}");
+    }
+
+    public void Error(ReadOnlySpan<byte> tag, LogError code, int value, ReadOnlySpan<byte> text = default) => Error(Decode(tag), code, value, text);
 
     [EngineRoutine(0x00406900)]
     private static string FormatFileTimes(DateTime? written)

@@ -9,16 +9,6 @@ namespace ASToolkit.Engine;
 /// </summary>
 public sealed class GameSession : IDisposable
 {
-    private const string ProgramName = "AlienShooter.exe";
-    private const long MillisecondsPerSecond = 1000;
-    private const string ScreenWidthValue = "ScreenX";
-    private const string ScreenHeightValue = "ScreenY";
-    private const string FullScreenValue = "FullScreen";
-    private const int DefaultFullScreen = 1;
-    private const string BitsPerPixelValue = "BPP";
-    private const int DefaultBitsPerPixel = 32;
-    private const int DefaultVSync = 1;
-
     internal bool IsTexturePowerOfTwoRequired = true;
     internal Size TextureMaxSize = new(256, 256);
     internal int TexturePaletteCount;
@@ -40,6 +30,15 @@ public sealed class GameSession : IDisposable
     internal Profile? Strings;
     internal uint FrameRateStartedAt;
     internal int VidMemoryInUse;
+    private const string ProgramName = "AlienShooter.exe";
+    private const long MillisecondsPerSecond = 1000;
+    private const string ScreenWidthValue = "ScreenX";
+    private const string ScreenHeightValue = "ScreenY";
+    private const string FullScreenValue = "FullScreen";
+    private const int DefaultFullScreen = 1;
+    private const string BitsPerPixelValue = "BPP";
+    private const int DefaultBitsPerPixel = 32;
+    private const int DefaultVSync = 1;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="GameSession"/> class that reads the screen size from the registry and uses the default size if the registry doesn't hold one.
@@ -111,8 +110,6 @@ public sealed class GameSession : IDisposable
 
     internal MyError Error { get; }
 
-    internal Dictionary<(string Path, bool IsText), ReadOnlyMemory<byte>> ConvertedPictures { get; } = [];
-
     internal Registry Registry { get; }
 
     internal uint MouseTipMovedAt { get; set; }
@@ -120,6 +117,8 @@ public sealed class GameSession : IDisposable
     internal Vector2 MouseTipCursor { get; set; }
 
     internal ReadOnlyMemory<byte> MouseTipText { get; set; }
+
+    internal Dictionary<(string Path, bool IsText), ReadOnlyMemory<byte>> ConvertedPictures { get; } = [];
 
     /// <summary>
     /// Closes the log and keeps it as the last run's log.

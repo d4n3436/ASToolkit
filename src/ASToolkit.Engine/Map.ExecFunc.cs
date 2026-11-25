@@ -11,8 +11,6 @@ namespace ASToolkit.Engine;
 public partial class Map : IScriptFunctionHost
 {
     private const int AnyDirection = 999999;
-    private const int Base64ChunkSize = 0x39;
-    private const uint ChecksumPolynomial = 0xEDB88320;
     private const int AllArmies = 0xff;
     private const int FirstMouseClick = 0x400;
     private const int CursorOff = -1;
@@ -26,10 +24,8 @@ public partial class Map : IScriptFunctionHost
     private const float GetSpriteReach = 300;
     private const float ScreenSpriteReach = 300;
     private const int TypeShift = 20;
-
     private const OldSpriteType SearchedTypes = OldSpriteType.Terrain | OldSpriteType.Object | OldSpriteType.Unit | OldSpriteType.Avia |
         OldSpriteType.Menu | OldSpriteType.Railway | OldSpriteType.Region | OldSpriteType.Cannon | OldSpriteType.Sprite;
-
     private const OldSpriteType GridListTypes = OldSpriteType.Unit | OldSpriteType.Avia;
     private const int EndOfFileFlag = 0x10;
 
@@ -42,8 +38,6 @@ public partial class Map : IScriptFunctionHost
     /// Gets the session the map belongs to.
     /// </summary>
     public GameSession Session { get; }
-
-    private static ReadOnlySpan<byte> Base64Alphabet => "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"u8;
 
     private IGameFileSystem ScriptFiles => field ??= FileSystem as MemoryWriteOverlay ?? new MemoryWriteOverlay(FileSystem);
 
@@ -137,8 +131,13 @@ public partial class Map : IScriptFunctionHost
                     break;
                 }
 
-                foreach (var sprite in EnumerateSprites(zVid))
+                int zLayer = (int)zVid.Layer;
+                int zIndex = 0;
+                for (var sprite = FirstDrawingSprite(zLayer, ref zIndex); sprite is not null; sprite = NextDrawingSprite(zLayer, ref zIndex))
                 {
+                    if (sprite.Vid != zVid)
+                        continue;
+
                     sprite.ChangeZCoor(newZ);
                 }
 
@@ -168,8 +167,13 @@ public partial class Map : IScriptFunctionHost
                 if (genocideVid == EmptyVid)
                     break;
 
-                foreach (var sprite in EnumerateSprites(genocideVid))
+                int genocideLayer = (int)genocideVid.Layer;
+                int genocideIndex = 0;
+                for (var sprite = FirstDrawingSprite(genocideLayer, ref genocideIndex); sprite is not null; sprite = NextDrawingSprite(genocideLayer, ref genocideIndex))
                 {
+                    if (sprite.Vid != genocideVid)
+                        continue;
+
                     DeleteSprite(sprite);
                 }
 
@@ -180,8 +184,13 @@ public partial class Map : IScriptFunctionHost
                 if (replacedVid == EmptyVid || replacementVid == EmptyVid)
                     break;
 
-                foreach (var sprite in EnumerateSprites(replacedVid))
+                int replacedLayer = (int)replacedVid.Layer;
+                int replacedIndex = 0;
+                for (var sprite = FirstDrawingSprite(replacedLayer, ref replacedIndex); sprite is not null; sprite = NextDrawingSprite(replacedLayer, ref replacedIndex))
                 {
+                    if (sprite.Vid != replacedVid)
+                        continue;
+
                     CreateSprite(replacementVid, sprite.Position, sprite.Direction);
                     DeleteSprite(sprite);
                 }
@@ -441,9 +450,11 @@ public partial class Map : IScriptFunctionHost
                         break;
                     case VidDataType.Speed:
                         setVid.Speed = setValue == ASToolkit.Engine.Vid.Unlimited ? ASToolkit.Engine.Vid.Unlimited : setValue * ASToolkit.Engine.Vid.PerMillisecond;
-                        foreach (var entry in _layers[(int)setVid.Layer].Items)
+                        int speedLayer = (int)setVid.Layer;
+                        int speedIndex = 0;
+                        for (var entry = FirstDrawingSprite(speedLayer, ref speedIndex); entry is not null; entry = NextDrawingSprite(speedLayer, ref speedIndex))
                         {
-                            if (entry is not null && entry.Vid == setVid && entry.HasExtraData)
+                            if (entry.Vid == setVid && entry.HasExtraData)
                             {
                                 entry.MaxSpeed = setVid.Speed;
                             }
@@ -806,7 +817,7 @@ public partial class Map : IScriptFunctionHost
                 setCommandsSprite.SetTextItems(commandsText);
                 if (commandsText.Span.IndexOf(ItemsEnd) >= 0)
                 {
-                    commandsText = GetAfter(commandsText, ItemsEnd);
+                    commandsText = commandsText.After(ItemsEnd);
                 }
 
                 setCommandsSprite.SetTextActions(commandsText);
@@ -878,7 +889,11 @@ public partial class Map : IScriptFunctionHost
                 PushInt(ComputeChecksum(PopText().Span));
                 break;
             case ScriptFunction.Printf:
-                PushText(Printf());
+                bool isText = Script.IsLastStackString;
+                var printedText = isText ? PopText() : default;
+                int printedNumber = isText ? 0 : PopInt();
+                var format = PopText();
+                PushText(MyLib.Printf(format.Span, isText, printedText.Span, printedNumber));
                 break;
             case ScriptFunction.ToLower:
                 byte[] lowerText = CRuntime.GetString(PopText().Span).ToArray();
@@ -939,8 +954,8 @@ public partial class Map : IScriptFunctionHost
                 PushText(GameTextEncoding.Cyrillic.GetBytes(Registry.DefaultPath));
                 break;
             case ScriptFunction.ToBase64:
-                int base64Add = PopInt();
-                PushText(ToBase64(PopText().Span, base64Add));
+                int addCode = PopInt();
+                PushText(PopText().Span.ToBase64(addCode));
                 break;
 
             case ScriptFunction.GetSprite:
@@ -960,16 +975,14 @@ public partial class Map : IScriptFunctionHost
                 break;
             case ScriptFunction.FirstSprite:
                 _spriteLayer = 0;
-                _spriteIndex = _layers[0].Count;
-                PushSprite(script, FindListedSprite());
+                PushSprite(script, FirstDrawingSprite(_spriteLayer, ref _spriteIndex));
                 break;
             case ScriptFunction.NextSprite:
-                var nextSprite = FindListedSprite();
+                var nextSprite = NextDrawingSprite(_spriteLayer, ref _spriteIndex);
                 while (nextSprite is null && _spriteLayer < LayerCount - 1)
                 {
                     _spriteLayer++;
-                    _spriteIndex = _layers[_spriteLayer].Count;
-                    nextSprite = FindListedSprite();
+                    nextSprite = FirstDrawingSprite(_spriteLayer, ref _spriteIndex);
                 }
 
                 PushSprite(script, nextSprite);
@@ -1049,23 +1062,8 @@ public partial class Map : IScriptFunctionHost
         }
     }
 
-    [EngineRoutine(0x0043a330)]
-    internal int PopInt() => Script.PopNumber();
-
-    [EngineRoutine(0x0043a390)]
-    internal ReadOnlyMemory<byte> PopText() => Script.PopText();
-
-    [EngineRoutine(0x0043a470)]
-    internal int PopHandle() => Script.PopHandle();
-
-    [EngineRoutine(0x0043a640)]
-    internal void PushText(ReadOnlyMemory<byte> text) => Script.PushText(text);
-
-    [EngineRoutine(0x0043a5b0)]
-    internal void PushInt(int value) => Script.PushInt(value);
-
-    [EngineRoutine(0x0043a720)]
-    internal void PushSprite(int value) => Script.PushSprite(value);
+    [EngineRoutine(0x00405a90)]
+    internal Vid Vid(int id) => ValidateVid(id) ? _vids[id]! : EmptyVid;
 
     [EngineRoutine(0x0040fc40)]
     internal Sprite? GetSpriteScr(SpriteSearch search, Vector2 point)
@@ -1125,12 +1123,10 @@ public partial class Map : IScriptFunctionHost
         int last = vid is null ? UpdatedLayerCount : (int)vid.Layer + 1;
         for (int layer = first; layer < last; layer++)
         {
-            var list = _layers[layer];
-            for (int i = list.Count - 1; i >= 0; i--)
+            int index = 0;
+            for (var sprite = FirstDrawingSprite(layer, ref index); sprite is not null; sprite = NextDrawingSprite(layer, ref index))
             {
-                var sprite = list[i];
-
-                if (sprite is null || sprite.Owner is not null || !IsSearched(sprite, search, types, armies))
+                if (sprite.Owner is not null || !IsSearched(sprite, search, types, armies))
                     continue;
 
                 var half = sprite.Vid.Half;
@@ -1150,74 +1146,82 @@ public partial class Map : IScriptFunctionHost
         return found;
     }
 
-    [EngineRoutine(0x00405a90)]
-    internal Vid Vid(int id) => ValidateVid(id) ? _vids[id]! : EmptyVid;
+    [EngineRoutine(0x00410640)]
+    internal bool ValidateVid(int id) => id >= 0 && id < _vidCount && _vids[id] is not null;
 
-    [EngineRoutine(0x00439db0)]
-    private static int ComputeChecksum(ReadOnlySpan<byte> text)
+    [EngineRoutine(0x0043a330)]
+    internal int PopInt() => Script.PopNumber();
+
+    [EngineRoutine(0x0043a390)]
+    internal ReadOnlyMemory<byte> PopText() => Script.PopText();
+
+    [EngineRoutine(0x0043a470)]
+    internal int PopHandle() => Script.PopHandle();
+
+    [EngineRoutine(0x0043a5b0)]
+    internal void PushInt(int value) => Script.PushInt(value);
+
+    [EngineRoutine(0x0043a640)]
+    internal void PushText(ReadOnlyMemory<byte> text) => Script.PushText(text);
+
+    [EngineRoutine(0x0043a720)]
+    internal void PushSprite(int value) => Script.PushSprite(value);
+
+    [EngineRoutine(0x0043a7e0)]
+    internal Player Player(int army) => _players[army & ASToolkit.Engine.Vid.ArmyMask];
+
+    private static bool IsScreenHit(Sprite sprite, Vector2 half, Vector2 point, Sprite? best)
     {
-        return unchecked((int)UpdateChecksum(0, CRuntime.GetString(text)));
+        var size = sprite.Vid.Size;
+        float top = sprite.Position.Y - sprite.Position.Z;
+
+        return sprite.Position.X - half.X <= point.X && point.X <= sprite.Position.X + half.X &&
+            top - size.Z - half.Y < point.Y && point.Y < top + half.Y &&
+            (best is null || size.X < best.Vid.Size.X || size.Y < best.Vid.Size.Y);
     }
 
-    [EngineRoutine(0x00406160)]
-    private static uint UpdateChecksum(uint checksum, ReadOnlySpan<byte> text)
+    private static bool IsListedSearch(OldSpriteType types) =>
+        (types.HasFlag(OldSpriteType.Unit) || types.HasFlag(OldSpriteType.Avia)) && (types & SearchedTypes & ~GridListTypes) == OldSpriteType.None;
+
+    private static bool IsSearched(Sprite sprite, SpriteSearch search, OldSpriteType types, SpriteSearch armies)
     {
-        foreach (byte value in text)
-        {
-            checksum ^= value;
-            for (int bit = 0; bit < 8; bit++)
-            {
-                checksum = (checksum & 1) != 0 ? checksum >> 1 ^ ChecksumPolynomial : checksum >> 1;
-            }
-        }
+        var vid = sprite.Vid;
 
-        return checksum;
+        if ((vid.SpriteType & types) == 0 || (armies & (SpriteSearch)((int)SpriteSearch.Army0 << ((int)sprite.Army & 3))) == 0)
+            return false;
+
+        if (search.HasFlag(SpriteSearch.Free) && sprite.Command != Command.None)
+            return false;
+
+        if (search.HasFlag(SpriteSearch.Class) && (int)vid.Class != (int)(search & SpriteSearch.ValueMask))
+            return false;
+
+        return !search.HasFlag(SpriteSearch.Id) || (int)vid.Id == (int)(search & SpriteSearch.ValueMask);
     }
-
-    [EngineRoutine(0x004072e0)]
-    private static ReadOnlyMemory<byte> ToBase64(ReadOnlySpan<byte> text, int add)
-    {
-        var source = CRuntime.GetString(text);
-        byte[] result = new byte[(source.Length + 2) / 3 * 4];
-        Span<byte> chunk = stackalloc byte[Base64ChunkSize + 3];
-        int written = 0;
-        for (int start = 0; start < source.Length; start += Base64ChunkSize)
-        {
-            int count = Math.Min(Base64ChunkSize, source.Length - start);
-            chunk.Clear();
-            source.Slice(start, count).CopyTo(chunk);
-            for (int i = 0; i < count; i++)
-            {
-                chunk[i] = unchecked((byte)(chunk[i] + add));
-            }
-
-            for (int i = 0; i < count; i += 3)
-            {
-                int group = (chunk[i] * 0x100 + chunk[i + 1]) * 0x100 + chunk[i + 2];
-                for (int digit = 3; digit >= 0; digit--)
-                {
-                    result[written + digit] = Base64Alphabet[group & 0x3f];
-                    group >>= 6;
-                }
-
-                written += 4;
-            }
-        }
-
-        for (int padding = (3 - source.Length % 3) % 3; padding > 0; padding--)
-        {
-            result[written - padding] = (byte)'=';
-        }
-
-        return result;
-    }
-
-    private static bool IsMenuClass(Vid vid) => vid.Class is SpriteClass.Frame or SpriteClass.Text;
 
     private static bool IsMenuMatch(Sprite sprite, Vid vid, int direction) =>
         sprite.Vid == vid && (direction == AnyDirection || vid.RealDirection(sprite.Direction) == direction);
 
     private static string ReadText(ReadOnlyMemory<byte> text) => GameTextEncoding.Cyrillic.GetString(text.Span);
+
+    private static Vector2 PopPoint(Script script)
+    {
+        int y = script.PopNumber();
+        return new Vector2(script.PopNumber(), y);
+    }
+
+    private static Vector3 PopPosition(Script script)
+    {
+        int z = script.PopNumber();
+        int y = script.PopNumber();
+        return new Vector3(script.PopNumber(), y, z);
+    }
+
+    [EngineRoutine(0x00439db0)]
+    private static int ComputeChecksum(ReadOnlySpan<byte> text)
+    {
+        return unchecked((int)MyLib.UpdateChecksum(0, CRuntime.GetString(text)));
+    }
 
     [EngineRoutine(0x0043a950)]
     private static int BlendGamma(int first, int last, int share) =>
@@ -1241,174 +1245,26 @@ public partial class Map : IScriptFunctionHost
         return (last - first) * share / byte.MaxValue + first;
     }
 
-    private static byte[] FormatPrintf(ReadOnlySpan<byte> format, bool isText, ReadOnlySpan<byte> text, int number)
+    private Sprite? FirstDrawingSprite(int layer, ref int index)
     {
-        var output = new List<byte>(format.Length);
-        bool isConsumed = false;
-        int i = 0;
-        while (i < format.Length)
+        index = _layers[layer].Count;
+        return NextDrawingSprite(layer, ref index);
+    }
+
+    [EngineRoutine(0x0040f9a0)]
+    private Sprite? NextDrawingSprite(int layer, ref int index)
+    {
+        var list = _layers[layer];
+        for (index--; index >= 0; index--)
         {
-            byte current = format[i++];
-            if (current != (byte)'%')
-            {
-                output.Add(current);
-                continue;
-            }
+            var sprite = list[index];
 
-            int start = i - 1;
-            bool isZeroPadded = i < format.Length && format[i] == (byte)'0';
-            if (isZeroPadded)
-            {
-                i++;
-            }
-
-            int width = 0;
-            while (i < format.Length && format[i] is >= (byte)'0' and <= (byte)'9')
-            {
-                width = width * 10 + format[i++] - '0';
-            }
-
-            byte conversion = i < format.Length ? format[i++] : (byte)0;
-            bool isWidthUsed = isZeroPadded || width != 0;
-            if (isConsumed || conversion == (byte)'s' && (isWidthUsed || !isText) || conversion == (byte)'c' && (isWidthUsed || isText) || conversion == (byte)'i' && isText ||
-                conversion is not ((byte)'s' or (byte)'c' or (byte)'i'))
-            {
-                throw new NotSupportedException($"The Printf conversion '{Encoding.ASCII.GetString(format[start..i])}' is not supported.");
-            }
-
-            isConsumed = true;
-            if (conversion == (byte)'s')
-            {
-                foreach (byte b in text)
-                {
-                    output.Add(b);
-                }
-            }
-            else if (conversion == (byte)'c')
-            {
-                output.Add((byte)number);
-            }
-            else
-            {
-                string digits = number.ToString(CultureInfo.InvariantCulture);
-                if (isZeroPadded)
-                {
-                    digits = number < 0 ? "-" + digits[1..].PadLeft(Math.Max(width - 1, 0), '0') : digits.PadLeft(width, '0');
-                }
-                else
-                {
-                    digits = digits.PadLeft(width);
-                }
-
-                output.AddRange(Encoding.ASCII.GetBytes(digits));
-            }
+            if (sprite is not null)
+                return sprite;
         }
 
-        return output.ToArray();
+        return null;
     }
-
-    private static Vector2 PopPoint(Script script)
-    {
-        int y = script.PopNumber();
-        return new Vector2(script.PopNumber(), y);
-    }
-
-    private static Vector3 PopPosition(Script script)
-    {
-        int z = script.PopNumber();
-        int y = script.PopNumber();
-        return new Vector3(script.PopNumber(), y, z);
-    }
-
-    [EngineRoutine(0x004066e0)]
-    private ReadOnlyMemory<byte> Printf()
-    {
-        bool isText = Script.IsLastStackString;
-        var text = isText ? PopText() : default;
-        int number = isText ? 0 : PopInt();
-        var format = PopText();
-
-        return FormatPrintf(format.Span, isText, text.Span, number);
-    }
-
-    private void PopValues(int count)
-    {
-        for (int i = 0; i < count; i++)
-        {
-            PopInt();
-        }
-    }
-
-    private float ToScreenX(float x) => x - Shift.X;
-
-    private float ToScreenY(float y, float z) => y - z - Shift.Y;
-
-    private void LogInvalidVid(ReadOnlySpan<byte> function, int id) =>
-        Session.Error.Log($"!!!ERROR!!!SCRIPT: Invalid nvid {MyError.Decode(function)} {id}");
-
-    private ScriptFile? PopScriptFile() => _scriptFiles.GetValueOrDefault(PopInt());
-
-    private int AddScriptFile(ScriptFile? file)
-    {
-        if (file is null)
-            return 0;
-
-        int handle = 1;
-        foreach (int key in _scriptFiles.Keys)
-        {
-            if (key >= handle)
-            {
-                handle = key + 1;
-            }
-        }
-
-        _scriptFiles[handle] = file;
-
-        return handle;
-    }
-
-    private Sprite? PopSprite(Script script)
-    {
-        return FindSprite(script.PopHandle());
-    }
-
-    private Sprite? PopSprite()
-    {
-        return FindSprite(PopHandle());
-    }
-
-    private bool TryLookupVid(int id, ReadOnlySpan<byte> function, out Vid vid)
-    {
-        vid = Vid(id);
-        if (vid != EmptyVid)
-            return true;
-
-        LogInvalidVid(function, id);
-        return false;
-    }
-
-    [EngineRoutine(0x0043a510)]
-    private Vid PopVid(Script script)
-    {
-        var vid = Vid(script.PopNumber());
-
-        if (vid == EmptyVid)
-        {
-            LogInvalidVid(default, 0);
-        }
-
-        return vid;
-    }
-
-    [EngineRoutine(0x0043a7e0)]
-    internal Player Player(int army) => _players[army & ASToolkit.Engine.Vid.ArmyMask];
-
-    [EngineRoutine(0x0043a7b0)]
-    private void LogMapError(LogError code, ReadOnlySpan<byte> text, int value) => Session.Error.Error(MapLogTag, code, value, text);
-
-    private void PushSprite(Script script, Sprite? sprite) => script.PushSprite(GetSpriteHandle(sprite));
-
-    private void PushSprite(Sprite? sprite) => PushSprite(GetSpriteHandle(sprite));
 
     [EngineRoutine(0x0040fbb0)]
     private Sprite? GetSprite(SpriteSearch search, Vector2 point, Sprite? previous)
@@ -1423,9 +1279,6 @@ public partial class Map : IScriptFunctionHost
         return sprite.Position.X - half.X <= point.X && point.X <= half.X + sprite.Position.X && sprite.Position.Y - half.Y <= point.Y && point.Y <= half.Y + sprite.Position.Y
             ? sprite : null;
     }
-
-    [EngineRoutine(0x00410640)]
-    internal bool ValidateVid(int id) => id >= 0 && id < _vidCount && _vids[id] is not null;
 
     [EngineRoutine(0x00410670)]
     private Sprite? FindNearestSprite(SpriteSearch search, Vector2 point, float radius, Sprite? previous)
@@ -1474,15 +1327,10 @@ public partial class Map : IScriptFunctionHost
         int last = vid is null ? UpdatedLayerCount : (int)vid.Layer + 1;
         for (int layer = first; layer < last; layer++)
         {
-            var list = _layers[layer];
-            for (int i = list.Count - 1; i >= 0; i--)
+            int index = 0;
+            for (var sprite = FirstDrawingSprite(layer, ref index); sprite is not null; sprite = NextDrawingSprite(layer, ref index))
             {
-                var sprite = list[i];
-
-                if (sprite is not null)
-                {
-                    TakeNearer(sprite);
-                }
+                TakeNearer(sprite);
             }
         }
 
@@ -1501,35 +1349,6 @@ public partial class Map : IScriptFunctionHost
                 found = sprite;
             }
         }
-    }
-
-    private static bool IsListedSearch(OldSpriteType types) =>
-        (types.HasFlag(OldSpriteType.Unit) || types.HasFlag(OldSpriteType.Avia)) && (types & SearchedTypes & ~GridListTypes) == OldSpriteType.None;
-
-    private static bool IsSearched(Sprite sprite, SpriteSearch search, OldSpriteType types, SpriteSearch armies)
-    {
-        var vid = sprite.Vid;
-
-        if ((vid.SpriteType & types) == 0 || (armies & (SpriteSearch)((int)SpriteSearch.Army0 << ((int)sprite.Army & 3))) == 0)
-            return false;
-
-        if (search.HasFlag(SpriteSearch.Free) && sprite.Command != Command.None)
-            return false;
-
-        if (search.HasFlag(SpriteSearch.Class) && (int)vid.Class != (int)(search & SpriteSearch.ValueMask))
-            return false;
-
-        return !search.HasFlag(SpriteSearch.Id) || (int)vid.Id == (int)(search & SpriteSearch.ValueMask);
-    }
-
-    private static bool IsScreenHit(Sprite sprite, Vector2 half, Vector2 point, Sprite? best)
-    {
-        var size = sprite.Vid.Size;
-        float top = sprite.Position.Y - sprite.Position.Z;
-
-        return sprite.Position.X - half.X <= point.X && point.X <= sprite.Position.X + half.X &&
-            top - size.Z - half.Y < point.Y && point.Y < top + half.Y &&
-            (best is null || size.X < best.Vid.Size.X || size.Y < best.Vid.Size.Y);
     }
 
     private bool TryGetSearchedTypes(ref SpriteSearch search, out OldSpriteType types, out SpriteSearch armies, out Vid? vid)
@@ -1562,21 +1381,57 @@ public partial class Map : IScriptFunctionHost
         return true;
     }
 
-    private VidSprites EnumerateSprites(Vid vid) => new(_layers[(int)vid.Layer], vid);
-
-    [EngineRoutine(0x0040f9a0)]
-    private Sprite? FindListedSprite()
+    private void PopValues(int count)
     {
-        var list = _layers[_spriteLayer];
-        for (_spriteIndex--; _spriteIndex >= 0; _spriteIndex--)
+        for (int i = 0; i < count; i++)
         {
-            var sprite = list[_spriteIndex];
+            PopInt();
+        }
+    }
 
-            if (sprite is not null)
-                return sprite;
+    private float ToScreenX(float x) => x - Shift.X;
+
+    private float ToScreenY(float y, float z) => y - z - Shift.Y;
+
+    private ScriptFile? PopScriptFile() => _scriptFiles.GetValueOrDefault(PopInt());
+
+    private int AddScriptFile(ScriptFile? file)
+    {
+        if (file is null)
+            return 0;
+
+        int handle = 1;
+        foreach (int key in _scriptFiles.Keys)
+        {
+            if (key >= handle)
+            {
+                handle = key + 1;
+            }
         }
 
-        return null;
+        _scriptFiles[handle] = file;
+
+        return handle;
+    }
+
+    private Sprite? PopSprite(Script script)
+    {
+        return FindSprite(script.PopHandle());
+    }
+
+    private Sprite? PopSprite()
+    {
+        return FindSprite(PopHandle());
+    }
+
+    private bool TryLookupVid(int id, ReadOnlySpan<byte> function, out Vid vid)
+    {
+        vid = Vid(id);
+        if (vid != EmptyVid)
+            return true;
+
+        LogInvalidVid(function, id);
+        return false;
     }
 
     private Sprite? FindUnitOfMask(Sprite? sprite)
@@ -1588,4 +1443,27 @@ public partial class Map : IScriptFunctionHost
 
         return sprite;
     }
+
+    [EngineRoutine(0x0043a510)]
+    private Vid PopVid(Script script)
+    {
+        var vid = Vid(script.PopNumber());
+
+        if (vid == EmptyVid)
+        {
+            LogInvalidVid(default, 0);
+        }
+
+        return vid;
+    }
+
+    private void LogInvalidVid(ReadOnlySpan<byte> function, int id) =>
+        Session.Error.Log($"!!!ERROR!!!SCRIPT: Invalid nvid {MyError.Decode(function)} {id}");
+
+    private void PushSprite(Script script, Sprite? sprite) => script.PushSprite(GetSpriteHandle(sprite));
+
+    private void PushSprite(Sprite? sprite) => PushSprite(GetSpriteHandle(sprite));
+
+    [EngineRoutine(0x0043a7b0)]
+    private void LogMapError(LogError code, ReadOnlySpan<byte> text, int value) => Session.Error.Error(MapLogTag, code, value, text);
 }

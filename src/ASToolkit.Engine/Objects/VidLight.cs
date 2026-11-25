@@ -12,7 +12,6 @@ namespace ASToolkit.Engine;
 public sealed class VidLight : Vid
 {
     private const uint BlackColor = 0xff000000;
-
     private const int HeadFieldsSize = 5 * sizeof(short);
 
     private int _dataSize;
@@ -37,6 +36,44 @@ public sealed class VidLight : Vid
     {
         _dataSize = source._dataSize;
         _colors = source._colors;
+    }
+
+    /// <inheritdoc/>
+    [EngineRoutine(0x00414d00)]
+    public override void SetLayer() => Layer = ObjectLayer.Light;
+
+    /// <summary>
+    /// Draws the light of a sprite with the gamma of the sprite and the gamma of the level applied.
+    /// </summary>
+    /// <param name="screen">The screen to draw to.</param>
+    /// <param name="map">The map.</param>
+    /// <param name="sprite">The sprite.</param>
+    /// <param name="shift">The top left corner of the view, in map pixels.</param>
+    [EngineRoutine(0x00414d10)]
+    public override void Draw(Screen screen, Map map, Sprite sprite, Vector2 shift)
+    {
+        int frame = sprite.Frame;
+        uint color = frame >= 0 && frame < _colors.Length / sizeof(uint) ? MemoryMarshal.Read<uint>(_colors.AsSpan(frame * sizeof(uint))) : 0;
+        if (IsHidden || color == 0 || color == BlackColor)
+            return;
+
+        var properties = Properties;
+
+        var gamma = sprite.GetGamma().Add(ObjectGamma);
+        if (!properties.HasFlag(ObjectProperties.Gamma))
+        {
+            gamma = map.Session.Graphics.Gamma.Add(gamma);
+        }
+
+        var position = sprite.Position;
+
+        if (gamma.Negative != 0 || gamma.Positive != 0)
+        {
+            color = gamma.Apply(color);
+        }
+
+        var origin = new Vector2(position.X - shift.X, position.Y - position.Z - shift.Y);
+        map.Session.Graphics.DrawLightSource(screen, new Vector3(origin, position.Z), Size.AsVector2(), color, properties.HasFlag(ObjectProperties.DoubleLight));
     }
 
     [EngineRoutine(0x00412800)]
@@ -76,42 +113,4 @@ public sealed class VidLight : Vid
 
         session.VidMemoryInUse += _dataSize;
     }
-
-    /// <summary>
-    /// Draws the light of a sprite with the gamma of the sprite and the gamma of the level applied.
-    /// </summary>
-    /// <param name="screen">The screen to draw to.</param>
-    /// <param name="map">The map.</param>
-    /// <param name="sprite">The sprite.</param>
-    /// <param name="shift">The top left corner of the view, in map pixels.</param>
-    [EngineRoutine(0x00414d10)]
-    public override void Draw(Screen screen, Map map, Sprite sprite, Vector2 shift)
-    {
-        int frame = sprite.Frame;
-        uint color = frame >= 0 && frame < _colors.Length / sizeof(uint) ? MemoryMarshal.Read<uint>(_colors.AsSpan(frame * sizeof(uint))) : 0;
-        if (IsHidden || color == 0 || color == BlackColor)
-            return;
-
-        var properties = Properties;
-
-        var gamma = sprite.GetGamma().Add(ObjectGamma);
-        if (!properties.HasFlag(ObjectProperties.Gamma))
-        {
-            gamma = map.Session.Graphics.Gamma.Add(gamma);
-        }
-
-        var position = sprite.Position;
-
-        if (gamma.Negative != 0 || gamma.Positive != 0)
-        {
-            color = gamma.Apply(color);
-        }
-
-        var origin = new Vector2(position.X - shift.X, position.Y - position.Z - shift.Y);
-        map.Session.Graphics.DrawLightSource(screen, new Vector3(origin, position.Z), Size.AsVector2(), color, properties.HasFlag(ObjectProperties.DoubleLight));
-    }
-
-    /// <inheritdoc/>
-    [EngineRoutine(0x00414d00)]
-    public override void SetLayer() => Layer = ObjectLayer.Light;
 }

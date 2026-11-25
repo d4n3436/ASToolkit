@@ -570,25 +570,6 @@ public partial class Sprite
         return 0;
     }
 
-    private void LoadOrders(ReadOnlySpan<StackAction> stack)
-    {
-        ActionStack.Release();
-        foreach (var action in stack)
-        {
-            ActionStack.Insert(Act.HasSpriteTarget(action.Code)
-                ? new Act(action.Act, action.Var1, action.Var2, action.Var3, Map.Relation.Decode(action.Var1))
-                : Act.FromAction(action));
-        }
-
-        for (int i = ActionStack.Count - 1; i >= 0; i--)
-        {
-            if (i != 0 && ActionStack[i].Value == Act.StopMarker && ActionStack[i - 1].Value == Act.StopMarker)
-            {
-                ActionStack[i] = ActionStack[--ActionStack.Count];
-            }
-        }
-    }
-
     [EngineRoutine(0x00442ad0)]
     internal void ChangeArmy(int army)
     {
@@ -632,6 +613,25 @@ public partial class Sprite
         }
     }
 
+    private void LoadOrders(ReadOnlySpan<StackAction> stack)
+    {
+        ActionStack.Release();
+        foreach (var action in stack)
+        {
+            ActionStack.Insert(Act.HasSpriteTarget(action.Code)
+                ? new Act(action.Act, action.Var1, action.Var2, action.Var3, Map.Relation.Decode(action.Var1))
+                : Act.FromAction(action));
+        }
+
+        for (int i = ActionStack.Count - 1; i >= 0; i--)
+        {
+            if (i != 0 && ActionStack[i].Value == Act.StopMarker && ActionStack[i - 1].Value == Act.StopMarker)
+            {
+                ActionStack[i] = ActionStack[--ActionStack.Count];
+            }
+        }
+    }
+
     private void SetInvisible(bool isInvisible)
     {
         IsInvisible = isInvisible;
@@ -645,7 +645,6 @@ public partial class Sprite
             Link?.InvisibleOff();
         }
     }
-
 
     [EngineRoutine(0x00445be0)]
     private void ClearOrders()

@@ -17,6 +17,7 @@ public sealed class VidHardware : Vid
     /// Represents the sprite file flags of the built hardware ground.
     /// </summary>
     public const VidType GroundType = VidType.Runs8Bit | VidType.ZBuffer | VidType.Hardware | VidType.FrameVector;
+
     private const int TileSize = 256;
     private const ushort EmptyDepth = 0x400;
     private const int DepthBias = 0x400;
@@ -35,8 +36,8 @@ public sealed class VidHardware : Vid
 
     private static readonly Vector3 GroundObjectSize = new(256, 256, 1);
     private readonly List<HardwareTile> _tiles = [];
-    private Texture?[] _surfaces = [];
     private readonly HighColorFormat _format;
+    private Texture?[] _surfaces = [];
 
     /// <summary>
     /// Initializes a new instance of the <see cref="VidHardware"/> class.
@@ -51,40 +52,6 @@ public sealed class VidHardware : Vid
         : base(id, gameObject, weapons, file, totalFrames)
     {
         _format = format;
-    }
-
-    [EngineRoutine(0x004196a0)]
-    private VidHardware(VidHardware source)
-        : base(source)
-    {
-        _format = source._format;
-        _tiles = source._tiles;
-        _surfaces = source._surfaces;
-        SurfaceCount = source.SurfaceCount;
-    }
-
-    [EngineRoutine(0x00412750)]
-    internal override Vid CreateMirror() => new VidHardware(this);
-
-    [EngineRoutine(0x00419ad0)]
-    internal override void Destruct(GameSession session)
-    {
-        if (NextMirror == this)
-        {
-            _tiles.Clear();
-            for (int surface = SurfaceCount - 1; surface >= 0; surface--)
-            {
-                if (surface < _surfaces.Length)
-                {
-                    _surfaces[surface]?.Destruct(session);
-                }
-            }
-
-            _surfaces = [];
-            SurfaceCount = 0;
-        }
-
-        base.Destruct(session);
     }
 
     [EngineRoutine(0x00419750)]
@@ -124,6 +91,16 @@ public sealed class VidHardware : Vid
         }
     }
 
+    [EngineRoutine(0x004196a0)]
+    private VidHardware(VidHardware source)
+        : base(source)
+    {
+        _format = source._format;
+        _tiles = source._tiles;
+        _surfaces = source._surfaces;
+        SurfaceCount = source.SurfaceCount;
+    }
+
     internal short SurfaceCount { get; private set; }
 
     private static ReadOnlySpan<byte> TextureText => "texture"u8;
@@ -156,6 +133,41 @@ public sealed class VidHardware : Vid
                 return;
 
             i = tile.Next;
+        }
+    }
+
+    /// <inheritdoc/>
+    [EngineRoutine(0x0041a730)]
+    public override void SetLayer()
+    {
+        var properties = Properties;
+        if (properties.HasFlag(ObjectProperties.Ground))
+        {
+            Layer = ObjectLayer.Ground2;
+        }
+        else if (SpriteType == OldSpriteType.Region)
+        {
+            Layer = ObjectLayer.Region;
+        }
+        else if (SurfaceCount == 0)
+        {
+            Layer = ObjectLayer.Menu;
+        }
+        else if (FileType.HasFlag(VidType.ZBuffer))
+        {
+            Layer = FileType.HasFlag(VidType.Blended) ? ObjectLayer.AlphaGround : ObjectLayer.Ground;
+        }
+        else if (RecordId == KnownObject.Cursor)
+        {
+            Layer = ObjectLayer.Cursor;
+        }
+        else if (FileType.HasFlag(VidType.Blended))
+        {
+            Layer = properties.HasFlag(ObjectProperties.Wave) ? ObjectLayer.AlphaGround : ObjectLayer.Alpha;
+        }
+        else
+        {
+            Layer = ObjectLayer.Hardware;
         }
     }
 
@@ -287,39 +299,28 @@ public sealed class VidHardware : Vid
         }
     }
 
-    /// <inheritdoc/>
-    [EngineRoutine(0x0041a730)]
-    public override void SetLayer()
+    [EngineRoutine(0x00412750)]
+    internal override Vid CreateMirror() => new VidHardware(this);
+
+    [EngineRoutine(0x00419ad0)]
+    internal override void Destruct(GameSession session)
     {
-        var properties = Properties;
-        if (properties.HasFlag(ObjectProperties.Ground))
+        if (NextMirror == this)
         {
-            Layer = ObjectLayer.Ground2;
+            _tiles.Clear();
+            for (int surface = SurfaceCount - 1; surface >= 0; surface--)
+            {
+                if (surface < _surfaces.Length)
+                {
+                    _surfaces[surface]?.Destruct(session);
+                }
+            }
+
+            _surfaces = [];
+            SurfaceCount = 0;
         }
-        else if (SpriteType == OldSpriteType.Region)
-        {
-            Layer = ObjectLayer.Region;
-        }
-        else if (SurfaceCount == 0)
-        {
-            Layer = ObjectLayer.Menu;
-        }
-        else if (FileType.HasFlag(VidType.ZBuffer))
-        {
-            Layer = FileType.HasFlag(VidType.Blended) ? ObjectLayer.AlphaGround : ObjectLayer.Ground;
-        }
-        else if (RecordId == KnownObject.Cursor)
-        {
-            Layer = ObjectLayer.Cursor;
-        }
-        else if (FileType.HasFlag(VidType.Blended))
-        {
-            Layer = properties.HasFlag(ObjectProperties.Wave) ? ObjectLayer.AlphaGround : ObjectLayer.Alpha;
-        }
-        else
-        {
-            Layer = ObjectLayer.Hardware;
-        }
+
+        base.Destruct(session);
     }
 
     [EngineRoutine(0x00419d20)]

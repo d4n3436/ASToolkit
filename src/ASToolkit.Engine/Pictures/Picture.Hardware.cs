@@ -22,6 +22,36 @@ public partial class Picture
         return width > height ? second.Source.Width - first.Source.Width : second.Source.Height - first.Source.Height;
     }
 
+    [EngineRoutine(0x00429920)]
+    private int ReadPage(Span<byte> destination, ReadOnlySpan<ushort> page, Size size)
+    {
+        if (!Flags.HasFlag(PictureFlags.Palette) && Flags.HasFlag(PictureFlags.SurfaceVariant))
+        {
+            // TODO: Port 0x00429920 (DirectDraw: CreateSurface, Lock, Unlock and BltFast into a DXT1 surface, or a DXT3 one with alpha, and the surface error logs)
+            return 0;
+        }
+
+        int length = 0;
+        for (int row = 0; row < size.Height; row++)
+        {
+            var values = page.Slice(row * PageSide, size.Width);
+            if (Flags.HasFlag(PictureFlags.Palette))
+            {
+                foreach (ushort value in values)
+                {
+                    destination[length++] = (byte)value;
+                }
+            }
+            else
+            {
+                MemoryMarshal.AsBytes(values).CopyTo(destination[length..]);
+                length += size.Width * sizeof(ushort);
+            }
+        }
+
+        return length;
+    }
+
     [EngineRoutine(0x00429e80)]
     private void ConvertHardware(ResContainerBuilder builder)
     {
@@ -325,36 +355,6 @@ public partial class Picture
         {
             ArrayPool<byte>.Shared.Return(scratch);
         }
-    }
-
-    [EngineRoutine(0x00429920)]
-    private int ReadPage(Span<byte> destination, ReadOnlySpan<ushort> page, Size size)
-    {
-        if (!Flags.HasFlag(PictureFlags.Palette) && Flags.HasFlag(PictureFlags.SurfaceVariant))
-        {
-            // TODO: Port 0x00429920 (DirectDraw: CreateSurface, Lock, Unlock and BltFast into a DXT1 surface, or a DXT3 one with alpha, and the surface error logs)
-            return 0;
-        }
-
-        int length = 0;
-        for (int row = 0; row < size.Height; row++)
-        {
-            var values = page.Slice(row * PageSide, size.Width);
-            if (Flags.HasFlag(PictureFlags.Palette))
-            {
-                foreach (ushort value in values)
-                {
-                    destination[length++] = (byte)value;
-                }
-            }
-            else
-            {
-                MemoryMarshal.AsBytes(values).CopyTo(destination[length..]);
-                length += size.Width * sizeof(ushort);
-            }
-        }
-
-        return length;
     }
 
     [DoesNotReturn]
