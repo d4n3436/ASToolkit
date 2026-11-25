@@ -70,7 +70,7 @@ public sealed class ReplayPlayback
     /// <summary>
     /// Gets the real time of the map, in milliseconds.
     /// </summary>
-    public uint RealTime => _map.RealTime;
+    public uint RealCurrentTime => _map.RealCurrentTime;
 
     /// <summary>
     /// Plays a map of a game folder with the bot as the opening level of a campaign and records the run.
@@ -115,7 +115,7 @@ public sealed class ReplayPlayback
         var size = screen.Size;
 
         var point = _map.Input.Cursor - _map.ViewCenter + new Vector2(size.Width, size.Height) * 0.5f;
-        _map.CursorSprite.ShownCursorImage.Draw(pixels.AsSpan(0, size.Width * size.Height), size, new Point((int)MathF.Round(point.X), (int)MathF.Round(point.Y)));
+        _map.Mouse.ShownCursorImage.Draw(pixels.AsSpan(0, size.Width * size.Height), size, new Point((int)MathF.Round(point.X), (int)MathF.Round(point.Y)));
         _rendered = pixels;
         _renderedTime = _shownTime;
         return true;
@@ -173,7 +173,7 @@ public sealed class ReplayPlayback
 
     private bool StepFrame(bool isAimOnly)
     {
-        uint realTime = _map.TryGetNextDemoTime(out int next) ? _map.RealTime + (uint)(next - _map.Time) : _pacer.TakeNextRealTime(_map);
+        uint realTime = _map.TryGetNextDemoTime(out int next) ? _map.RealCurrentTime + (uint)(next - _map.CurrentTime) : _pacer.TakeNextRealTime(_map);
         bool isQuitting;
 
         if (isAimOnly)
@@ -190,7 +190,7 @@ public sealed class ReplayPlayback
             return false;
 
         _isStepped = true;
-        _shownTime = _map.Time;
+        _shownTime = _map.CurrentTime;
 
         return true;
     }

@@ -7,7 +7,7 @@ namespace ASToolkit.Engine;
 /// <summary>
 /// Represents a sprite that shows a text letter by letter.
 /// </summary>
-public sealed class Text : Frame
+public sealed class SText : Frame
 {
     private const int MinDirections = 0x7f;
     private const byte FontSwitch = 0x1b;
@@ -20,7 +20,7 @@ public sealed class Text : Frame
     private const int LineWait = 150;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="Text"/> class on a map.
+    /// Initializes a new instance of the <see cref="SText"/> class on a map.
     /// </summary>
     /// <param name="vid">The shared data and frames of the sprite's object ID.</param>
     /// <param name="position">The position.</param>
@@ -28,7 +28,7 @@ public sealed class Text : Frame
     /// <param name="parent">The sprite that the new sprite takes its army and height from, or null.</param>
     /// <param name="map">The map the sprite belongs to.</param>
     [EngineRoutine(0x0040ed40)]
-    public Text(Vid vid, Vector3 position, Angle direction, Sprite? parent, Map map)
+    public SText(Vid vid, Vector3 position, Angle direction, Sprite? parent, Map map)
         : base(vid, position, direction, parent, map)
     {
     }
@@ -70,9 +70,9 @@ public sealed class Text : Frame
     /// </summary>
     /// <param name="screen">The screen to draw to.</param>
     /// <param name="map">The map.</param>
-    /// <param name="camera">The top left corner of the view, in map pixels.</param>
+    /// <param name="shift">The top left corner of the view, in map pixels.</param>
     [EngineRoutine(0x00448ba0)]
-    public override void Draw(Screen screen, Map map, Vector2 camera)
+    public override void Draw(Screen screen, Map map, Vector2 shift)
     {
         if (Vid == map.EmptyVid || Vid.Directions < MinDirections)
         {
@@ -85,7 +85,7 @@ public sealed class Text : Frame
 
         if ((TextBehavior & TextBehavior.LoadFrom) == TextBehavior.ScriptUpdated)
         {
-            Shown = map.GetVariableString(Description.Span);
+            Shown = map.Script.GetVariableString(Description.Span);
             LayOutText();
         }
 
@@ -144,7 +144,7 @@ public sealed class Text : Frame
                 {
                     Position = savedPosition with { X = pen.X, Y = pen.Y };
                     Frame = character;
-                    current.Draw(screen, map, this, camera);
+                    current.Draw(screen, map, this, shift);
                 }
 
                 i++;
@@ -260,9 +260,9 @@ public sealed class Text : Frame
             TextBehavior.NotLoad => description,
             TextBehavior.StringsIni => ReadMenuString(description.Span),
             TextBehavior.File => Map.LoadTextFile(description.Span),
-            TextBehavior.ScriptFile => Map.LoadTextFile(Map.GetVariableString(description.Span).Span),
-            TextBehavior.ScriptStrings => ReadMenuString(Map.GetVariableString(description.Span).Span),
-            _ => Map.GetVariableString(description.Span)
+            TextBehavior.ScriptFile => Map.LoadTextFile(Map.Script.GetVariableString(description.Span).Span),
+            TextBehavior.ScriptStrings => ReadMenuString(Map.Script.GetVariableString(description.Span).Span),
+            _ => Map.Script.GetVariableString(description.Span)
         };
         LayOutText();
     }

@@ -77,11 +77,11 @@ public readonly ref partial struct Texture
     }
 
     [EngineRoutine(0x00402fa0)]
-    internal static string ReadCapabilities(GameSession session)
+    internal static string SetDeviceCapabilities(GameSession session)
     {
         session.TextureMaxSize = Graphics.DeviceMaxTextureSize;
         session.IsTextureSquareRequired = Graphics.AreSquareTexturesRequired;
-        session.IsTextureConditionalNonPowerOfTwo = Graphics.IsConditionalNonPowerOfTwoSupported;
+        session.IsTextureConditionalNonPowerOfTwoSupported = Graphics.IsConditionalNonPowerOfTwoSupported;
         session.IsTextureDynamicSupported = false;
         session.IsTexturePowerOfTwoRequired = Graphics.IsPowerOfTwoRequired;
         session.IsTextureAlphaPaletteSupported = Graphics.IsAlphaPaletteSupported;
@@ -119,7 +119,7 @@ public readonly ref partial struct Texture
         }
 
         text.AddRange(session.IsTexturePowerOfTwoRequired ? "POWER2 "u8 : "NOTPOWER2 "u8);
-        if (session.IsTextureConditionalNonPowerOfTwo)
+        if (session.IsTextureConditionalNonPowerOfTwoSupported)
         {
             text.AddRange("COND_NON_POW2 "u8);
         }

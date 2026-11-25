@@ -128,14 +128,14 @@ public partial class VidSoftware
     /// <param name="screen">The screen to draw to.</param>
     /// <param name="map">The map.</param>
     /// <param name="sprite">The sprite.</param>
-    /// <param name="camera">The top left corner of the view, in map pixels.</param>
+    /// <param name="shift">The top left corner of the view, in map pixels.</param>
     [EngineRoutine(0x00416860)]
-    public override void Draw(Screen screen, Map map, Sprite sprite, Vector2 camera)
+    public override void Draw(Screen screen, Map map, Sprite sprite, Vector2 shift)
     {
         if (IsHidden)
             return;
 
-        var origin = GetScreenOrigin(sprite, camera);
+        var origin = GetScreenOrigin(sprite, shift);
         if (!TryLocateFrame(map, sprite, screen.Viewport, ref origin, out int depth, out var rows))
             return;
 
@@ -144,8 +144,8 @@ public partial class VidSoftware
         DrawRuns(target, SelectPalette(map, sprite, scratch), origin, depth, rows);
     }
 
-    private protected Point GetScreenOrigin(Sprite sprite, Vector2 camera) =>
-        new((int)sprite.Position.X - (int)camera.X - FrameSize.Center.X, (int)(sprite.Position.Y - sprite.Position.Z) - (int)camera.Y - FrameSize.Center.Y);
+    private protected Point GetScreenOrigin(Sprite sprite, Vector2 shift) =>
+        new((int)sprite.Position.X - (int)shift.X - FrameSize.Center.X, (int)(sprite.Position.Y - sprite.Position.Z) - (int)shift.Y - FrameSize.Center.Y);
 
     private protected bool TryLocateFrame(Map map, Sprite sprite, Rectangle viewport, ref Point origin, out int depth, out FrameRows rows)
     {
@@ -161,7 +161,7 @@ public partial class VidSoftware
         }
         else if (Properties.HasFlag(ObjectProperties.Wave))
         {
-            int bob = (int)(new Angle((byte)(map.Time >> WaveTimeShift & WaveTableMask)).Sine * TopZ * HeightScale);
+            int bob = (int)(new Angle((byte)(map.CurrentTime >> WaveTimeShift & WaveTableMask)).Sine * TopZ * HeightScale);
             depth += bob;
             origin.Y -= bob + (bob >> 31 & 7) >> 3;
         }
@@ -179,7 +179,7 @@ public partial class VidSoftware
 
     private protected ReadOnlySpan<byte> SelectPalette(Map map, Sprite sprite, Span<byte> scratch)
     {
-        if (!sprite.HasExtra || sprite.GammaOverride is { Negative: 0, Positive: 0 })
+        if (!sprite.HasExtraData || sprite.GammaOverride is { Negative: 0, Positive: 0 })
             return Palettes[GetPaletteOffset(sprite)..];
 
         int paletteSize = GetPaletteSize();

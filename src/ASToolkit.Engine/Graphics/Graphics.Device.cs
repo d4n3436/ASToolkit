@@ -188,7 +188,7 @@ public sealed partial class Graphics
             int index = FindDisplayMode(Size.Truncate(screenSize), bits);
             if (index < 0)
             {
-                Error?.Write($"Selected display mode {screenSize.Width:F0}x{screenSize.Height:F0}");
+                Error?.Log($"Selected display mode {screenSize.Width:F0}x{screenSize.Height:F0}");
                 Error?.Error(GraphicsLogTag, LogError.Text, 0, "Unsupported resolution"u8);
                 return DeviceFailure;
             }
@@ -197,7 +197,7 @@ public sealed partial class Graphics
         }
 
         DisplayFormat = format;
-        Error?.Write($"Selected display mode {screenSize.Width:F0}x{screenSize.Height:F0} {MyError.Decode(GetFormatName(format))} desktop {MyError.Decode(GetFormatName(DesktopFormat))} zbuffer {MyError.Decode(GetFormatName(VidPixelFormat.None))}");
+        Error?.Log($"Selected display mode {screenSize.Width:F0}x{screenSize.Height:F0} {MyError.Decode(GetFormatName(format))} desktop {MyError.Decode(GetFormatName(DesktopFormat))} zbuffer {MyError.Decode(GetFormatName(VidPixelFormat.None))}");
         Flags &= ~deviceMask;
         if (IsDotProduct3Supported)
         {
@@ -256,7 +256,7 @@ public sealed partial class Graphics
             Error?.Error(GraphicsLogTag, LogError.Create, 0, "Light at RelodPalette"u8);
         }
 
-        Error?.Write("ReloadPalettes"u8);
+        Error?.Log("ReloadPalettes"u8);
     }
 
     [EngineRoutine(0x0042eb10)]

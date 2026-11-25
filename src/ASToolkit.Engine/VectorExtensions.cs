@@ -21,7 +21,7 @@ public static class VectorExtensions
     /// <param name="to">The second point.</param>
     /// <returns>The longer of the two axis offsets plus half the shorter one.</returns>
     [EngineRoutine(0x00410d40)]
-    public static float MeasureOctagonalDistance(this Vector2 from, Vector2 to)
+    public static float NearLength(this Vector2 from, Vector2 to)
     {
         var offset = Vector2.Abs(to - from);
 

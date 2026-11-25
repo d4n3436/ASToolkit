@@ -18,7 +18,7 @@ public partial class Sprite
         if (Vid.HasKeyframes)
         {
             ref readonly var weapon = ref Vid.Weapon;
-            int elapsed = Map.Time - KeyframeStart;
+            int elapsed = Map.CurrentTime - KeyframeStart;
             int keyPeriod = weapon.AnimationPeriod;
             bool timed = true;
 
@@ -55,7 +55,7 @@ public partial class Sprite
         if (Owner is null)
         {
             int lastTickTime = LastTickTime;
-            LastTickTime = Map.PreviousTime;
+            LastTickTime = Map.PreviousCurrentTime;
             MoveTact();
             LastTickTime = lastTickTime;
         }
@@ -80,7 +80,7 @@ public partial class Sprite
                 CreateChild();
             }
         }
-        else if (emitChild is not null && emitChild.Properties.HasFlag(ObjectProperties.BirthAsSmoke) && (uint)(Map.Time - (int)((uint)Map.Time % (uint)StreamPeriod)) > (uint)(Map.Time - Map.FrameTime))
+        else if (emitChild is not null && emitChild.Properties.HasFlag(ObjectProperties.BirthAsSmoke) && (uint)(Map.CurrentTime - (int)((uint)Map.CurrentTime % (uint)StreamPeriod)) > (uint)(Map.CurrentTime - Map.FrameTime))
         {
             float across = Direction.Sine * Speed;
             float down = Direction.Cosine * Speed + (VerticalSpeed - emitChild.ZSpeed);
@@ -106,7 +106,7 @@ public partial class Sprite
 
         var state = Animation;
 
-        if (CreatedAt == Map.Time || (uint)(Map.Time - (int)((uint)Map.Time % (uint)Vid.GetVisualFrameDuration(state))) <= (uint)(Map.Time - Map.FrameTime))
+        if (CreatedAt == Map.CurrentTime || (uint)(Map.CurrentTime - (int)((uint)Map.CurrentTime % (uint)Vid.GetVisualFrameDuration(state))) <= (uint)(Map.CurrentTime - Map.FrameTime))
             return;
 
         if (Command is not Command.None && this is { Command: < Command.Build, HasGoal: false })
@@ -117,7 +117,7 @@ public partial class Sprite
 
         if (Timer != 0)
         {
-            Timer = (uint)(Map.Time - LastTickTime) < (uint)Timer ? Timer - (Map.Time - LastTickTime) : 0;
+            Timer = (uint)(Map.CurrentTime - LastTickTime) < (uint)Timer ? Timer - (Map.CurrentTime - LastTickTime) : 0;
 
             if (this is { Timer: 0, Command: Command.Pause })
             {
@@ -224,11 +224,11 @@ public partial class Sprite
             }
         }
 
-        if (HasExtra && Lifetime != Vid.Unlimited && Animation < SpriteAnimation.Death)
+        if (HasExtraData && Lifetime != Vid.Unlimited && Animation < SpriteAnimation.Death)
         {
-            if ((uint)(Map.Time - LastTickTime) < (uint)Lifetime)
+            if ((uint)(Map.CurrentTime - LastTickTime) < (uint)Lifetime)
             {
-                Lifetime -= Map.Time - LastTickTime;
+                Lifetime -= Map.CurrentTime - LastTickTime;
             }
             else
             {
@@ -236,12 +236,12 @@ public partial class Sprite
             }
         }
 
-        if (HasExtra && Vid.Weapon.AnimationPeriod != Vid.Unlimited && (uint)Vid.Weapon.AnimationPeriod < (uint)(Map.Time - KeyframeStart))
+        if (HasExtraData && Vid.Weapon.AnimationPeriod != Vid.Unlimited && (uint)Vid.Weapon.AnimationPeriod < (uint)(Map.CurrentTime - KeyframeStart))
         {
-            KeyframeStart = Map.Time;
+            KeyframeStart = Map.CurrentTime;
         }
 
-        LastTickTime = Map.Time;
+        LastTickTime = Map.CurrentTime;
 
         if (Frame > LastFrame)
         {

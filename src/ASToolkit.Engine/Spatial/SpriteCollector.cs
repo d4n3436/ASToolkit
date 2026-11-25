@@ -124,7 +124,7 @@ public sealed class SpriteCollector
             failed |= (_listed.Delete(sprite) ? 0 : 1) << 1;
         }
 
-        var cursor = sprite.Map.CursorSprite;
+        var cursor = sprite.Map.Mouse;
 
         if (failed != 0 && sprite != cursor && sprite != cursor.Link)
         {
@@ -187,7 +187,7 @@ public sealed class SpriteCollector
     internal Sprite? CanPlace(Vid vid, Vector3 point)
     {
         if (_map.GetGroundZForMoveTo(vid, point.AsVector2()) > point.Z)
-            return _map.CursorSprite;
+            return _map.Mouse;
 
         if (vid.MoveMask == 0)
             return null;

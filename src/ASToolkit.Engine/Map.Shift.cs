@@ -20,14 +20,14 @@ public partial class Map
     /// <summary>
     /// Gets the center of the screen on the map.
     /// </summary>
-    public Vector2 ViewCenter => Session.Graphics.ScreenSize.ToVector2() * HalfShare + Camera;
+    public Vector2 ViewCenter => Session.Graphics.ScreenSize.ToVector2() * HalfShare + Shift;
 
     [EngineRoutine(0x0040bc20)]
-    internal void SetPosition(Vector2 center, CameraMove move)
+    internal void SetShiftCoordinates(Vector2 center, ShiftMove move)
     {
         var corner = center - Session.Graphics.ScreenSize.ToVector2() * HalfShare;
 
-        if (!move.HasFlag(CameraMove.Unclamped))
+        if (!move.HasFlag(ShiftMove.Unclamped))
         {
             var min = Vector2.Zero - Session.Graphics.Viewport.Location.ToVector2();
             var max = Size.ToVector2() - new Vector2(Session.Graphics.Viewport.Right, Session.Graphics.Viewport.Bottom);
@@ -53,25 +53,25 @@ public partial class Map
             }
         }
 
-        if (Camera == corner)
+        if (Shift == corner)
             return;
 
-        if (move == CameraMove.Smooth)
+        if (move == ShiftMove.Smooth)
         {
             Session.Graphics.Effect(this, (int)ScreenEffect.Scroll, (int)center.X, (int)center.Y, 0);
 
             return;
         }
 
-        var delta = corner - Camera;
-        Camera = corner;
+        var delta = corner - Shift;
+        Shift = corner;
 
         foreach (var menuSprite in Menu.Items)
         {
             menuSprite.ChangeCoor(new Vector3(menuSprite.Position.X + delta.X, menuSprite.Position.Y + delta.Y, menuSprite.Position.Z));
         }
 
-        CursorSprite.ChangeCoor(new Vector3(CursorSprite.Position.AsVector2() + delta, CursorSprite.Position.Z));
+        Mouse.ChangeCoor(new Vector3(Mouse.Position.AsVector2() + delta, Mouse.Position.Z));
 
         Input.Cursor += delta;
     }
@@ -86,7 +86,7 @@ public partial class Map
     };
 
     [EngineRoutine(0x0040bed0)]
-    private protected void Scroll()
+    private protected void ControlShiftCoordinates()
     {
         var screen = Session.Graphics.ScreenSize.ToVector2();
         var cursor = Input.ScreenCursor;
@@ -121,24 +121,24 @@ public partial class Map
 
         if (flagman is not null && _scrollType.HasFlag(ScrollType.ToFlagman) && isStill)
         {
-            speed = (flagman.Position.ToDrawPosition() - Camera - screen * HalfShare) * FlagmanPace;
+            speed = (flagman.Position.ToDrawPosition() - Shift - screen * HalfShare) * FlagmanPace;
         }
         else if (flagman is not null && _scrollType.HasFlag(ScrollType.ToFlagmanWithDirection) && isStill)
         {
             var low = screen - LeadReach;
             var lead = new Vector2(GetLead(cursor.X, low.X, LeadReach.X), GetLead(cursor.Y, low.Y, LeadReach.Y));
-            speed = (screen * HalfShare - (flagman.Position.ToDrawPosition() - Camera + lead) * HalfShare) * DirectionPace;
+            speed = (screen * HalfShare - (flagman.Position.ToDrawPosition() - Shift + lead) * HalfShare) * DirectionPace;
         }
         else if (flagman is not null && _scrollType.HasFlag(ScrollType.FlagmanInCenter) && isStill)
         {
             Session.ScrollSpeed = speed;
-            SetPosition(flagman.Position.ToDrawPosition() - Camera + Camera, CameraMove.None);
+            SetShiftCoordinates(flagman.Position.ToDrawPosition() - Shift + Shift, ShiftMove.None);
 
             return;
         }
 
         Session.ScrollSpeed = speed;
         float elapsed = (uint)FrameTime;
-        SetPosition(screen * HalfShare + Vector2.Truncate(elapsed * speed) + Camera, CameraMove.None);
+        SetShiftCoordinates(screen * HalfShare + Vector2.Truncate(elapsed * speed) + Shift, ShiftMove.None);
     }
 }

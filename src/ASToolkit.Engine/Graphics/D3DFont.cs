@@ -75,7 +75,7 @@ public sealed class D3DFont
     /// <param name="maxTextureSize">The largest texture width and height the device accepts.</param>
     /// <returns>Zero if the texture was created; otherwise, a nonzero error code.</returns>
     [EngineRoutine(0x004349c0)]
-    public int Create(int maxTextureSize)
+    public int InitDeviceObjects(int maxTextureSize)
     {
         Scale = 1f;
         int size = (uint)GlyphSize.Height > TallLimit ? LargeTextureSize : (uint)GlyphSize.Height > ShortLimit ? MediumTextureSize : SmallTextureSize;

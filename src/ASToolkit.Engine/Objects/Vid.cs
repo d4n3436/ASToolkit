@@ -605,8 +605,8 @@ public class Vid
     /// <param name="screen">The screen to draw to.</param>
     /// <param name="map">The map.</param>
     /// <param name="sprite">The sprite that gives the position, frame and gamma; it may be of another object ID.</param>
-    /// <param name="camera">The top left corner of the view, in map pixels.</param>
-    public virtual void Draw(Screen screen, Map map, Sprite sprite, Vector2 camera)
+    /// <param name="shift">The top left corner of the view, in map pixels.</param>
+    public virtual void Draw(Screen screen, Map map, Sprite sprite, Vector2 shift)
     {
     }
 
@@ -616,8 +616,8 @@ public class Vid
     /// <param name="screen">The screen to draw to.</param>
     /// <param name="map">The map.</param>
     /// <param name="sprite">The sprite that gives the position and frame.</param>
-    /// <param name="camera">The top left corner of the view, in map pixels.</param>
-    public virtual void DrawOutline(Screen screen, Map map, Sprite sprite, Vector2 camera)
+    /// <param name="shift">The top left corner of the view, in map pixels.</param>
+    public virtual void DrawOutline(Screen screen, Map map, Sprite sprite, Vector2 shift)
     {
     }
 
@@ -799,12 +799,22 @@ public class Vid
     [EngineRoutine(0x0043a230)]
     public int GetArmyMaxHp(int army) => _armyMaxHp[army & ArmyMask];
 
+    [EngineRoutine(0x0043a1c0)]
+    internal int RealDirection(Angle direction) => ((DirectionOffset + direction.Value) & 0xff) * Directions >> 8;
+
     /// <summary>
     /// Determines whether sprites of this object ID have a fight child and a weapon.
     /// </summary>
     /// <returns><see langword="true"/> if sprites of this object ID are armed with a weapon of their own; otherwise, <see langword="false"/>.</returns>
     [EngineRoutine(0x0043a1e0)]
     public bool CanFight() => FightChild != 0 && WeaponIndex != 0;
+
+    /// <summary>
+    /// Returns the ammunition a sprite of this object ID holds when full.
+    /// </summary>
+    /// <returns>The ammunition of the linked object ID's weapon if that object ID can fight; otherwise, the ammunition of this object ID's weapon.</returns>
+    [EngineRoutine(0x0043a200)]
+    public int GetMaxAmmo() => LinkVid is not null && LinkVid.CanFight() ? LinkVid.Weapon.Ammo : Weapon.Ammo;
 
     /// <summary>
     /// Determines whether sprites of this object ID are born as smoke.
@@ -932,8 +942,6 @@ public class Vid
     }
 
     internal void SetWeapons(AlienShooterWeaponRecord[] weapons) => _weapons = weapons;
-
-    internal int GetDirectionIndex(Angle direction) => direction.GetDirectionIndex(Directions, DirectionOffset);
 
     internal int GetFrameCount(SpriteAnimation state) => _frameCounts[(int)state];
 

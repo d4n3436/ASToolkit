@@ -216,17 +216,17 @@ public enum ScriptFunction
     GetInputState = 115,
 
     /// <summary>
-    /// Set the point the camera looks at.
+    /// Set the point the view centers on.
     /// </summary>
     SetPosition = 116,
 
     /// <summary>
-    /// Set the camera's scroll mode.
+    /// Set the view's scroll mode.
     /// </summary>
     SetScrollType = 117,
 
     /// <summary>
-    /// Return the camera's scroll mode.
+    /// Return the view's scroll mode.
     /// </summary>
     GetScrollType = 118,
 

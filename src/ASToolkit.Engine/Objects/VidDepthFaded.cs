@@ -135,15 +135,15 @@ public sealed class VidDepthFaded : VidSoftware
     /// <param name="screen">The screen to draw to.</param>
     /// <param name="map">The map.</param>
     /// <param name="sprite">The sprite.</param>
-    /// <param name="camera">The top left corner of the view, in map pixels.</param>
+    /// <param name="shift">The top left corner of the view, in map pixels.</param>
     [EngineRoutine(0x0041b0e0)]
-    public override void Draw(Screen screen, Map map, Sprite sprite, Vector2 camera)
+    public override void Draw(Screen screen, Map map, Sprite sprite, Vector2 shift)
     {
         if (IsHidden)
             return;
 
         var viewport = screen.Viewport;
-        var origin = new Point((int)(sprite.Position.X - camera.X - FrameSize.Center.X), (int)(sprite.Position.Y - sprite.Position.Z - camera.Y - FrameSize.Center.Y));
+        var origin = new Point((int)(sprite.Position.X - shift.X - FrameSize.Center.X), (int)(sprite.Position.Y - sprite.Position.Z - shift.Y - FrameSize.Center.Y));
         if (!TryLocateFrame(map, sprite, viewport, ref origin, out int z, out var rows))
             return;
 

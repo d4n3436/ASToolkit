@@ -78,7 +78,7 @@ public class Creature : Unit
             return 0;
         }
 
-        bool newPeriod = (uint)LastTickTime < (uint)(Map.Time - (Map.Time & CreaturePeriodMask));
+        bool newPeriod = (uint)LastTickTime < (uint)(Map.CurrentTime - (Map.CurrentTime & CreaturePeriodMask));
 
         if (Command is Command.Attack or Command.OneAttack || newPeriod)
         {
@@ -110,7 +110,7 @@ public class Creature : Unit
         }
 
         int elapsed = Map.FrameTime;
-        var next = CalculateNewCoordinates(elapsed);
+        var next = MoveTactCalculateCoordinates(elapsed);
 
         if (TurnTicks != 0)
         {
@@ -219,9 +219,9 @@ public class Creature : Unit
     {
         var center = Position.AsVector2();
         var reach = new Vector2(CreatureAlertReach);
-        for (var other = Map.Collector.First(center - reach, center + reach); other is not null; other = Map.Collector.NextHashInBox())
+        for (var other = Map.Sprites.First(center - reach, center + reach); other is not null; other = Map.Sprites.NextHashInBox())
         {
-            if (other.Vid.Class == SpriteClass.Creature && center.MeasureOctagonalDistance(other.Position.AsVector2()) < CreatureAlertReach)
+            if (other.Vid.Class == SpriteClass.Creature && center.NearLength(other.Position.AsVector2()) < CreatureAlertReach)
             {
                 other.StartMove();
             }

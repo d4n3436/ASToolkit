@@ -80,7 +80,7 @@ public partial class Sprite
 
         if (vid.HasTimers)
         {
-            CreateExtra();
+            CreateExtraData();
         }
 
         if (vid.Properties.HasFlag(ObjectProperties.Noise))
@@ -107,11 +107,11 @@ public partial class Sprite
             Army = vid.WeaponIndex == 0 && link is not null ? link.Weapon.Army : vid.Weapon.Army;
         }
 
-        CreatedAt = Map.Time;
+        CreatedAt = Map.CurrentTime;
         IsInvisible = vid.Properties.HasFlag(ObjectProperties.InvisibleForEnemy) && (int)Army != Map.ControlledPlayer;
         Hp = vid.ArmyMaxHp[(int)Army & Vid.ArmyMask];
         var state = Map.GetInitialAnimation(vid);
-        Start(state, direction, Map.Time, Map.Random);
+        Start(state, direction, Map.CurrentTime, Map.Random);
 
         if (vid != Map.EmptyVid)
         {
@@ -120,8 +120,8 @@ public partial class Sprite
         }
 
         CreateLink();
-        Map.Collector.InsertToHash(this);
-        vid.LastCreatedAt = Map.RealTime;
+        Map.Sprites.InsertToHash(this);
+        vid.LastCreatedAt = Map.RealCurrentTime;
         vid.Counts[(int)Army & 3]++;
 
         if (state != SpriteAnimation.Birth && !Map.IsLoading)
@@ -333,33 +333,33 @@ public partial class Sprite
     /// </summary>
     public MyList<Act> ActionStack { get; }
 
-    internal ExtraSpriteData? Extra { get; private set; }
+    internal ExtraSpriteData? ExtraData { get; private set; }
 
     /// <summary>
     /// Gets a value indicating whether the sprite carries extra data (lifetime, keyframe track, stream period and top speed of its own).
     /// </summary>
-    public bool HasExtra => Extra is not null;
+    public bool HasExtraData => ExtraData is not null;
 
     /// <summary>
     /// Gets the position the sprite had before its first move of the frame.
     /// </summary>
-    public Vector3 PreviousPosition => Extra?.PreviousPosition ?? default;
+    public Vector3 PreviousPosition => ExtraData?.PreviousPosition ?? default;
 
     /// <summary>
-    /// Gets the clock stamp of the frame when <see cref="PreviousPosition"/> was saved.
+    /// Gets the real time of the frame when <see cref="PreviousPosition"/> was saved.
     /// </summary>
-    public uint PreviousPositionStamp => Extra?.PreviousPositionStamp ?? 0;
+    public uint PreviousPositionRealTime => ExtraData?.PreviousPositionRealTime ?? 0;
 
     /// <summary>
     /// Gets or sets the time the sprite has left before it dies.
     /// </summary>
     public int Lifetime
     {
-        get => Extra?.Lifetime ?? Vid.Unlimited;
+        get => ExtraData?.Lifetime ?? Vid.Unlimited;
         set
         {
-            EnsureExtra();
-            Extra!.Lifetime = value;
+            EnsureExtraData();
+            ExtraData!.Lifetime = value;
         }
     }
 
@@ -368,8 +368,8 @@ public partial class Sprite
     /// </summary>
     public int StreamPeriod
     {
-        get => Extra?.StreamPeriod ?? 1;
-        set => Extra!.StreamPeriod = value;
+        get => ExtraData?.StreamPeriod ?? 1;
+        set => ExtraData!.StreamPeriod = value;
     }
 
     /// <summary>
@@ -377,8 +377,8 @@ public partial class Sprite
     /// </summary>
     public int KeyframeStart
     {
-        get => Extra?.KeyframeStart ?? 0;
-        set => Extra!.KeyframeStart = value;
+        get => ExtraData?.KeyframeStart ?? 0;
+        set => ExtraData!.KeyframeStart = value;
     }
 
     /// <summary>
@@ -386,8 +386,8 @@ public partial class Sprite
     /// </summary>
     public float KeyframePosition
     {
-        get => Extra?.KeyframePosition ?? 0;
-        set => Extra!.KeyframePosition = value;
+        get => ExtraData?.KeyframePosition ?? 0;
+        set => ExtraData!.KeyframePosition = value;
     }
 
     /// <summary>
@@ -395,23 +395,23 @@ public partial class Sprite
     /// </summary>
     public float MaxSpeed
     {
-        get => Extra?.MaxSpeed ?? Vid.Speed;
+        get => ExtraData?.MaxSpeed ?? Vid.Speed;
         set
         {
-            EnsureExtra();
-            Extra!.MaxSpeed = value;
+            EnsureExtraData();
+            ExtraData!.MaxSpeed = value;
         }
     }
 
     /// <summary>
     /// Gets the gamma applied to the sprite while it is drawn, or the default gamma when there isn't one.
     /// </summary>
-    public Gamma GammaOverride => Extra?.GammaOverride ?? default;
+    public Gamma GammaOverride => ExtraData?.GammaOverride ?? default;
 
     /// <summary>
     /// Gets the items the sprite carries.
     /// </summary>
-    public IReadOnlyList<int> Items => Extra?.Items ?? [];
+    public IReadOnlyList<int> Items => ExtraData?.Items ?? [];
 
     /// <summary>
     /// Gets or sets the sprite that fired this sprite.
@@ -464,9 +464,9 @@ public partial class Sprite
     [EngineRoutine(0x00446760)]
     public void InsertItem(int item)
     {
-        EnsureExtra();
+        EnsureExtraData();
 
-        Extra!.Items.Insert(item);
+        ExtraData!.Items.Insert(item);
     }
 
     /// <summary>
@@ -490,21 +490,21 @@ public partial class Sprite
     /// </summary>
     /// <param name="item">The item.</param>
     /// <returns>The index, or -1 when the sprite does not hold the item.</returns>
-    public int GetItemNumber(int item) => Extra?.Items.Location(item) ?? -1;
+    public int GetItemNumber(int item) => ExtraData?.Items.Location(item) ?? -1;
 
     /// <summary>
     /// Removes the item at an index by moving the last item into its place.
     /// </summary>
     /// <param name="index">The index.</param>
     /// <returns><see langword="true"/> if the index named an item; otherwise, <see langword="false"/>.</returns>
-    public bool RemoveItemAt(int index) => Extra is not null && Extra.Items.DeleteNumber(index) == 0;
+    public bool RemoveItemAt(int index) => ExtraData is not null && ExtraData.Items.DeleteNumber(index) == 0;
 
     /// <summary>
     /// Returns the health of this sprite, or of its armed link, scaled from 0 to 255 of the maximum.
     /// </summary>
     /// <returns>The scaled health.</returns>
     [EngineRoutine(0x00444360)]
-    public int GetPercentHp()
+    public int PercentHp()
     {
         var link = ArmedLink;
 
@@ -564,18 +564,18 @@ public partial class Sprite
     /// <summary>
     /// Creates the sprite's extra data if it does not exist yet.
     /// </summary>
-    public void EnsureExtra()
+    public void EnsureExtraData()
     {
-        if (!HasExtra)
+        if (!HasExtraData)
         {
-            CreateExtra();
+            CreateExtraData();
         }
     }
 
     /// <summary>
     /// Creates the sprite's extra data, giving it its own lifetime, keyframe track, stream period and top speed.
     /// </summary>
-    public void CreateExtra() => Extra = new ExtraSpriteData(this);
+    public void CreateExtraData() => ExtraData = new ExtraSpriteData(this);
 
     /// <summary>
     /// Sets the gamma applied to the sprite while it is drawn.
@@ -584,8 +584,8 @@ public partial class Sprite
     [EngineRoutine(0x00443070)]
     public void SetGammaOverride(Gamma gamma)
     {
-        EnsureExtra();
-        Extra!.GammaOverride = gamma;
+        EnsureExtraData();
+        ExtraData!.GammaOverride = gamma;
     }
 
     /// <summary>
@@ -600,20 +600,20 @@ public partial class Sprite
             Vid.Counts[army]--;
         }
 
-        vid.LastCreatedAt = Map.RealTime;
+        vid.LastCreatedAt = Map.RealCurrentTime;
         vid.Counts[army]++;
 
         Vid = vid;
 
         if (vid.HasTimers)
         {
-            if (Extra is not null)
+            if (ExtraData is not null)
             {
-                Extra.Lifetime = vid.Lifetime;
+                ExtraData.Lifetime = vid.Lifetime;
             }
             else
             {
-                CreateExtra();
+                CreateExtraData();
             }
         }
 
@@ -690,7 +690,7 @@ public partial class Sprite
         var layout = Vid;
         var direction = GetShownDirection(_direction);
 
-        FirstFrame = layout.GetFirstFrame(state) + layout.GetDirectionIndex(direction) * layout.GetFramesPerDirection(state);
+        FirstFrame = layout.GetFirstFrame(state) + layout.RealDirection(direction) * layout.GetFramesPerDirection(state);
         Frame = FirstFrame;
         Animation = state;
         LastFrame = state > SpriteAnimation.Unload && layout.GetFrameCount(state) == 0
@@ -738,7 +738,7 @@ public partial class Sprite
         if (layout.Directions != 1)
         {
             int frameOffset = Frame - FirstFrame;
-            FirstFrame = layout.GetFirstFrame(Animation) + layout.GetDirectionIndex(shown) * layout.GetFramesPerDirection(Animation);
+            FirstFrame = layout.GetFirstFrame(Animation) + layout.RealDirection(shown) * layout.GetFramesPerDirection(Animation);
             LastFrame = FirstFrame + layout.GetFramesPerDirection(Animation) - 1;
             Frame = FirstFrame + frameOffset;
         }
@@ -890,9 +890,9 @@ public partial class Sprite
     /// </summary>
     /// <param name="screen">The screen to draw to.</param>
     /// <param name="map">The map.</param>
-    /// <param name="camera">The top left corner of the view, in map pixels.</param>
+    /// <param name="shift">The top left corner of the view, in map pixels.</param>
     [EngineRoutine(0x0040ec40)]
-    public virtual void Draw(Screen screen, Map map, Vector2 camera) => Vid.Draw(screen, map, this, camera);
+    public virtual void Draw(Screen screen, Map map, Vector2 shift) => Vid.Draw(screen, map, this, shift);
 
     /// <summary>
     /// Returns the gamma of the sprite, made of its own gamma or its army's, plus the gamma of the current keyframe.
@@ -901,7 +901,7 @@ public partial class Sprite
     [EngineRoutine(0x004430b0)]
     public Gamma GetGamma()
     {
-        var gamma = HasExtra && (GammaOverride.Negative != 0 || GammaOverride.Positive != 0) ? GammaOverride : Vid.Gammas[(int)Army & Vid.ArmyMask];
+        var gamma = HasExtraData && (GammaOverride.Negative != 0 || GammaOverride.Positive != 0) ? GammaOverride : Vid.Gammas[(int)Army & Vid.ArmyMask];
         if (!Vid.HasColorKeyframes)
             return gamma;
 
@@ -973,7 +973,7 @@ public partial class Sprite
             return AttackResult.NoOrder;
         }
 
-        float distance = Position.AsVector2().MeasureOctagonalDistance(GoalPosition.AsVector2());
+        float distance = Position.AsVector2().NearLength(GoalPosition.AsVector2());
         bool inRange = Owner is null || Command == Command.DistAttack || distance < Vid.Weapon.BattleRange && distance > Vid.Weapon.MinRange;
         bool aimed = inRange && (RotateTact(MeasureDirectionToGoal(), elapsed) == default || Vid.CanAttackWhileTurning);
 
@@ -1057,7 +1057,7 @@ public partial class Sprite
 
         if (ReferenceCount > 1)
         {
-            Map.Collector.DeleteFromHash(this);
+            Map.Sprites.DeleteFromHash(this);
 
             if (ReferenceCount > 1)
             {
@@ -1109,7 +1109,7 @@ public partial class Sprite
 
         var vid = Vid;
         int elapsed = Map.FrameTime;
-        var next = CalculateNewCoordinates(elapsed);
+        var next = MoveTactCalculateCoordinates(elapsed);
         float current = Map.GetGroundZ(Position.AsVector2());
         float ground = Map.GetGroundZ(next.AsVector2());
         float hover = ground + vid.TopZ;
@@ -1220,14 +1220,14 @@ public partial class Sprite
         {
             var start = Map.GetScreenPoint(this);
             var end = Map.GetScreenPoint(Goal);
-            graphics.DrawLine(Map, start, end, Map.Green);
+            graphics.WuLine(Map, start, end, Map.Green);
         }
 
         if (Link?.Goal is not null)
         {
             var start = Map.GetScreenPoint(Link);
             var end = Map.GetScreenPoint(Link.Goal);
-            graphics.DrawLine(Map, start, end, Map.Red);
+            graphics.WuLine(Map, start, end, Map.Red);
         }
     }
 
@@ -1299,15 +1299,15 @@ public partial class Sprite
     {
         if (SpriteCollector.IsHashed(Vid))
         {
-            Map.Collector.ChangeCoor(this, Position.AsVector2() + delta.AsVector2());
+            Map.Sprites.ChangeCoor(this, Position.AsVector2() + delta.AsVector2());
         }
 
-        uint stamp = Map.RealTime;
+        uint realTime = Map.RealCurrentTime;
 
-        if (Extra is not null && Extra.PreviousPositionStamp != stamp)
+        if (ExtraData is not null && ExtraData.PreviousPositionRealTime != realTime)
         {
-            Extra.PreviousPositionStamp = stamp;
-            Extra.PreviousPosition = Position;
+            ExtraData.PreviousPositionRealTime = realTime;
+            ExtraData.PreviousPosition = Position;
         }
 
         Position += delta;
@@ -1444,7 +1444,7 @@ public partial class Sprite
             var shift = GetChildShift(vid,slot,i,offsetDirection,out var lateral);
             var childPosition = new Vector3(shift.X + Position.X, shift.Y + Position.Y, vid.ChildZ[slot] + Position.Z);
 
-            if (child.Class == SpriteClass.Unit && Map.Collector.CanPlace(child, childPosition) is not null || state == SpriteAnimation.Fight && Goal is null)
+            if (child.Class == SpriteClass.Unit && Map.Sprites.CanPlace(child, childPosition) is not null || state == SpriteAnimation.Fight && Goal is null)
                 continue;
 
             var childDirection = child.Properties.HasFlag(ObjectProperties.RandomBirth) ? new Angle((byte)(Map.Random.Next() & byte.MaxValue)) : Direction;
@@ -1590,7 +1590,7 @@ public partial class Sprite
     [EngineRoutine(0x00445470)]
     public void PlaySfx(int id)
     {
-        Map.Sound.PlayAt(id, Position.ToDrawPosition() - Map.Camera - Map.Session.Graphics.ScreenSize.ToVector2() * Map.HalfShare);
+        Map.Sound.PlayAt(id, Position.ToDrawPosition() - Map.Shift - Map.Session.Graphics.ScreenSize.ToVector2() * Map.HalfShare);
     }
 
     [EngineRoutine(0x00445fb0)]
@@ -1662,7 +1662,7 @@ public partial class Sprite
         if (text.IsEmpty)
             return;
 
-        EnsureExtra();
+        EnsureExtraData();
         text = Map.GetAfter(text, ItemMark);
         int item = 0;
         while (!text.IsEmpty)
@@ -1672,7 +1672,7 @@ public partial class Sprite
                 item = scanned;
             }
 
-            Extra!.Items.Insert(item);
+            ExtraData!.Items.Insert(item);
             text = Map.GetAfter(text, ItemMark);
         }
     }
@@ -1784,21 +1784,21 @@ public partial class Sprite
         }
 
         var position = Position;
-        float bottom = position.Y - position.Z + vid.Half.Y - Map.Camera.Y;
-        float right = vid.Half.X + position.X - Map.Camera.X;
-        float top = position.Y - position.Z - vid.Half.Y - Map.Camera.Y;
-        float left = position.X - vid.Half.X - Map.Camera.X;
-        Map.Session.Graphics.DrawRectangle(Map, new Vector2(left, top), new Vector2(right, bottom), color);
+        float bottom = position.Y - position.Z + vid.Half.Y - Map.Shift.Y;
+        float right = vid.Half.X + position.X - Map.Shift.X;
+        float top = position.Y - position.Z - vid.Half.Y - Map.Shift.Y;
+        float left = position.X - vid.Half.X - Map.Shift.X;
+        Map.Session.Graphics.Box(Map, new Vector2(left, top), new Vector2(right, bottom), color);
 
         if (type.HasFlag(OldSpriteType.Object) || type.HasFlag(OldSpriteType.Unit))
         {
-            float feet = position.Y - position.Z - Map.Camera.Y;
-            float roof = position.Y - position.Z - vid.Size.Z - Map.Camera.Y;
-            float x = position.X - Map.Camera.X;
-            Map.Session.Graphics.DrawLine(Map, new Vector2(x, roof), new Vector2(x, feet), Map.Blue);
+            float feet = position.Y - position.Z - Map.Shift.Y;
+            float roof = position.Y - position.Z - vid.Size.Z - Map.Shift.Y;
+            float x = position.X - Map.Shift.X;
+            Map.Session.Graphics.WuLine(Map, new Vector2(x, roof), new Vector2(x, feet), Map.Blue);
         }
 
-        Map.Session.Graphics.DrawFormattedText(new Vector2(position.X - Map.Camera.X + Map.TextLineOffset, position.Y - position.Z - Map.Camera.Y), $"{(int)vid.Id}");
+        Map.Session.Graphics.DrawFormattedText(new Vector2(position.X - Map.Shift.X + Map.TextLineOffset, position.Y - position.Z - Map.Shift.Y), $"{(int)vid.Id}");
     }
 
     [EngineRoutine(0x00442a10)]

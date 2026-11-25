@@ -30,7 +30,7 @@ public partial class Sprite
         if (seeker.Army == Army.Monsters)
             return flagman is not null && seeker.TryTake(flagman, ref best, ref bestDistance) ? flagman : best;
 
-        var listed = Map.Collector.Listed;
+        var listed = Map.Sprites.Listed;
 
         for (int i = listed.Length - 1; i >= 0; i--)
         {
@@ -98,7 +98,7 @@ public partial class Sprite
             Direction.MeasureTurnTo(DirectionTo(candidate)) > ForwardCone)
             return false;
 
-        float distance = Position.AsVector2().MeasureOctagonalDistance(candidate.Position.AsVector2());
+        float distance = Position.AsVector2().NearLength(candidate.Position.AsVector2());
 
         if (distance > vid.Weapon.DetectRange || distance < vid.Weapon.MinRange)
             return false;

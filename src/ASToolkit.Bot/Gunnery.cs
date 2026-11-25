@@ -57,7 +57,7 @@ internal sealed class Gunnery
 
             if (!_state.HasAmmo(slot) || weapon is null || !weapon.IsArmed ||
                 distance > weapon.Weapon.BattleRange ||
-                !HasClearAim(target, _map.Player.Position.AsVector2(), slot))
+                !HasClearAim(target, _map.Flagman(0)!.Position.AsVector2(), slot))
                 continue;
 
             var profile = Attacks.Get(weapon);
@@ -66,14 +66,14 @@ internal sealed class Gunnery
             if (distance > profile.Reach + radius)
                 continue;
 
-            if (profile.CanHurtOwnArmy && radius > 0 && distance <= radius + _map.Player.Vid.Half.Length())
+            if (profile.CanHurtOwnArmy && radius > 0 && distance <= radius + _map.Flagman(0)!.Vid.Half.Length())
                 continue;
 
             if (radius > 0 && !IsInBlastHeight(target, profile))
                 continue;
 
             float chance = MeasureHitChance(target, weapon, profile);
-            float harm = profile.BlastRadius > _map.Player.Vid.Half.Length() ? MeasureHarm(target, profile) * chance
+            float harm = profile.BlastRadius > _map.Flagman(0)!.Vid.Half.Length() ? MeasureHarm(target, profile) * chance
                 : profile.Rounds > 1 ? MeasureSpreadHarm(target, weapon, profile)
                 : Math.Min(target.Hp, profile.Damage * chance);
             float rate = harm * FramePacer.MillisecondsPerSecond / Math.Max(_map.FrameTime, weapon.AttackTime);
@@ -103,7 +103,7 @@ internal sealed class Gunnery
             return point;
 
         float spread = GetSpread(torso, out var payload);
-        var offset = target.Position.AsVector2() - _map.Player.Position.AsVector2();
+        var offset = target.Position.AsVector2() - _map.Flagman(0)!.Position.AsVector2();
 
         if (payload is null || payload.Damage <= 0 || payload.IsExplosive || spread <= 0 || offset.LengthSquared() < 1)
             return point;
@@ -119,7 +119,7 @@ internal sealed class Gunnery
         return new Vector3(ground, _map.GetGroundZ(ground));
     }
 
-    public bool HasClearAim(Sprite target) => HasClearAim(target, _map.Player.Position.AsVector2());
+    public bool HasClearAim(Sprite target) => HasClearAim(target, _map.Flagman(0)!.Position.AsVector2());
 
     public bool HasClearAim(Sprite target, Vector2 from, int slot = Sprite.Pistols)
     {
@@ -139,7 +139,7 @@ internal sealed class Gunnery
             return true;
 
         var muzzle = from + new Vector2(forward.X * launch.Y, forward.Y * launch.Y * VerticalProjection);
-        float height = _map.Player.Position.Z + _map.Player.Vid.LinkOffset.Z + launch.Z;
+        float height = _map.Flagman(0)!.Position.Z + _map.Flagman(0)!.Vid.LinkOffset.Z + launch.Z;
 
         var aim = target.Position with { Z = target.Position.Z + Math.Min(GroundAimHeight, target.Vid.Size.Z / 2) };
         var half = target.Vid.Id is KnownObject.BreakableWall or KnownObject.BreakableWall2 ? target.Vid.Half + new Vector2(WallSlack) : target.Vid.Half;
@@ -151,20 +151,20 @@ internal sealed class Gunnery
 
     public bool IsOnScreen(Vector2 point)
     {
-        var offset = Vector2.Abs(point - _map.Player.Position.AsVector2());
+        var offset = Vector2.Abs(point - _map.Flagman(0)!.Position.AsVector2());
 
         return offset.X <= ScreenHalf.X && offset.Y <= ScreenHalf.Y;
     }
 
-    private float GetDistance(Sprite target) => _map.Player.Position.AsVector2().MeasureOctagonalDistance(target.Position.AsVector2());
+    private float GetDistance(Sprite target) => _map.Flagman(0)!.Position.AsVector2().NearLength(target.Position.AsVector2());
 
     private bool IsCalm(Sprite target)
     {
-        var center = _map.Player.Position.AsVector2();
+        var center = _map.Flagman(0)!.Position.AsVector2();
         var reach = new Vector2(CalmReach);
-        foreach (var sprite in _map.Collector.GetNear(center - reach, center + reach))
+        foreach (var sprite in _map.Sprites.GetNear(center - reach, center + reach))
         {
-            if (sprite != target && sprite is { Army: Army.Monsters, IsAlive: true } && center.MeasureOctagonalDistance(sprite.Position.AsVector2()) <= CalmReach)
+            if (sprite != target && sprite is { Army: Army.Monsters, IsAlive: true } && center.NearLength(sprite.Position.AsVector2()) <= CalmReach)
                 return false;
         }
 
@@ -179,9 +179,9 @@ internal sealed class Gunnery
         var center = target.Position.AsVector2();
         var reach = new Vector2(profile.BlastRadius + MaxUnitHalf);
         float harm = 0;
-        foreach (var sprite in _map.Collector.GetNear(center - reach, center + reach))
+        foreach (var sprite in _map.Sprites.GetNear(center - reach, center + reach))
         {
-            if (sprite.Army == target.Army && sprite.IsAlive && center.MeasureOctagonalDistance(sprite.Position.AsVector2()) <= profile.BlastRadius && IsInBlastHeight(sprite, profile))
+            if (sprite.Army == target.Army && sprite.IsAlive && center.NearLength(sprite.Position.AsVector2()) <= profile.BlastRadius && IsInBlastHeight(sprite, profile))
             {
                 harm += Math.Min(profile.Damage, sprite.Hp);
             }
@@ -197,11 +197,11 @@ internal sealed class Gunnery
         var center = target.Position.AsVector2();
         var reach = new Vector2(scatter + MaxUnitHalf);
         float harm = 0;
-        foreach (var sprite in _map.Collector.GetNear(center - reach, center + reach))
+        foreach (var sprite in _map.Sprites.GetNear(center - reach, center + reach))
         {
             float unitReach = (sprite.Vid.Half.X + sprite.Vid.Half.Y) / 2;
 
-            if (sprite.Army != target.Army || !sprite.IsAlive || center.MeasureOctagonalDistance(sprite.Position.AsVector2()) > scatter + unitReach)
+            if (sprite.Army != target.Army || !sprite.IsAlive || center.NearLength(sprite.Position.AsVector2()) > scatter + unitReach)
                 continue;
 
             float share = Math.Min(1, unitReach * unitReach / (scatter * scatter));
@@ -306,7 +306,7 @@ internal sealed class Gunnery
     // Steps a round along its line and, at the first spot where the round can't stand, treats the line as clear only if that spot lies inside the target
     private bool HasClearFlight(Vid bullet, Vector3 start, Vector3 aim, Vector2 targetHalf)
     {
-        float length = start.AsVector2().MeasureOctagonalDistance(aim.AsVector2());
+        float length = start.AsVector2().NearLength(aim.AsVector2());
         for (float distance = FlightStep; distance < length; distance += FlightStep)
         {
             var point = Vector3.Lerp(start, aim, distance / length);

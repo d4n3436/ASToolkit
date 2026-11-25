@@ -27,11 +27,11 @@ public partial class Map
     public int PlayedDemoOffset => _playedOffset;
 
     /// <summary>
-    /// Plays or records the input of the next demo frame, waiting on the session clock until a played frame is due.
+    /// Plays or records the input of the next demo frame, waiting until a played frame is due.
     /// </summary>
     /// <returns><see langword="true"/> to draw the frame; <see langword="false"/> when playback ended or the frame runs late.</returns>
     [EngineRoutine(0x0040e660)]
-    public bool StepDemo()
+    public bool DemoTact()
     {
         bool shouldDraw = true;
 
@@ -58,17 +58,17 @@ public partial class Map
             {
                 if (Session.TimeGetTime() - Session.DemoPacedAt <= due)
                 {
-                    uint now;
+                    uint realTime;
                     do
                     {
-                        now = Session.TimeGetTime();
+                        realTime = Session.TimeGetTime();
                     }
-                    while (now - Session.DemoPacedAt <= due);
+                    while (realTime - Session.DemoPacedAt <= due);
                 }
             }
             else
             {
-                shouldDraw = (uint)(Time - time) < DemoDrawLag;
+                shouldDraw = (uint)(CurrentTime - time) < DemoDrawLag;
             }
 
             SetTime(time);
@@ -78,7 +78,7 @@ public partial class Map
 
         if (_recordedDemo is not null)
         {
-            WriteDemo(_recordedDemo, new DemoFrame(Time, Input.Save()));
+            WriteDemo(_recordedDemo, new DemoFrame(CurrentTime, Input.Save()));
         }
 
         return shouldDraw;
@@ -130,7 +130,7 @@ public partial class Map
         _flags |= MapFlags.RecordingDemo;
         _recordedDemo.Write(mapName);
         _recordedDemo.WriteByte(0);
-        WriteDemo(_recordedDemo, new DemoHeader(seed, Time));
+        WriteDemo(_recordedDemo, new DemoHeader(seed, CurrentTime));
     }
 
     private void CloseDemoFile()
@@ -156,7 +156,7 @@ public partial class Map
 
         _playedDemo = null;
         _flags &= ~MapFlags.PlayingDemo;
-        CursorSprite.Enable(FileSystem);
+        Mouse.Enable(FileSystem);
         RequestLoad(mapName);
     }
 

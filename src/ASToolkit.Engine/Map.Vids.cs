@@ -28,8 +28,8 @@ public partial class Map
     private const float KeyScale = 0.001f;
     private const int VidSize = 1156;
     private const int OneBits = 0x3f800000;
-    private const int MaxId = 0x7ff;
-    private const int VidTableSize = MaxId + 1;
+    private const int MaxVid = 0x7ff;
+    private const int VidTableSize = MaxVid + 1;
     private const string FontExtension = ".fon";
     private const string TrueTypeExtension = ".ttf";
     private const string AnimationExtension = ".flc";
@@ -72,7 +72,7 @@ public partial class Map
             LoadWeaponRecords(ref resource);
             if (_weaponCount != 0)
             {
-                Session.Error.Write($"LoadWeapon::No={_weaponCount,-5}             sizeof(WEAPON)={WeaponRecordSize,-4}");
+                Session.Error.Log($"LoadWeapon::No={_weaponCount,-5}             sizeof(WEAPON)={WeaponRecordSize,-4}");
             }
         }
 
@@ -89,7 +89,7 @@ public partial class Map
         do
         {
             int id = resource.Read<int>();
-            if (id > MaxId)
+            if (id > MaxVid)
             {
                 Session.Error.Error(MapLogTag, LogError.Invalid, id, "nvid > MAX_VID"u8);
                 throw new InvalidDataException($"The object ID {id} is past the end of the VID table.");
@@ -136,7 +136,7 @@ public partial class Map
             }
         }
 
-        Session.Error.Write($"LoadVid::No   ={_vidCount,-15}   sizeof(VID)   ={VidSize,-5}    load time     ={Session.TimeGetTime() - start}ms   MaxSizeX,Y={largest.Width},{largest.Height}");
+        Session.Error.Log($"LoadVid::No   ={_vidCount,-15}   sizeof(VID)   ={VidSize,-5}    load time     ={Session.TimeGetTime() - start}ms   MaxSizeX,Y={largest.Width},{largest.Height}");
     }
 
     /// <summary>
@@ -303,7 +303,7 @@ public partial class Map
 
         foreach (var id in _objects.Ids)
         {
-            if ((int)id > MaxId)
+            if ((int)id > MaxVid)
             {
                 Session.Error.Error(MapLogTag, LogError.Invalid, 0);
                 continue;
@@ -337,7 +337,7 @@ public partial class Map
             if (counts[0] + counts[1] + counts[2] + counts[3] == 0)
                 continue;
 
-            Session.Error.Write($"NoVid[{i,3}]={counts[0]} {counts[1]} {counts[2]} {counts[3]} {vid.Name} Layer={(int)vid.Layer} {vid.Path}");
+            Session.Error.Log($"NoVid[{i,3}]={counts[0]} {counts[1]} {counts[2]} {counts[3]} {vid.Name} Layer={(int)vid.Layer} {vid.Path}");
         }
     }
 
@@ -398,7 +398,7 @@ public partial class Map
         }
     }
 
-    private static void LogUnopened(MyError? error, string path) => error?.Write($"LOAD::Can't open file {path}");
+    private static void LogUnopened(MyError? error, string path) => error?.Log($"LOAD::Can't open file {path}");
 
     private static ReadOnlyMemory<byte> ConvertPicture(string gameFolder, string path, bool isText, MyError? error)
     {

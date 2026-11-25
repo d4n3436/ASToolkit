@@ -44,7 +44,7 @@ internal sealed class Player
         };
     }
 
-    public Sprite? Sprite { get; private set; }
+    public Sprite? Flagman { get; private set; }
 
     public Sprite? Hovered { get; set; }
 
@@ -59,12 +59,12 @@ internal sealed class Player
     [EngineRoutine(0x00413360)]
     public void Reset()
     {
-        if (Sprite is not null)
+        if (Flagman is not null)
         {
-            _map.Release(Sprite);
+            _map.Release(Flagman);
         }
 
-        Sprite = null;
+        Flagman = null;
 
         if (Hovered is not null)
         {
@@ -80,12 +80,12 @@ internal sealed class Player
     {
         sprite?.AddRef();
 
-        if (Sprite is not null)
+        if (Flagman is not null)
         {
-            _map.Release(Sprite);
+            _map.Release(Flagman);
         }
 
-        Sprite = sprite;
+        Flagman = sprite;
     }
 
     [EngineRoutine(0x00413440)]
@@ -104,7 +104,7 @@ internal sealed class Player
         ShareGroupAttacks();
         Messages.Tact();
 
-        var player = Sprite;
+        var player = Flagman;
 
         if (player is null)
             return;
@@ -115,7 +115,7 @@ internal sealed class Player
         var flags = input.Flags;
         ApplyButtons(input, player);
         ScrollWeapons(input);
-        player = Sprite!;
+        player = Flagman!;
         var cursorDirection = Angle.FromOffset(new Vector2(input.Cursor.X - player.Position.X, player.Position.Z + input.Cursor.Y - player.Position.Y));
         Steer(player, flags, _settings.IsMovementRelativeToCursor ? cursorDirection : default);
         if (flags.HasFlag(InputFlags.Left) || flags.HasFlag(InputFlags.Right) || flags.HasFlag(InputFlags.Down) || flags.HasFlag(InputFlags.Up))
@@ -136,10 +136,10 @@ internal sealed class Player
     {
         _sprites.Delete(removed);
 
-        if (Sprite == removed)
+        if (Flagman == removed)
         {
             _map.Release(removed);
-            Sprite = null;
+            Flagman = null;
         }
 
         if (Hovered == removed)
@@ -197,14 +197,14 @@ internal sealed class Player
             Map.Action(player, ActionCode.Move, (int)point.X, (int)point.Y);
         }
 
-        if ((flags.HasFlag(InputFlags.Left) || flags.HasFlag(InputFlags.Right) || flags.HasFlag(InputFlags.Down) || flags.HasFlag(InputFlags.Up)) && Sprite!.Command == Command.Move)
+        if ((flags.HasFlag(InputFlags.Left) || flags.HasFlag(InputFlags.Right) || flags.HasFlag(InputFlags.Down) || flags.HasFlag(InputFlags.Up)) && Flagman!.Command == Command.Move)
         {
-            Sprite.SetCommandWithoutLink(Command.None);
+            Flagman.SetCommandWithoutLink(Command.None);
         }
 
         if (flags.HasFlag(InputFlags.First))
         {
-            var sprite = (Man)Sprite!;
+            var sprite = (Man)Flagman!;
 
             if (sprite.Vid.Class == SpriteClass.Man && sprite.Rounds < sprite.Vid.ChildCounts[(int)SpriteAnimation.Fight])
             {
@@ -213,18 +213,18 @@ internal sealed class Player
                 }
             }
 
-            Map.Action(Sprite!, ActionCode.CoorAttack, (int)input.Cursor.X, (int)input.Cursor.Y);
+            Map.Action(Flagman!, ActionCode.CoorAttack, (int)input.Cursor.X, (int)input.Cursor.Y);
         }
 
-        if (input.Key is >= FirstWeaponKey and <= LastWeaponKey && Sprite!.Vid.Class == SpriteClass.Man)
+        if (input.Key is >= FirstWeaponKey and <= LastWeaponKey && Flagman!.Vid.Class == SpriteClass.Man)
         {
-            ((Man)Sprite!).ChangeWeapon(input.Key - FirstWeaponKey);
+            ((Man)Flagman!).ChangeWeapon(input.Key - FirstWeaponKey);
         }
     }
 
     private void ScrollWeapons(Input input)
     {
-        int weaponSlot = Sprite!.WeaponSlot;
+        int weaponSlot = Flagman!.WeaponSlot;
         int notches = input.Wheel;
 
         if (notches == 0)
@@ -247,7 +247,7 @@ internal sealed class Player
                 {
                     weaponSlot++;
 
-                    if (((Man)Sprite!).ChangeWeapon(weaponSlot))
+                    if (((Man)Flagman!).ChangeWeapon(weaponSlot))
                         break;
                 }
 
@@ -261,7 +261,7 @@ internal sealed class Player
             {
                 weaponSlot--;
 
-                if (((Man)Sprite!).ChangeWeapon(weaponSlot))
+                if (((Man)Flagman!).ChangeWeapon(weaponSlot))
                     break;
             }
         }

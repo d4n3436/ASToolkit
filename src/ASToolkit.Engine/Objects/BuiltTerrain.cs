@@ -38,14 +38,14 @@ public sealed class BuiltTerrain : Sprite
     /// </summary>
     /// <param name="screen">The screen to draw to.</param>
     /// <param name="map">The map.</param>
-    /// <param name="camera">The top left corner of the view, in map pixels.</param>
+    /// <param name="shift">The top left corner of the view, in map pixels.</param>
     [EngineRoutine(0x0040eed0)]
-    public override void Draw(Screen screen, Map map, Vector2 camera)
+    public override void Draw(Screen screen, Map map, Vector2 shift)
     {
         var ground = map.HardwareGroundVid;
         if (ground != map.EmptyVid && ground.Directions == 1)
             return;
 
-        base.Draw(screen, map, camera);
+        base.Draw(screen, map, shift);
     }
 }

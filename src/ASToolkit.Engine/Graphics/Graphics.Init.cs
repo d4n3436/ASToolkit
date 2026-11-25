@@ -61,11 +61,11 @@ public sealed partial class Graphics
             SetViewport(RectangleF.FromLTRB(0, 0, ScreenSize.Width, ScreenSize.Height));
         }
 
-        Error.Write($"SetViewPort ({Viewport.Left:F0},{Viewport.Top:F0}) - ({Viewport.Right:F0},{Viewport.Bottom:F0})");
-        Error.Write(DescribeTextureStage());
+        Error.Log($"SetViewPort ({Viewport.Left:F0},{Viewport.Top:F0}) - ({Viewport.Right:F0},{Viewport.Bottom:F0})");
+        Error.Log(DescribeTextureStage());
         SetDefaultRenderStates();
-        Error.Write(DescribeTextureStage());
-        Error.Write(Texture.ReadCapabilities(_session));
+        Error.Log(DescribeTextureStage());
+        Error.Log(Texture.SetDeviceCapabilities(_session));
         if (!CreateBuffers(Buffers))
             return 1;
 
@@ -80,7 +80,7 @@ public sealed partial class Graphics
         int bytesPerPixel = Flags.HasFlag(GraphicsFlags.Color32) ? sizeof(uint) : sizeof(ushort);
         int lockPitch = (int)ScreenSize.Width * bytesPerPixel;
         int pitch = lockPitch / bytesPerPixel;
-        Error.Write($"Pitch={bytesPerPixel * pitch} zPitch={DepthWidth * sizeof(ushort)}");
+        Error.Log($"Pitch={bytesPerPixel * pitch} zPitch={DepthWidth * sizeof(ushort)}");
         ReloadPalettes();
         return 0;
     }
@@ -97,7 +97,7 @@ public sealed partial class Graphics
         Flags = IsNonGdiDevice ? Flags | GraphicsFlags.NonGdi : Flags & ~GraphicsFlags.NonGdi;
         if (IsNonGdiDevice)
         {
-            Error.Write("zm_nongdi"u8);
+            Error.Log("zm_nongdi"u8);
         }
 
         Flags &= ~GraphicsFlags.NonGdi;
@@ -196,6 +196,6 @@ public sealed partial class Graphics
         AddCap(caps, Flags.HasFlag(GraphicsFlags.Color32), "COLOR32 "u8);
         AddCap(caps, Flags.HasFlag(GraphicsFlags.VSync), "VSYNC "u8);
         caps.AddRange(Encoding.ASCII.GetBytes($"PIXELSHADER={PixelShaderVersion}"));
-        Error.Write($"caps={MyError.Decode(CollectionsMarshal.AsSpan(caps))}");
+        Error.Log($"caps={MyError.Decode(CollectionsMarshal.AsSpan(caps))}");
     }
 }

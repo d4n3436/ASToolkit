@@ -111,7 +111,7 @@ internal static class EngineTestMap
 
     public static Sprite FindPlacedMan(Map map)
     {
-        foreach (var sprite in map.Collector.Listed)
+        foreach (var sprite in map.Sprites.Listed)
         {
             if (sprite.Vid.Class == SpriteClass.Man)
                 return sprite;

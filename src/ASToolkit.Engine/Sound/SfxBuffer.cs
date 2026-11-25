@@ -79,7 +79,7 @@ internal struct SfxBuffer
 
         if (sound.Device?.PlayVoice(index, isLooping) ?? false)
         {
-            sound.Error?.Write("!!!ERROR!!! SFXBUFFER::buffer is lost"u8);
+            sound.Error?.Log("!!!ERROR!!! SFXBUFFER::buffer is lost"u8);
             sound.ReloadBuffers();
         }
         else

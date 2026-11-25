@@ -68,7 +68,7 @@ public sealed partial class Script
         int count = BinaryPrimitives.ReadInt32LittleEndian(head);
         _stack.Expand(Math.Max(count, MinCapacity));
         _stack.Count = count;
-        int offset = sizeof(int) + ReadState(file[sizeof(int)..]);
+        int offset = sizeof(int) + LoadVar(file[sizeof(int)..]);
         int size = BinaryPrimitives.ReadInt32LittleEndian(file.Span[offset..]);
         offset += sizeof(int);
         _code = file.Slice(offset, size).ToArray();
@@ -137,7 +137,7 @@ public sealed partial class Script
                 _text = [];
             }
 
-            Error?.Write($"LoadScript::ByteCode={_codeSize} varNo={_objects.Count} DefineNo={_defines.Count} stackNo={_stack.Count}");
+            Error?.Log($"LoadScript::ByteCode={_codeSize} varNo={_objects.Count} DefineNo={_defines.Count} stackNo={_stack.Count}");
             _defines.Release();
             if (_codeSize == 0)
             {
@@ -405,7 +405,7 @@ public sealed partial class Script
     }
 
     [EngineRoutine(0x004202d0)]
-    private byte[] ReadDefineLine()
+    private byte[] GetLine()
     {
         SkipOrFailAtEnd();
         int start = _position;
@@ -434,7 +434,7 @@ public sealed partial class Script
     }
 
     [EngineRoutine(0x00420570)]
-    private int ParseStringLiteral(Span<byte> output)
+    private int PutString(Span<byte> output)
     {
         if (_text[_position] != '"')
             return 0;
@@ -541,7 +541,7 @@ public sealed partial class Script
     }
 
     [EngineRoutine(0x00421b70)]
-    private void EmitBinaryOp(int start, ScriptOpcode opcode)
+    private void SetOperation(int start, ScriptOpcode opcode)
     {
         if (_codeBuffer[start] != (byte)ScriptOpcode.PushNumber || _codeBuffer[start + 5] != (byte)ScriptOpcode.PushNumber || _codeSize - start != 10)
         {
@@ -605,7 +605,7 @@ public sealed partial class Script
             if (TryWord("^"u8))
             {
                 ParseComparison();
-                EmitBinaryOp(start, ScriptOpcode.Xor);
+                SetOperation(start, ScriptOpcode.Xor);
             }
             else if (TryWord("&&"u8))
             {
@@ -615,7 +615,7 @@ public sealed partial class Script
             else if (TryWord("&"u8))
             {
                 ParseComparison();
-                EmitBinaryOp(start, ScriptOpcode.And);
+                SetOperation(start, ScriptOpcode.And);
             }
             else if (TryWord("||"u8))
             {
@@ -625,7 +625,7 @@ public sealed partial class Script
             else if (TryWord("|"u8))
             {
                 ParseComparison();
-                EmitBinaryOp(start, ScriptOpcode.Or);
+                SetOperation(start, ScriptOpcode.Or);
             }
             else
                 break;
@@ -665,7 +665,7 @@ public sealed partial class Script
         while (TryWord("|"u8))
         {
             ParseBitwiseXor();
-            EmitBinaryOp(start, ScriptOpcode.Or);
+            SetOperation(start, ScriptOpcode.Or);
         }
     }
 
@@ -676,7 +676,7 @@ public sealed partial class Script
         while (TryWord("^"u8))
         {
             ParseBitwiseAnd();
-            EmitBinaryOp(start, ScriptOpcode.Xor);
+            SetOperation(start, ScriptOpcode.Xor);
         }
     }
 
@@ -687,7 +687,7 @@ public sealed partial class Script
         while (TryWord("&"u8))
         {
             ParseComparison();
-            EmitBinaryOp(start, ScriptOpcode.And);
+            SetOperation(start, ScriptOpcode.And);
         }
     }
 
@@ -706,7 +706,7 @@ public sealed partial class Script
             else if (TryWord(">>"u8))
             {
                 ParseAdditive();
-                EmitBinaryOp(start, ScriptOpcode.ShiftRight);
+                SetOperation(start, ScriptOpcode.ShiftRight);
             }
             else if (TryWord(">"u8))
             {
@@ -721,7 +721,7 @@ public sealed partial class Script
             else if (TryWord("<<"u8))
             {
                 ParseAdditive();
-                EmitBinaryOp(start, ScriptOpcode.ShiftLeft);
+                SetOperation(start, ScriptOpcode.ShiftLeft);
             }
             else if (TryWord("<"u8))
             {
@@ -753,12 +753,12 @@ public sealed partial class Script
             if (TryWord("+"u8))
             {
                 ParseMultiplicative();
-                EmitBinaryOp(start, ScriptOpcode.Add);
+                SetOperation(start, ScriptOpcode.Add);
             }
             else if (TryWord("-"u8))
             {
                 ParseMultiplicative();
-                EmitBinaryOp(start, ScriptOpcode.Subtract);
+                SetOperation(start, ScriptOpcode.Subtract);
             }
             else
                 break;
@@ -775,17 +775,17 @@ public sealed partial class Script
             if (TryWord("*"u8))
             {
                 ParseTerm();
-                EmitBinaryOp(start, ScriptOpcode.Multiply);
+                SetOperation(start, ScriptOpcode.Multiply);
             }
             else if (TryWord("/"u8))
             {
                 ParseTerm();
-                EmitBinaryOp(start, ScriptOpcode.Divide);
+                SetOperation(start, ScriptOpcode.Divide);
             }
             else if (TryWord("%"u8))
             {
                 ParseTerm();
-                EmitBinaryOp(start, ScriptOpcode.Modulo);
+                SetOperation(start, ScriptOpcode.Modulo);
             }
             else
                 break;
@@ -837,7 +837,7 @@ public sealed partial class Script
             if (character == '"')
             {
                 Emit(ScriptOpcode.PushText);
-                _codeSize += ParseStringLiteral(_codeBuffer.AsSpan(_codeSize));
+                _codeSize += PutString(_codeBuffer.AsSpan(_codeSize));
             }
             else if (character == '\'')
             {
@@ -981,7 +981,7 @@ public sealed partial class Script
     {
         do
         {
-            ParseIntDeclarator(initializeAtRunTime);
+            IntVar(initializeAtRunTime);
         }
         while (TryWord(","u8));
     }
@@ -1207,7 +1207,7 @@ public sealed partial class Script
     }
 
     [EngineRoutine(0x00420720)]
-    private void ParseIntDeclarator(bool initializeAtRunTime = false)
+    private void IntVar(bool initializeAtRunTime = false)
     {
         var flags = ScriptStackFlags.None;
         SkipOrFailAtEnd();
@@ -1401,7 +1401,7 @@ public sealed partial class Script
                     }
                     else
                     {
-                        int length = ParseStringLiteral(literal);
+                        int length = PutString(literal);
                         text = length > 0 ? literal[..(length - 1)].ToArray() : [];
                     }
 
@@ -1682,7 +1682,7 @@ public sealed partial class Script
         _isSubstitutionOff = true;
         byte[] name = ReadName().ToArray();
         _isSubstitutionOff = false;
-        var value = ReadDefineLine();
+        var value = GetLine();
         int found = _defines.Location(name);
         if (found >= 0)
         {
@@ -1766,7 +1766,7 @@ public sealed partial class Script
         {
             if (TryWord("int"u8))
             {
-                ParseIntDeclarator();
+                IntVar();
             }
             else if (TryWord("string"u8))
             {
@@ -1801,7 +1801,7 @@ public sealed partial class Script
         {
             if (TryWord("int"u8))
             {
-                ParseIntDeclarator();
+                IntVar();
             }
             else if (TryWord("string"u8))
             {

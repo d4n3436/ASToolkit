@@ -52,7 +52,7 @@ public class PlaythroughTests
         Assert.Equal(first.Pickups, second.Pickups);
 
         var replay = playthrough.LoadReplay(level.Analysis, loadout, first.Demo.Value);
-        var field = new WalkField(level.Analysis.Grid, true, replay, replay.Collector, replay.FindVid(KnownObject.PlayerStart)!);
+        var field = new WalkField(level.Analysis.Grid, true, replay, replay.Sprites, replay.FindVid(KnownObject.PlayerStart)!);
         var effects = new HashSet<KnownObject>();
         var previous = new Dictionary<Sprite, Vector3>();
         int checkedAt = -1;
@@ -65,13 +65,13 @@ public class PlaythroughTests
                 effects.Add(effect.Vid.Id);
             }
 
-            int time = map.Time;
+            int time = map.CurrentTime;
 
             if (time / 100 == checkedAt / 100)
                 continue;
 
             checkedAt = time;
-            foreach (var unit in map.Monsters.Append(map.Player))
+            foreach (var unit in map.Monsters.Append(map.Flagman(0)!))
             {
 
                 if (unit.Owner?.Link == unit || unit.Vid.Class is not (SpriteClass.Unit or SpriteClass.Avia or SpriteClass.Man) || unit.Animation >= SpriteAnimation.Death)
@@ -94,8 +94,8 @@ public class PlaythroughTests
     {
         var point = unit.Position.AsVector2();
         var half = unit.Vid.Half;
-        var reach = half + map.Collector.LargestHalf;
-        foreach (var sprite in map.Collector.GetNear(point - reach, point + reach))
+        var reach = half + map.Sprites.LargestHalf;
+        foreach (var sprite in map.Sprites.GetNear(point - reach, point + reach))
         {
             var vid = sprite.Vid;
             var offset = Vector2.Abs(sprite.Position.AsVector2() - point);
@@ -112,7 +112,7 @@ public class PlaythroughTests
     {
         while (true)
         {
-            uint realTime = map.TryGetNextDemoTime(out int next) ? map.RealTime + (uint)(next - map.Time) : map.GetPacer().TakeNextRealTime(map);
+            uint realTime = map.TryGetNextDemoTime(out int next) ? map.RealCurrentTime + (uint)(next - map.CurrentTime) : map.GetPacer().TakeNextRealTime(map);
             if (map.StepAimed(realTime) || !map.IsPlayingDemo)
                 yield break;
 

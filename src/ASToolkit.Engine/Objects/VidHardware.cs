@@ -167,9 +167,9 @@ public sealed class VidHardware : Vid
     /// <param name="screen">The screen to draw to.</param>
     /// <param name="map">The map.</param>
     /// <param name="sprite">The sprite.</param>
-    /// <param name="camera">The top left corner of the view, in map pixels.</param>
+    /// <param name="shift">The top left corner of the view, in map pixels.</param>
     [EngineRoutine(0x0041a7f0)]
-    public override void Draw(Screen screen, Map map, Sprite sprite, Vector2 camera)
+    public override void Draw(Screen screen, Map map, Sprite sprite, Vector2 shift)
     {
         if (_tiles.Count == 0)
             return;
@@ -179,8 +179,8 @@ public sealed class VidHardware : Vid
             return;
 
         var position = sprite.Position;
-        int x = (int)(position.X - camera.X);
-        int y = (int)(position.Y - position.Z - camera.Y);
+        int x = (int)(position.X - shift.X);
+        int y = (int)(position.Y - position.Z - shift.Y);
         int z = (int)position.Z;
         float scaleX = Scale.X;
         float scaleY = Scale.Y;
@@ -215,8 +215,8 @@ public sealed class VidHardware : Vid
         {
             if (properties.HasFlag(ObjectProperties.Blur))
             {
-                x = (int)(position.X - camera.X + (sprite.PreviousPosition.X - position.X) * iteration / iterations);
-                y = (int)(position.Y - position.Z - camera.Y + (sprite.PreviousPosition.Y - sprite.PreviousPosition.Z - position.Y + position.Z) * iteration / iterations);
+                x = (int)(position.X - shift.X + (sprite.PreviousPosition.X - position.X) * iteration / iterations);
+                y = (int)(position.Y - position.Z - shift.Y + (sprite.PreviousPosition.Y - sprite.PreviousPosition.Z - position.Y + position.Z) * iteration / iterations);
                 z = (int)((sprite.PreviousPosition.Z - position.Z) * iteration / iterations + position.Z);
             }
 
@@ -374,7 +374,7 @@ public sealed class VidHardware : Vid
         float topDepth = z * DepthUnit + DepthBase;
         if (properties.HasFlag(ObjectProperties.Wave) && !TopZ.IsExactlyZero())
         {
-            topDepth = new Angle((byte)(map.Time >> WaveTimeShift & WaveTableMask)).Sine * TopZ * DepthUnit * 0.5f + topDepth;
+            topDepth = new Angle((byte)(map.CurrentTime >> WaveTimeShift & WaveTableMask)).Sine * TopZ * DepthUnit * 0.5f + topDepth;
         }
 
         float bottomDepth;

@@ -20,7 +20,7 @@ public class OrderStackTests
         Step(map, 60);
 
         Assert.Equal([KnownObject.YellowMonster1], map.Monsters.Select(sprite => sprite.Vid.Id));
-        map.Player.Position = new Vector3(2000, 1000, 0);
+        map.Flagman(0)!.Position = new Vector3(2000, 1000, 0);
         Step(map, 60);
 
         Assert.Equal([KnownObject.YellowMonster1, KnownObject.Monster1], map.Monsters.Select(sprite => sprite.Vid.Id));
@@ -43,7 +43,7 @@ public class OrderStackTests
             if (map.Monsters.Count() <= built.Count)
                 continue;
 
-            built.Add(map.Time);
+            built.Add(map.CurrentTime);
             var sprite = map.Monsters.Last();
             sprite.ChangeCoor(sprite.Position + new Vector3(500, 500, 0));
         }

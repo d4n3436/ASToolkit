@@ -49,8 +49,8 @@ public partial class Map : IDisposable
     private const int StartRandomState = 1;
     private const string ScriptExtension = ".lgc";
     private const string CompiledScriptExtension = ".lgd";
-    private const int ScriptHookCount = 64;
-    private const int NoHookBase = 1000000;
+    private const int EventFunctionCount = 64;
+    private const int NoEventFunctionBase = 1000000;
     private const int ReleaseWindSpeed = 0x19;
     private const int ReleaseWindDirection = 200;
 
@@ -90,7 +90,7 @@ public partial class Map : IDisposable
     private readonly LivingSet _livingFences = new();
     private readonly LivingSet _livingSites = new();
     private readonly LivingSet _livingCharges = new();
-    private readonly int[] _scriptHooks = new int[ScriptHookCount];
+    private readonly int[] _eventFunctionNumbers = new int[EventFunctionCount];
     private int _pausedAt;
     private ObjectTable _objects;
     private int _lastHandle;
@@ -112,7 +112,8 @@ public partial class Map : IDisposable
         Menu = new Menu(this);
         Session = session ?? new GameSession();
         Session.RealCurrentTime = Session.TimeGetTime();
-        Session.PrevRealCurrentTime = Session.RealCurrentTime - StartPreviousRealTimeOffset;
+        Session.PreviousRealCurrentTime = Session.RealCurrentTime - StartPreviousRealTimeOffset;
+        _levelStartTime = (int)Session.RealCurrentTime;
         SetFlag(MapFlags.AppMenu, Session.HasAppMenu);
         _flags |= MapFlags.PlayerControlled | MapFlags.DrawFlagman | MapFlags.DrawSoundCount | MapFlags.MouseTips;
         int fontHeight = Profile.GetInteger(fileSystem, ConfigFile, GraphSection, "FontSizeY"u8, DefaultFontHeight);
@@ -144,12 +145,12 @@ public partial class Map : IDisposable
         Constant.IsDebugMode = Profile.GetInteger(fileSystem, ConfigFile, GameSection, "DebugMode"u8, 0) != 0;
         SetFlag(MapFlags.DrawFps, Profile.GetInteger(fileSystem, ConfigFile, GameSection, "DrawFPS"u8, 0) != 0);
         SetFlag(MapFlags.DrawPresentation, Profile.GetInteger(fileSystem, ConfigFile, GameSection, "DrawPresentation"u8, 1) != 0);
-        Collector = new SpriteCollector(this);
+        Sprites = new SpriteCollector(this);
         LoadVid(ref objectsFile);
 
         EmptyVid.SetWeapons(_weapons!);
-        Collector = new SpriteCollector(Size, Vids, this);
-        CursorSprite = new Mouse(EmptyVid, new Vector3(Session.Graphics.ScreenSize.ToVector2() * HalfShare, 0), default, null, this);
+        Sprites = new SpriteCollector(Size, Vids, this);
+        Mouse = new Mouse(EmptyVid, new Vector3(Session.Graphics.ScreenSize.ToVector2() * HalfShare, 0), default, null, this);
         _controls = ControlSettings.Read(fileSystem);
         Input = new Input(_controls);
         for (int slot = 0; slot < ASToolkit.Engine.Vid.ArmyCount; slot++)
@@ -159,17 +160,6 @@ public partial class Map : IDisposable
 
         _flags |= MapFlags.Initialized;
     }
-
-    /// <summary>
-    /// Gets the player the first player slot controls.
-    /// </summary>
-    /// <exception cref="InvalidOperationException">There is no player in the first player slot.</exception>
-    public Sprite Player => Flagman(0) ?? throw new InvalidOperationException("There is no player in the first player slot.");
-
-    /// <summary>
-    /// Gets a value indicating whether the first player slot has a player.
-    /// </summary>
-    public bool HasPlayer => Flagman(0) is not null;
 
     /// <summary>
     /// Gets the sprite groups of the map.
@@ -193,12 +183,12 @@ public partial class Map : IDisposable
     /// <summary>
     /// Gets the sprite of the mouse cursor.
     /// </summary>
-    public Mouse CursorSprite { get; }
+    public Mouse Mouse { get; }
 
     /// <summary>
     /// Gets the game time in milliseconds.
     /// </summary>
-    public int Time => Session.CurrentTime;
+    public int CurrentTime => Session.CurrentTime;
 
     /// <summary>
     /// Gets the state of the random number generator.
@@ -208,9 +198,9 @@ public partial class Map : IDisposable
     /// <summary>
     /// Gets the length of the current frame in milliseconds.
     /// </summary>
-    public int FrameTime => Session.CurrentTime - Session.PrevCurrentTime;
+    public int FrameTime => Session.CurrentTime - Session.PreviousCurrentTime;
 
-    internal int PreviousTime => Session.PrevCurrentTime;
+    internal int PreviousCurrentTime => Session.PreviousCurrentTime;
 
     /// <summary>
     /// Gets a value indicating whether the level script has locked the doors.
@@ -225,7 +215,7 @@ public partial class Map : IDisposable
     /// <summary>
     /// Gets the real time of the current frame in milliseconds.
     /// </summary>
-    public uint RealTime => Session.RealCurrentTime;
+    public uint RealCurrentTime => Session.RealCurrentTime;
 
     /// <summary>
     /// Gets a value indicating whether the map is loading a level.
@@ -248,7 +238,7 @@ public partial class Map : IDisposable
     public Constant Constant => Session.Constant!;
 
     /// <summary>
-    /// Gets the menu sprites that keep their place on the screen as the camera moves.
+    /// Gets the menu sprites that keep their place on the screen as the view moves.
     /// </summary>
     public ReadOnlySpan<Sprite> MenuSprites => Menu.Items;
 
@@ -276,7 +266,7 @@ public partial class Map : IDisposable
     /// <summary>
     /// Gets the top-left corner of the screen on the map.
     /// </summary>
-    public Vector2 Camera { get; private set; }
+    public Vector2 Shift { get; private set; }
 
     /// <summary>
     /// Gets the level script.
@@ -291,7 +281,7 @@ public partial class Map : IDisposable
     /// <summary>
     /// Gets the spatial hash of the sprites of the map.
     /// </summary>
-    public SpriteCollector Collector { get; private set; }
+    public SpriteCollector Sprites { get; private set; }
 
     internal GameRandom Random => _rng;
 
@@ -311,7 +301,7 @@ public partial class Map : IDisposable
     /// Sets a map file, or a demo file, to load at the start of the next step, before that step's frame runs.
     /// </summary>
     /// <param name="name">The path of the map or demo file, relative to the game folder.</param>
-    /// <remarks>The random number generator is seeded with the session clock's time when the load runs, unless a demo supplies the seed.</remarks>
+    /// <remarks>The random number generator is seeded with the real time when the load runs, unless a demo supplies the seed.</remarks>
     public void RequestLoad(ReadOnlySpan<byte> name)
     {
         _flags |= MapFlags.LoadPending;
@@ -322,7 +312,7 @@ public partial class Map : IDisposable
     /// Loads a map file, or the map a demo file plays, and releases the level the map held before.
     /// </summary>
     /// <param name="name">The path of the map or demo file, relative to the game folder; an empty path loads nothing.</param>
-    /// <remarks>The random number generator is seeded with the session clock's time unless a demo supplies the seed. If the file is missing or invalid, or a chunk is missing, the problem is logged and the load ends early with the map still loading.</remarks>
+    /// <remarks>The random number generator is seeded with the real time unless a demo supplies the seed. If the file is missing or invalid, or a chunk is missing, the problem is logged and the load ends early with the map still loading.</remarks>
     [EngineRoutine(0x0040c960)]
     public void Load(ReadOnlySpan<byte> name)
     {
@@ -357,11 +347,11 @@ public partial class Map : IDisposable
         var reader = new Resource();
         if (reader.Open(FileSystem, Session.Error, name, "MAP "u8) != 0)
         {
-            Session.Error.Alert($"!!!ERROR!!!LOAD: Invalid map file {MyError.Decode(name)}");
+            Session.Error.Window($"!!!ERROR!!!LOAD: Invalid map file {MyError.Decode(name)}");
             return;
         }
 
-        CursorSprite.Disable();
+        Mouse.Disable();
         _previousMapName = _mapName;
         _mapName = name.ToArray();
         int seed = IsPlayingDemo ? _playedDemo!.Value.Seed : (int)Session.TimeGetTime();
@@ -378,11 +368,11 @@ public partial class Map : IDisposable
 
         _flags &= ~MapFlags.Loading;
         Relation.Release();
-        Session.Error.Write($"Vid    release {Session.TextureMemoryInUse} {Session.VidMemoryInUse}");
+        Session.Error.Log($"Vid    release {Session.TextureMemoryInUse} {Session.VidMemoryInUse}");
         LoadScript(name);
         if (IsPlayingDemo)
         {
-            _playedOffset = Script.ReadState(_playedDemo!.Value.Body);
+            _playedOffset = Script.LoadVar(_playedDemo!.Value.Body);
         }
         else if (_flags.HasFlag(MapFlags.RecordingDemo))
         {
@@ -398,7 +388,7 @@ public partial class Map : IDisposable
 
         if (!IsPlayingDemo)
         {
-            CursorSprite.Enable(FileSystem);
+            Mouse.Enable(FileSystem);
         }
 
         ShowLoadingStep([]);
@@ -446,7 +436,7 @@ public partial class Map : IDisposable
     /// <param name="army">The player slot.</param>
     /// <returns>The player, or null if the slot is empty.</returns>
     [EngineRoutine(0x0040e620)]
-    public Sprite? Flagman(int army) => _players[army & ASToolkit.Engine.Vid.ArmyMask].Sprite;
+    public Sprite? Flagman(int army) => _players[army & ASToolkit.Engine.Vid.ArmyMask].Flagman;
 
     /// <summary>
     /// Sets the player a player slot controls.
@@ -457,11 +447,11 @@ public partial class Map : IDisposable
     public void SetFlagman(int army, Sprite? sprite) => _players[army & ASToolkit.Engine.Vid.ArmyMask].SetFlagman(sprite);
 
     /// <summary>
-    /// Waits for the real time to move on, advances the game clock, compacts the update lists, loads a map if one was requested and processes the window messages.
+    /// Waits for the real time to move on, advances the game time, compacts the update lists, loads a map if one was requested and processes the window messages.
     /// </summary>
     /// <returns><see langword="true"/> when the game is quitting; otherwise, <see langword="false"/>.</returns>
     [EngineRoutine(0x0040f210)]
-    public bool AdvanceClock()
+    public bool StartTact()
     {
         uint elapsed;
         do
@@ -470,10 +460,10 @@ public partial class Map : IDisposable
         }
         while (elapsed == 0);
 
-        Session.PrevRealCurrentTime = Session.RealCurrentTime;
+        Session.PreviousRealCurrentTime = Session.RealCurrentTime;
         Session.RealCurrentTime = Session.TimeGetTime();
         uint step = Math.Min(elapsed, MaxRealStep);
-        Session.PrevCurrentTime = Session.CurrentTime;
+        Session.PreviousCurrentTime = Session.CurrentTime;
         Session.CurrentTime += (int)(step * _speed);
         _framesThisSecond++;
         if (Session.RealCurrentTime - Session.FrameRateStartedAt >= FrameRateWindow)
@@ -484,7 +474,7 @@ public partial class Map : IDisposable
         }
 
         Input.ResetFrame();
-        if ((Time & CompactionPeriodMask) == 0)
+        if ((CurrentTime & CompactionPeriodMask) == 0)
         {
             foreach (var list in _layers)
             {
@@ -552,7 +542,7 @@ public partial class Map : IDisposable
         }
 
         _vidCount = 0;
-        Session.Error.Write($"Vid    release {Session.TextureMemoryInUse} {Session.VidMemoryInUse}");
+        Session.Error.Log($"Vid    release {Session.TextureMemoryInUse} {Session.VidMemoryInUse}");
         CloseDemoFile();
     }
 
@@ -568,7 +558,7 @@ public partial class Map : IDisposable
     [EngineRoutine(0x004145b0)]
     internal void RaiseHeights(Vid vid, Sprite sprite)
     {
-        if (sprite == CursorSprite || vid.HeightPoints.Count == 0)
+        if (sprite == Mouse || vid.HeightPoints.Count == 0)
             return;
 
         bool permanent = !_flags.HasFlag(MapFlags.AppMenu) && vid.Class == SpriteClass.BuiltTerrain;
@@ -591,7 +581,7 @@ public partial class Map : IDisposable
     [EngineRoutine(0x004146b0)]
     internal void LowerHeights(Vid vid, Sprite sprite)
     {
-        if (sprite == CursorSprite || vid.HeightPoints.Count == 0 || !_flags.HasFlag(MapFlags.AppMenu) && vid.Class == SpriteClass.BuiltTerrain)
+        if (sprite == Mouse || vid.HeightPoints.Count == 0 || !_flags.HasFlag(MapFlags.AppMenu) && vid.Class == SpriteClass.BuiltTerrain)
             return;
 
         foreach (var point in vid.GetHeightPoints(sprite.Frame))
@@ -600,7 +590,7 @@ public partial class Map : IDisposable
         }
     }
 
-    internal bool IsFree(Vid vid, Vector3 position) => Collector.CanPlace(vid, position) is null;
+    internal bool IsFree(Vid vid, Vector3 position) => Sprites.CanPlace(vid, position) is null;
 
     [EngineRoutine(0x0040c570)]
     internal virtual void Release()
@@ -615,7 +605,7 @@ public partial class Map : IDisposable
         Session.Graphics.SetEnvironment((MapEnvironment)(-1));
         if (IsPlayingDemo)
         {
-            CursorSprite.Enable(FileSystem);
+            Mouse.Enable(FileSystem);
         }
 
         _playedDemo = null;
@@ -625,13 +615,13 @@ public partial class Map : IDisposable
         EndDemoRecording();
         _flags &= ~(MapFlags.RecordingDemo | MapFlags.PlayingDemo);
         _scrollType = ScrollType.FromBorder;
-        Session.Error.Write("Player release"u8);
+        Session.Error.Log("Player release"u8);
         foreach (var player in _players)
         {
             player.Reset();
         }
 
-        Session.Error.Write("Sprite release"u8);
+        Session.Error.Log("Sprite release"u8);
         // TODO: Port the trains; the release sets the flag (DAT_005da58c) that makes the Engine destructors (0x44e9f0, 0x450e20) skip their scripts while it destroys the sprites
         foreach (var player in _players)
         {
@@ -639,16 +629,16 @@ public partial class Map : IDisposable
         }
 
         DeleteAll();
-        Session.Error.Write("Menu   release"u8);
+        Session.Error.Log("Menu   release"u8);
         if (Menu.Count != 0)
         {
             Session.Error.Error($"SPRITE {(int)Menu[0].Vid.Id}", LogError.Text, 0, "Menu sprite exist after delete"u8);
             Menu.DeleteAll();
         }
 
-        int elapsed = Time - _levelStartTime;
-        Session.Error.Write($"Average fps={(elapsed == 0 ? 0 : (int)((uint)(_stepCount * 1000) / (uint)elapsed))}");
-        Session.Error.Write("Script release"u8);
+        int elapsed = CurrentTime - _levelStartTime;
+        Session.Error.Log($"Average fps={(elapsed == 0 ? 0 : (int)((uint)(_stepCount * 1000) / (uint)elapsed))}");
+        Session.Error.Log("Script release"u8);
         foreach (var file in _scriptFiles.Values)
         {
             file.Dispose();
@@ -659,9 +649,9 @@ public partial class Map : IDisposable
         _stepCount = 0;
         DeleteExtraVid();
         ResetVidLevelState();
-        for (int i = 0; i < _scriptHooks.Length; i++)
+        for (int i = 0; i < _eventFunctionNumbers.Length; i++)
         {
-            _scriptHooks[i] = i + NoHookBase;
+            _eventFunctionNumbers[i] = i + NoEventFunctionBase;
         }
     }
 
@@ -673,7 +663,7 @@ public partial class Map : IDisposable
         return index < 0 ? text : text[..index];
     }
 
-    private static int GetScriptHook(ReadOnlySpan<byte> name) => Encoding.ASCII.GetString(name) switch
+    private static int GetEventFunctionIndex(ReadOnlySpan<byte> name) => Encoding.ASCII.GetString(name) switch
     {
         "main" => 0,
         "TrainNotAmmo" => 1,
@@ -731,15 +721,15 @@ public partial class Map : IDisposable
         reader.ReadInto(ref scrollX);
         short scrollY = 0;
         reader.ReadInto(ref scrollY);
-        int time = Time;
+        int time = CurrentTime;
         reader.ReadInto(ref time);
         _levelStartTime = time;
-        Session.PrevCurrentTime = time;
+        Session.PreviousCurrentTime = time;
         Session.CurrentTime = time;
         int version = 0;
         reader.ReadInto(ref version);
         Session.Graphics.OldLoadParameters(ref reader, this);
-        Collector = new SpriteCollector(Size, Vids, this);
+        Sprites = new SpriteCollector(Size, Vids, this);
         ResetGroundZ();
         LoadGridZ(ref reader, (int)(Size.Height + OldGridRounding) / GridZCellSize * ((int)(Size.Width + OldGridRounding) / GridZCellSize) * sizeof(short));
         if (!FindSection(ref reader, SpriteTag))
@@ -770,10 +760,10 @@ public partial class Map : IDisposable
             return false;
 
         int version = LoadHead(ref reader, name, seed, out var scroll);
-        Session.Error.Write($"CurrentTime   ={(uint)Time,-15}   sizeof(SPRITE)={SpriteRecordSize,-8} Map version   ={version}");
+        Session.Error.Log($"CurrentTime   ={(uint)CurrentTime,-15}   sizeof(SPRITE)={SpriteRecordSize,-8} Map version   ={version}");
         ShowLoadingStep("Create new hash table"u8);
-        Collector = new SpriteCollector(Size, Vids, this);
-        SetPosition(Session.Graphics.ScreenSize.ToVector2() * HalfShare + scroll, CameraMove.None);
+        Sprites = new SpriteCollector(Size, Vids, this);
+        SetShiftCoordinates(Session.Graphics.ScreenSize.ToVector2() * HalfShare + scroll, ShiftMove.None);
         ShowLoadingStep("Load gridZ"u8);
         ResetGroundZ();
         LoadGridZ(ref reader, _gridColumns * _gridRows * sizeof(short));
@@ -817,9 +807,9 @@ public partial class Map : IDisposable
         float scrollY = 0;
         reader.ReadInto(ref scrollY);
         scroll = new Vector2(scrollX, scrollY);
-        int savedTime = Time;
+        int savedTime = CurrentTime;
         reader.ReadInto(ref savedTime);
-        Session.PrevCurrentTime = LevelStartPreviousTime;
+        Session.PreviousCurrentTime = LevelStartPreviousTime;
         Session.CurrentTime = LevelStartTime;
         if (!IsPlayingDemo && _demoFile is not null)
         {
@@ -831,7 +821,7 @@ public partial class Map : IDisposable
             SetTime(_playedDemo!.Value.StartTime);
         }
 
-        _levelStartTime = Time;
+        _levelStartTime = CurrentTime;
         int version = 0;
         reader.ReadInto(ref version);
         if (version < MapHeader.FloatVersion)
@@ -847,7 +837,7 @@ public partial class Map : IDisposable
     {
         if (reader.GoNext("GRID"u8) == Resource.Found)
         {
-            int count = reader.Load(Session.Error, out byte[] grid);
+            int count = reader.SubLoad(Session.Error, out byte[] grid);
             _sceneryHeights = MemoryMarshal.Cast<byte, short>(grid).ToArray();
             if (count != expectedSize)
             {
@@ -925,11 +915,11 @@ public partial class Map : IDisposable
 
             if (entry.Kind == ScriptObjectKind.Function)
             {
-                int hook = GetScriptHook(objects.Name(i).Span);
+                int eventFunction = GetEventFunctionIndex(objects.Name(i).Span);
 
-                if (hook >= 0)
+                if (eventFunction >= 0)
                 {
-                    _scriptHooks[hook] = i;
+                    _eventFunctionNumbers[eventFunction] = i;
                 }
 
                 ProcessScriptFunctions(objects.Name(i).Span, i, entry.Count);
@@ -1058,7 +1048,7 @@ public partial class Map : IDisposable
                 sprite = new Linker(vid, position, direction, parent, this);
                 break;
             case SpriteClass.Text:
-                sprite = new Text(vid, position, direction, parent, this);
+                sprite = new SText(vid, position, direction, parent, this);
                 break;
             case SpriteClass.Region:
                 sprite = new Region(vid, position, direction, parent, this);
@@ -1079,10 +1069,10 @@ public partial class Map : IDisposable
 
     private List<Sprite> GetLiving(KnownObject id, LivingSet set)
     {
-        if (set.CheckedAt == Time)
+        if (set.CheckedAt == CurrentTime)
             return set.Sprites;
 
-        set.CheckedAt = Time;
+        set.CheckedAt = CurrentTime;
         set.Sprites.Clear();
         var vid = FindVid(id);
 
@@ -1168,7 +1158,7 @@ public partial class Map : IDisposable
     {
         if (!IsPaused)
         {
-            _pausedAt = Time;
+            _pausedAt = CurrentTime;
         }
 
         _flags |= MapFlags.Paused;
@@ -1189,7 +1179,7 @@ public partial class Map : IDisposable
         }
 
         Session.CurrentTime = _pausedAt;
-        Session.PrevCurrentTime = _pausedAt - ResumeFrameTime;
+        Session.PreviousCurrentTime = _pausedAt - ResumeFrameTime;
         _flags &= ~MapFlags.Paused;
     }
 
@@ -1245,14 +1235,14 @@ public partial class Map : IDisposable
 
         RemoveFromGroups(removed);
 
-        int index = removed.ReferenceCount > 1 ? Collector.Listed.Length - 1 : -1;
+        int index = removed.ReferenceCount > 1 ? Sprites.Listed.Length - 1 : -1;
         while (index >= 0)
         {
-            Collector.Listed[index].DeletePointerToSprite(removed);
+            Sprites.Listed[index].DeletePointerToSprite(removed);
 
-            if (Collector.Listed.Length < index)
+            if (Sprites.Listed.Length < index)
             {
-                index = Collector.Listed.Length;
+                index = Sprites.Listed.Length;
             }
 
             index--;

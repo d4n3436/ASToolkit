@@ -68,7 +68,7 @@ public sealed class VidLight : Vid
         }
 
         FrameSize = new Size((short)(int)Size.X, (short)(int)Size.Y);
-        _dataSize = resource.Load(null, out _colors);
+        _dataSize = resource.SubLoad(null, out _colors);
         if (_dataSize == 0)
         {
             Report(session.Error, LogError.Load, 0, "cadr"u8);
@@ -83,9 +83,9 @@ public sealed class VidLight : Vid
     /// <param name="screen">The screen to draw to.</param>
     /// <param name="map">The map.</param>
     /// <param name="sprite">The sprite.</param>
-    /// <param name="camera">The top left corner of the view, in map pixels.</param>
+    /// <param name="shift">The top left corner of the view, in map pixels.</param>
     [EngineRoutine(0x00414d10)]
-    public override void Draw(Screen screen, Map map, Sprite sprite, Vector2 camera)
+    public override void Draw(Screen screen, Map map, Sprite sprite, Vector2 shift)
     {
         int frame = sprite.Frame;
         uint color = frame >= 0 && frame < _colors.Length / sizeof(uint) ? MemoryMarshal.Read<uint>(_colors.AsSpan(frame * sizeof(uint))) : 0;
@@ -107,7 +107,7 @@ public sealed class VidLight : Vid
             color = gamma.Apply(color);
         }
 
-        var origin = new Vector2(position.X - camera.X, position.Y - position.Z - camera.Y);
+        var origin = new Vector2(position.X - shift.X, position.Y - position.Z - shift.Y);
         map.Session.Graphics.DrawLightSource(screen, new Vector3(origin, position.Z), Size.AsVector2(), color, properties.HasFlag(ObjectProperties.DoubleLight));
     }
 

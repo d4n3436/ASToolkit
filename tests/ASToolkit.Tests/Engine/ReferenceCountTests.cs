@@ -22,13 +22,13 @@ public class ReferenceCountTests
         var map = session.Map;
 
         AssertCounts(map);
-        while (session is { IsPlaying: true, HasWon: false } && map.Time < PlaySession.MaxTime)
+        while (session is { IsPlaying: true, HasWon: false } && map.CurrentTime < PlaySession.MaxTime)
         {
-            int time = map.Time;
+            int time = map.CurrentTime;
             session.PlayUntil(time + 1);
             AssertCounts(map);
 
-            if (map.Time == time)
+            if (map.CurrentTime == time)
                 break;
         }
     }
@@ -44,12 +44,12 @@ public class ReferenceCountTests
             }
         }
 
-        foreach (var sprite in map.Collector.GetNear(Vector2.Zero, map.Size.ToVector2()))
+        foreach (var sprite in map.Sprites.GetNear(Vector2.Zero, map.Size.ToVector2()))
         {
             Hold(expected, sprite);
         }
 
-        foreach (var sprite in map.Collector.Listed)
+        foreach (var sprite in map.Sprites.Listed)
         {
             Hold(expected, sprite);
         }
@@ -72,7 +72,7 @@ public class ReferenceCountTests
             Hold(expected, map.Flagman(army));
         }
 
-        Hold(expected, map.CursorSprite);
+        Hold(expected, map.Mouse);
 
         foreach (var holder in expected.Keys.ToArray())
         {
@@ -81,7 +81,7 @@ public class ReferenceCountTests
 
         foreach ((var sprite, int count) in expected)
         {
-            Assert.True(sprite.ReferenceCount == count, $"time {map.Time}: {sprite.Vid.Id} holds {sprite.ReferenceCount} references, expected {count}");
+            Assert.True(sprite.ReferenceCount == count, $"time {map.CurrentTime}: {sprite.Vid.Id} holds {sprite.ReferenceCount} references, expected {count}");
         }
     }
 

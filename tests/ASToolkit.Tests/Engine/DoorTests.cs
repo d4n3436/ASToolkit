@@ -53,9 +53,9 @@ public class DoorTests
         }
 
         Assert.Equal(-64f, body.Position.Z, 0f);
-        map.Player.Position = new Vector3(3000, 1000, 0);
-        int left = map.Time;
-        while (map.Time <= left + 3000)
+        map.Flagman(0)!.Position = new Vector3(3000, 1000, 0);
+        int left = map.CurrentTime;
+        while (map.CurrentTime <= left + 3000)
         {
             map.Play(default);
         }

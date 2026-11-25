@@ -14,7 +14,7 @@ public sealed class Constant
     {
         if (resource.GoBegin("CNST"u8) != Resource.Found)
         {
-            error?.Write("!!!ERROR!!! CNST Load Constant section not found"u8);
+            error?.Log("!!!ERROR!!! CNST Load Constant section not found"u8);
             return;
         }
 
@@ -29,7 +29,7 @@ public sealed class Constant
     }
 
     /// <summary>
-    /// Gets the fastest scroll speed of the camera along each axis in pixels per millisecond.
+    /// Gets the fastest scroll speed of the view along each axis in pixels per millisecond.
     /// </summary>
     public Vector2 ScrollSpeed { get; }
 

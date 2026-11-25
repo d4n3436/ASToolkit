@@ -83,9 +83,9 @@ public struct SpriteView : IEnumerable<Sprite>, IEnumerator<Sprite>
 
     private bool MoveNextMonster()
     {
-        while (++_index < _map.Collector.Listed.Length)
+        while (++_index < _map.Sprites.Listed.Length)
         {
-            var sprite = _map.Collector.Listed[_index];
+            var sprite = _map.Sprites.Listed[_index];
             var spriteClass = sprite.Vid.Class;
 
             if (!sprite.Vid.Id.IsScripted && spriteClass != SpriteClass.Man && spriteClass != SpriteClass.Building && sprite.Owner?.Vid.Class != SpriteClass.Man)

@@ -13,16 +13,16 @@ public sealed partial class Graphics
     internal void DrawFormattedText(Vector2 position, string text) => DrawDeviceText(position, DebugTextColor, GameTextEncoding.Cyrillic.GetBytes(text));
 
     [EngineRoutine(0x00433da0)]
-    internal void DrawRectangle(Map map, Vector2 topLeft, Vector2 bottomRight, uint color)
+    internal void Box(Map map, Vector2 topLeft, Vector2 bottomRight, uint color)
     {
-        DrawLine(map, topLeft, bottomRight with { Y = topLeft.Y }, color);
-        DrawLine(map, topLeft with { Y = bottomRight.Y }, bottomRight, color);
-        DrawLine(map, topLeft, topLeft with { Y = bottomRight.Y }, color);
-        DrawLine(map, bottomRight with { Y = topLeft.Y }, bottomRight, color);
+        WuLine(map, topLeft, bottomRight with { Y = topLeft.Y }, color);
+        WuLine(map, topLeft with { Y = bottomRight.Y }, bottomRight, color);
+        WuLine(map, topLeft, topLeft with { Y = bottomRight.Y }, color);
+        WuLine(map, bottomRight with { Y = topLeft.Y }, bottomRight, color);
     }
 
     [EngineRoutine(0x00433e10)]
-    internal void DrawLine(Map map, Vector2 start, Vector2 end, uint color)
+    internal void WuLine(Map map, Vector2 start, Vector2 end, uint color)
     {
         start.X = ClampLineCoordinate(map, start.X, "x in Line"u8);
         end.X = ClampLineCoordinate(map, end.X, "x1 in Line"u8);

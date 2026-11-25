@@ -11,8 +11,8 @@ public class MouseTipsTests
     public void GetMouseTipsString_PlayerHoversASprite_ReadsTheUnitsNameOfItsObjectId()
     {
         var map = EngineTestMap.CreateMap();
-        ((MemoryWriteOverlay)map.FileSystem).Set(Map.StringsFile, Encoding.ASCII.GetBytes($"[Units]\r\n{(int)map.Player.Vid.Id}=Hero\r\n"));
-        map.GetPlayer(Map.ControlledPlayer).Hovered = map.Player;
+        ((MemoryWriteOverlay)map.FileSystem).Set(Map.StringsFile, Encoding.ASCII.GetBytes($"[Units]\r\n{(int)map.Flagman(0)!.Vid.Id}=Hero\r\n"));
+        map.GetPlayer(Map.ControlledPlayer).Hovered = map.Flagman(0);
 
         var text = map.GetMouseTipsString();
         map.Pause();
@@ -26,7 +26,7 @@ public class MouseTipsTests
     public void GetMouseTipsString_NothingHovered_IsEmpty()
     {
         var map = EngineTestMap.CreateMap();
-        ((MemoryWriteOverlay)map.FileSystem).Set(Map.StringsFile, Encoding.ASCII.GetBytes($"[Units]\r\n{(int)map.Player.Vid.Id}=Hero\r\n"));
+        ((MemoryWriteOverlay)map.FileSystem).Set(Map.StringsFile, Encoding.ASCII.GetBytes($"[Units]\r\n{(int)map.Flagman(0)!.Vid.Id}=Hero\r\n"));
 
         Assert.True(map.GetMouseTipsString().IsEmpty);
     }

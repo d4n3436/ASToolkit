@@ -135,7 +135,7 @@ public sealed partial class Graphics
     public void CreateDeviceFont(string name, Size glyphSize, int maxTextureSize)
     {
         DeviceFont = new D3DFont(name, glyphSize, D3DFontStyle.FixedPitch);
-        DeviceFont.Create(maxTextureSize);
+        DeviceFont.InitDeviceObjects(maxTextureSize);
         DeviceFont.CreateStateBlocks();
     }
 
@@ -240,9 +240,9 @@ public sealed partial class Graphics
     [EngineRoutine(0x00430dd0)]
     internal void DrawLoadBar(Map map, Vid? vid)
     {
-        uint now = map.Session.TimeGetTime();
-        map.Session.RealCurrentTime = now;
-        if (vid is null || (uint)vid.SpriteSpeed >= now - _loadingDrawnAt)
+        uint realTime = map.Session.TimeGetTime();
+        map.Session.RealCurrentTime = realTime;
+        if (vid is null || (uint)vid.SpriteSpeed >= realTime - _loadingDrawnAt)
             return;
 
         PreTact();
@@ -256,7 +256,7 @@ public sealed partial class Graphics
         UpdateEffects(map, true);
         DrawText(new Vector2(LoadingTextLeft, Viewport.Top + LoadingTextTop), LoadingText, TextColor);
         PostTact(true);
-        _loadingDrawnAt = now;
+        _loadingDrawnAt = realTime;
         _loadingFrame++;
         if (_loadingFrame >= vid.FileFrameCount)
         {
@@ -277,11 +277,11 @@ public sealed partial class Graphics
         }
 
         SetRenderState(RenderState.AlphaBlendEnable, vid.Layer < ObjectLayer.AlphaGround ? 0u : 1u);
-        var sprite = new Sprite(vid, new Vector3(position.AsVector2() + map.Camera, position.Z), default, null, map);
+        var sprite = new Sprite(vid, new Vector3(position.AsVector2() + map.Shift, position.Z), default, null, map);
         sprite.Frame = frame;
         if (Screen is not null)
         {
-            vid.Draw(Screen, map, sprite, map.Camera);
+            vid.Draw(Screen, map, sprite, map.Shift);
         }
 
         sprite.Destruct();
@@ -291,20 +291,20 @@ public sealed partial class Graphics
     internal void UpdateScreen(Map map, bool drawFrame)
     {
         var screen = ScreenSize;
-        var saved = map.Camera;
+        var saved = map.Shift;
 
         if (Environment.HasFlag(MapEnvironment.Earthquake) && !map.IsPaused)
         {
             int y = map.Random.Next() % (ShakeReach * 2 + 1);
             int x = map.Random.Next() % (ShakeReach * 2 + 1);
-            map.SetPosition(new Vector2(screen.Width * Map.HalfShare + saved.X + ShakeReach - x, screen.Height * Map.HalfShare + saved.Y + ShakeReach - y), CameraMove.None);
+            map.SetShiftCoordinates(new Vector2(screen.Width * Map.HalfShare + saved.X + ShakeReach - x, screen.Height * Map.HalfShare + saved.Y + ShakeReach - y), ShiftMove.None);
         }
 
         if (drawFrame)
         {
             if (Screen is not null)
             {
-                if (map.FindVid(Map.HardwareGroundId) is null || map.Camera.X < 0f || map.Size.Width < Viewport.Right + map.Camera.X - Viewport.Left || map.Camera.Y < 0f || map.Size.Height < Viewport.Bottom + map.Camera.Y - Viewport.Top)
+                if (map.FindVid(Map.HardwareGroundId) is null || map.Shift.X < 0f || map.Size.Width < Viewport.Right + map.Shift.X - Viewport.Left || map.Shift.Y < 0f || map.Size.Height < Viewport.Bottom + map.Shift.Y - Viewport.Top)
                 {
                     Clear(Screen, ClearColor);
                 }
@@ -332,10 +332,10 @@ public sealed partial class Graphics
             Screen?.IsLinearFiltered = true;
             DrawLayers(map, ObjectLayer.Light, ObjectLayer.Light);
             UpdateGroundSnow(map);
-            UpdateSnow(map);
+            DrawSnow(map);
             Screen?.IsLinearFiltered = false;
             DrawLayers(map, ObjectLayer.Alpha, ObjectLayer.Alpha);
-            UpdateRain(map);
+            DrawRain(map);
             SetRenderState(RenderState.DepthWrite, 1);
             Screen?.IsLinearFiltered = false;
             LockDepth();
@@ -343,17 +343,17 @@ public sealed partial class Graphics
             IsDepthLocked = false;
             DrawLayers(map, ObjectLayer.Cursor, ObjectLayer.Cursor);
 
-            if (Screen is not null && !map.CursorSprite.IsHardwareCursor && map.CursorSprite.Vid.Properties.HasFlag(ObjectProperties.AlwaysTop))
+            if (Screen is not null && !map.Mouse.IsHardwareCursor && map.Mouse.Vid.Properties.HasFlag(ObjectProperties.AlwaysTop))
             {
-                map.DrawCursorChain(Screen, map.Camera, null);
+                map.DrawCursorChain(Screen, map.Shift, null);
             }
         }
 
-        DrawSquall(map.Time, map.IsPaused);
+        DrawSquall(map.CurrentTime, map.IsPaused);
 
         if (Environment.HasFlag(MapEnvironment.Earthquake) && !map.IsPaused)
         {
-            map.SetPosition(new Vector2(screen.Width * Map.HalfShare + saved.X, screen.Height * Map.HalfShare + saved.Y), CameraMove.None);
+            map.SetShiftCoordinates(new Vector2(screen.Width * Map.HalfShare + saved.X, screen.Height * Map.HalfShare + saved.Y), ShiftMove.None);
         }
 
         IsDepthLocked = false;
@@ -418,7 +418,7 @@ public sealed partial class Graphics
 
         for (var layer = first; layer <= last; layer++)
         {
-            map.DrawLayer(Screen, map.Camera, layer);
+            map.DrawLayer(Screen, map.Shift, layer);
         }
     }
 }

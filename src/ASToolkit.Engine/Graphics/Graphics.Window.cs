@@ -22,8 +22,8 @@ public sealed partial class Graphics
     internal bool IsMenuLoopActive => Flags.HasFlag(GraphicsFlags.MenuLoop);
 
     [EngineRoutine(0x004335f0)]
-    internal void EnterMenuLoop() => Flags |= GraphicsFlags.MenuLoop;
+    internal void BeginPause() => Flags |= GraphicsFlags.MenuLoop;
 
     [EngineRoutine(0x00433660)]
-    internal void ExitMenuLoop() => Flags &= ~GraphicsFlags.MenuLoop;
+    internal void EndPause() => Flags &= ~GraphicsFlags.MenuLoop;
 }

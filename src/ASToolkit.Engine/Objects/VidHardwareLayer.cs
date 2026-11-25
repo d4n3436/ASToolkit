@@ -86,9 +86,9 @@ public sealed class VidHardwareLayer : Vid
     /// <param name="screen">The screen to draw to.</param>
     /// <param name="map">The map.</param>
     /// <param name="sprite">The sprite.</param>
-    /// <param name="camera">The top left corner of the view, in map pixels.</param>
+    /// <param name="shift">The top left corner of the view, in map pixels.</param>
     [EngineRoutine(0x0041bdf0)]
-    public override void Draw(Screen screen, Map map, Sprite sprite, Vector2 camera)
+    public override void Draw(Screen screen, Map map, Sprite sprite, Vector2 shift)
     {
         if (IsHidden)
             return;
@@ -101,8 +101,8 @@ public sealed class VidHardwareLayer : Vid
         if (!Properties.HasFlag(ObjectProperties.AlwaysTop) && !hasDepth)
         {
             seed = (uint)BitConverter.SingleToInt32Bits(position.Z);
-            float screenX = position.X - camera.X;
-            float screenY = position.Y - position.Z - camera.Y;
+            float screenX = position.X - shift.X;
+            float screenY = position.Y - position.Z - shift.Y;
             if (screenX < viewport.Left || screenX >= viewport.Right || screenY < viewport.Top || screenY >= viewport.Bottom || screen.Depth[screen.DepthWidth * (int)screenY + (int)screenX] > (int)position.Z * 8 + DepthBias)
                 return;
         }
@@ -155,7 +155,7 @@ public sealed class VidHardwareLayer : Vid
             graphics.SetRenderState(RenderState.AlphaBlendEnable, 0);
         }
 
-        var transform = world * Graphics.CreateView(camera, viewport) * map.Session.Graphics.Projection;
+        var transform = world * Graphics.CreateView(shift, viewport) * map.Session.Graphics.Projection;
         Meshes[sprite.Frame].Draw(screen, Textures[sprite.Frame].View, transform, graphics.Blend, ~gamma.Negative);
     }
 

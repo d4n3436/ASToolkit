@@ -207,7 +207,7 @@ internal ref struct Resource
     }
 
     [EngineRoutine(0x00408080)]
-    public int Load(MyError? error, out byte[] block)
+    public int SubLoad(MyError? error, out byte[] block)
     {
         block = [];
         if (!_isOpen)

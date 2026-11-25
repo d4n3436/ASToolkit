@@ -44,8 +44,8 @@ public class MyErrorTests
     {
         var fileSystem = new MemoryWriteOverlay();
         var error = new MyError(fileSystem, new FakeTimeProvider(StartTime), "AlienShooter.exe");
-        error.Write($"LoadVid::No   ={1001,-15}   sizeof(VID)   ={1156,-8}");
-        error.Write($"NoVid[{3,3}]={1} Layer={13}");
+        error.Log($"LoadVid::No   ={1001,-15}   sizeof(VID)   ={1156,-8}");
+        error.Log($"NoVid[{3,3}]={1} Layer={13}");
 
         string[] lines = Read(fileSystem, DatedPath).Split("\r\n");
         Assert.Equal("LoadVid::No   =1001              sizeof(VID)   =1156    ", lines[1]);
@@ -71,7 +71,7 @@ public class MyErrorTests
     public void Write_WithoutFiles_WritesNothing()
     {
         var error = new MyError(null, new FakeTimeProvider(StartTime), "AlienShooter.exe");
-        error.Write("x"u8);
+        error.Log("x"u8);
 
         Assert.False(error.IsOpen);
     }

@@ -43,7 +43,7 @@ internal sealed class PlaySession
             HasWon = ReachedWin();
         }
 
-        while (Map.Time < MaxTime && Map.Time - _mark.ProgressedAt < StallTime && IsPlaying && !HasWon && Map.Time < time)
+        while (Map.CurrentTime < MaxTime && Map.CurrentTime - _mark.ProgressedAt < StallTime && IsPlaying && !HasWon && Map.CurrentTime < time)
         {
             Bot.PlayTick();
             Log.Update(Map);

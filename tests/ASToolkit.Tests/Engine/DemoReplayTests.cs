@@ -123,7 +123,7 @@ public class DemoReplayTests
         var points = new List<ReplayPoint> { GetPoint(loaded) };
         while (true)
         {
-            uint realTime = map.TryGetNextDemoTime(out int next) ? map.RealTime + (uint)(next - map.Time) : map.GetPacer().TakeNextRealTime(map);
+            uint realTime = map.TryGetNextDemoTime(out int next) ? map.RealCurrentTime + (uint)(next - map.CurrentTime) : map.GetPacer().TakeNextRealTime(map);
             if (map.TactAt(realTime) || !map.IsPlayingDemo)
                 break;
 
@@ -135,9 +135,9 @@ public class DemoReplayTests
 
     private static ReplayPoint GetPoint(Map map)
     {
-        var man = map.HasPlayer ? map.Player : EngineTestMap.FindPlacedMan(map);
+        var man = map.Flagman(0) ?? EngineTestMap.FindPlacedMan(map);
 
-        return new ReplayPoint(map.Time, man.Position, man.Speed, man.Hp, map.RandomState);
+        return new ReplayPoint(map.CurrentTime, man.Position, man.Speed, man.Hp, map.RandomState);
     }
 
     private static int CountDraws(int seed, int state)

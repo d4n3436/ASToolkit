@@ -130,7 +130,7 @@ public class ScriptMachineTests
         script.GetSlot(name).Text = "changed"u8.ToArray();
         script.GetSlot(money).Value = 0;
 
-        int read = script.ReadState(state.ToArray());
+        int read = script.LoadVar(state.ToArray());
 
         Assert.Equal(state.Length, read);
         Assert.Equal("abc"u8.ToArray(), script.GetSlot(name).Text.ToArray());

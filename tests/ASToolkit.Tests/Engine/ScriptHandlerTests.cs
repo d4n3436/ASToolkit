@@ -13,8 +13,8 @@ public class ScriptHandlerTests
     public void Step_FreezeBonusTaken_FreezesNearbyMonstersInPlace()
     {
         var map = EngineTestMap.CreateMap();
-        var monster = (Unit)map.CreateSprite(map.FindVid(KnownObject.RedMonster1), map.Player.Position + new Vector3(300, 0, 0), default)!;
-        map.CreateSprite(map.FindVid(KnownObject.FreezeMonsters), map.Player.Position, default);
+        var monster = (Unit)map.CreateSprite(map.FindVid(KnownObject.RedMonster1), map.Flagman(0)!.Position + new Vector3(300, 0, 0), default)!;
+        map.CreateSprite(map.FindVid(KnownObject.FreezeMonsters), map.Flagman(0)!.Position, default);
         Step(map, 10);
 
         Assert.Equal(KnownObject.FrozenMonster1, monster.Vid.Id);
@@ -43,8 +43,8 @@ public class ScriptHandlerTests
         var map = EngineTestMap.CreateMap();
         var screen = new ScreenLog();
         var tank = map.FindVid(KnownObject.RedTankMonster)!;
-        var monster = map.CreateSprite(tank, map.Player.Position + new Vector3(600, 0, 0), default)!;
-        map.CreateSprite(map.FindVid(KnownObject.Bomb), map.Player.Position, default);
+        var monster = map.CreateSprite(tank, map.Flagman(0)!.Position + new Vector3(600, 0, 0), default)!;
+        map.CreateSprite(map.FindVid(KnownObject.Bomb), map.Flagman(0)!.Position, default);
         Step(map, 10, screen);
 
         Assert.False(monster.IsAlive);
@@ -60,15 +60,15 @@ public class ScriptHandlerTests
     public void Step_AdrenalineTaken_RaisesSpeedUntilTheNextScriptTick()
     {
         var map = EngineTestMap.CreateMap();
-        float speed = map.Player.MaxSpeed;
-        map.CreateSprite(map.FindVid(KnownObject.Adrenaline), map.Player.Position, default);
+        float speed = map.Flagman(0)!.MaxSpeed;
+        map.CreateSprite(map.FindVid(KnownObject.Adrenaline), map.Flagman(0)!.Position, default);
         var log = new PlayLog(map);
         var seen = new List<float>();
         for (int tick = 0; tick < 10; tick++)
         {
             map.Play(default);
             log.Update(map);
-            seen.Add(map.Player.MaxSpeed);
+            seen.Add(map.Flagman(0)!.MaxSpeed);
         }
 
         Assert.Contains(KnownObject.Adrenaline, log.TakenPickups);
@@ -81,19 +81,19 @@ public class ScriptHandlerTests
     {
         var map = EngineTestMap.CreateMap();
         Step(map, 1);
-        map.CreateSprite(map.FindVid(KnownObject.Drone), map.Player.Position, default);
+        map.CreateSprite(map.FindVid(KnownObject.Drone), map.Flagman(0)!.Position, default);
         Step(map, 10);
 
         var drone = Assert.Single(map.Monsters, sprite => sprite.Vid.Id == KnownObject.FlyingDrone);
 
-        var second = map.CreateSprite(map.FindVid(KnownObject.Drone), map.Player.Position, default)!;
+        var second = map.CreateSprite(map.FindVid(KnownObject.Drone), map.Flagman(0)!.Position, default)!;
         Step(map, 10);
         Assert.True(second.Animation < SpriteAnimation.Death);
 
-        map.Player.Position += new Vector3(300, 0, 0);
-        float before = Vector2.Distance(drone.Position.AsVector2(), map.Player.Position.AsVector2());
+        map.Flagman(0)!.Position += new Vector3(300, 0, 0);
+        float before = Vector2.Distance(drone.Position.AsVector2(), map.Flagman(0)!.Position.AsVector2());
         Step(map, 100);
-        Assert.True(Vector2.Distance(drone.Position.AsVector2(), map.Player.Position.AsVector2()) < before);
+        Assert.True(Vector2.Distance(drone.Position.AsVector2(), map.Flagman(0)!.Position.AsVector2()) < before);
 
         Map.Action(drone, ActionCode.Damage, drone.Hp);
         Step(map, 100);
@@ -115,7 +115,7 @@ public class ScriptHandlerTests
     {
         var map = EngineTestMap.CreateMap();
         Step(map, 1);
-        var position = map.Player.Position + new Vector3(300, 0, 0);
+        var position = map.Flagman(0)!.Position + new Vector3(300, 0, 0);
         var monster = map.CreateSprite(map.FindVid(KnownObject.Slug), position, default)!;
         monster.Hp = 10;
         var bullet = map.CreateSprite(map.FindVid(KnownObject.FreezeBullet), position + new Vector3(40, 0, 0), default);
@@ -136,7 +136,7 @@ public class ScriptHandlerTests
         var loadout = new PlayerLoadout(0, new Dictionary<KnownObject, int> { [KnownObject.FreezeRifle] = 100 }, default);
         var map = EngineTestMap.CreateMap(loadout: loadout);
         Step(map, 1);
-        var monster = map.CreateSprite(map.FindVid(KnownObject.Slug), map.Player.Position + new Vector3(250, 0, 0), new Angle(192))!;
+        var monster = map.CreateSprite(map.FindVid(KnownObject.Slug), map.Flagman(0)!.Position + new Vector3(250, 0, 0), new Angle(192))!;
 
         for (int tick = 0; tick < 1500 && monster.Vid.Id != KnownObject.FrozenSlug; tick++)
         {
@@ -155,7 +155,7 @@ public class ScriptHandlerTests
         var loadout = new PlayerLoadout(0, new Dictionary<KnownObject, int> { [KnownObject.FlameThrower] = 1000 }, default);
         var map = EngineTestMap.CreateMap(loadout: loadout);
         Step(map, 1);
-        var monster = map.CreateSprite(map.FindVid(KnownObject.TankMonster), map.Player.Position + new Vector3(120, 0, 0), new Angle(192))!;
+        var monster = map.CreateSprite(map.FindVid(KnownObject.TankMonster), map.Flagman(0)!.Position + new Vector3(120, 0, 0), new Angle(192))!;
         int health = monster.Hp;
 
         for (int tick = 0; tick < 100; tick++)
@@ -171,11 +171,11 @@ public class ScriptHandlerTests
     {
         var map = EngineTestMap.CreateMap();
         Step(map, 1);
-        int health = map.Player.Hp;
-        map.CreateSprite(map.FindVid(KnownObject.ElectricBall), map.Player.Position + new Vector3(500, 0, 0), default);
+        int health = map.Flagman(0)!.Hp;
+        map.CreateSprite(map.FindVid(KnownObject.ElectricBall), map.Flagman(0)!.Position + new Vector3(500, 0, 0), default);
         Step(map, 5);
 
-        Assert.Equal(health - 10, map.Player.Hp);
+        Assert.Equal(health - 10, map.Flagman(0)!.Hp);
     }
 
     [Fact]
@@ -184,13 +184,13 @@ public class ScriptHandlerTests
         var loadout = new PlayerLoadout(0, new Dictionary<KnownObject, int>(), default, new Dictionary<KnownObject, int> { [KnownObject.Medkit] = 1 });
         var map = EngineTestMap.CreateMap(loadout: loadout);
         Step(map, 1);
-        Map.Action(map.Player, ActionCode.Damage, map.Player.Hp);
+        Map.Action(map.Flagman(0)!, ActionCode.Damage, map.Flagman(0)!.Hp);
         Step(map, 2500 / FramePacer.DefaultFrameTime);
-        int health = map.Player.Hp;
-        Map.Action(map.Player, ActionCode.Damage, 5);
+        int health = map.Flagman(0)!.Hp;
+        Map.Action(map.Flagman(0)!, ActionCode.Damage, 5);
 
-        Assert.True(map.Player.IsAlive);
-        Assert.Equal(health, map.Player.Hp);
+        Assert.True(map.Flagman(0)!.IsAlive);
+        Assert.Equal(health, map.Flagman(0)!.Hp);
     }
 
     [Fact]
@@ -199,7 +199,7 @@ public class ScriptHandlerTests
         var map = EngineTestMap.CreateMap();
         var screen = new ScreenLog();
         Step(map, 1);
-        Map.Action(map.Player, ActionCode.Damage, map.Player.Hp);
+        Map.Action(map.Flagman(0)!, ActionCode.Damage, map.Flagman(0)!.Hp);
         Step(map, 40, screen);
 
         Assert.Single(screen.Flashes, flash => flash.Color == 0xff0000);

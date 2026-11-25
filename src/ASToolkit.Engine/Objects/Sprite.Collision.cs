@@ -26,7 +26,7 @@ public partial class Sprite
 
         if (FindCollision(next, out var other))
         {
-            bool isGround = other == Map.CursorSprite;
+            bool isGround = other == Map.Mouse;
 
             if (Map.RunCollisionHandler(this, isGround ? null : other) != 0)
             {
@@ -141,7 +141,7 @@ public partial class Sprite
     }
 
     [EngineRoutine(0x00444620)]
-    internal bool DirectRouteIntersection(ref Vector3 target) => Map.Collector.CheckLine(Vid, Position, ref target);
+    internal bool DirectRouteIntersection(ref Vector3 target) => Map.Sprites.CheckLine(Vid, Position, ref target);
 
     [EngineRoutine(0x00443810)]
     internal Sprite? CanPlace(Vector3 point)
@@ -152,12 +152,12 @@ public partial class Sprite
             return null;
 
         if (!Map.CanStandOnGround(vid, point))
-            return Map.CursorSprite;
+            return Map.Mouse;
 
         var half = vid.Half;
         float height = vid.Size.Z;
-        Map.Collector.FirstHashInBox(point.AsVector2() - half, point.AsVector2() + half);
-        for (var other = Map.Collector.NextHashInBox(); other is not null; other = Map.Collector.NextHashInBox())
+        Map.Sprites.FirstHashInBox(point.AsVector2() - half, point.AsVector2() + half);
+        for (var other = Map.Sprites.NextHashInBox(); other is not null; other = Map.Sprites.NextHashInBox())
         {
             var otherVid = other.Vid;
             if (other == this || other.Animation >= SpriteAnimation.Death || MathF.Abs(other.Position.X - point.X) >= otherVid.Half.X + half.X ||
@@ -205,10 +205,10 @@ public partial class Sprite
 
         if (!Map.CanStandOnGround(vid, position))
         {
-            return Map.CursorSprite;
+            return Map.Mouse;
         }
 
-        var collector = Map.Collector;
+        var collector = Map.Sprites;
         var half = vid.Half;
         float height = vid.Size.Z;
         collector.FirstHashInBox(position.AsVector2() - half, position.AsVector2() + half);

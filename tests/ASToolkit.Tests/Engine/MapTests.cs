@@ -26,14 +26,14 @@ public class MapTests
             }
             """);
 
-        Assert.False(map.HasPlayer);
+        Assert.False(map.Flagman(0) is not null);
         Assert.Null(map.Flagman(0));
 
         map.Step();
 
-        Assert.True(map.HasPlayer);
-        Assert.Equal(map.Player, map.Flagman(0));
-        Assert.Equal(map.Player, map.Flagman(0)?.Link?.Owner);
+        Assert.True(map.Flagman(0) is not null);
+        Assert.Equal(map.Flagman(0), map.Flagman(0));
+        Assert.Equal(map.Flagman(0), map.Flagman(0)?.Link?.Owner);
     }
 
     [Fact]
@@ -43,7 +43,7 @@ public class MapTests
         { Items = new Dictionary<KnownObject, int> { [KnownObject.ExtraLife] = 1 } };
         var map = EngineTestMap.CreateMap(loadout: loadout);
         map.Play(default);
-        var first = map.Player;
+        var first = map.Flagman(0)!;
         var start = first.Position;
         Map.Action(first, ActionCode.Damage, first.Hp);
         for (int tick = 0; tick < 200 && map.Flagman(0) is not null; tick++)
@@ -52,20 +52,20 @@ public class MapTests
         }
 
         Assert.Null(map.Flagman(0));
-        for (int tick = 0; tick < 5 && (!map.HasPlayer || map.Player == first); tick++)
+        for (int tick = 0; tick < 5 && (map.Flagman(0) is null || map.Flagman(0) == first); tick++)
         {
             map.Play(default);
         }
 
-        Assert.NotSame(first, map.Player);
-        Assert.Same(map.Player, map.Flagman(0));
-        Assert.True(map.Player.IsAlive);
-        Assert.Equal(start, map.Player.Position);
-        var player = (Man)map.Player;
+        Assert.NotSame(first, map.Flagman(0));
+        Assert.Same(map.Flagman(0), map.Flagman(0));
+        Assert.True(map.Flagman(0)!.IsAlive);
+        Assert.Equal(start, map.Flagman(0)!.Position);
+        var player = (Man)map.Flagman(0)!;
         Assert.Equal(23, player.SlotAmmo[KnownObject.Shotgun - KnownObject.Shotgun + 2] + (player.WeaponSlot == 2 ? player.GetAmmo() : 0));
 
-        Map.Action(map.Player, ActionCode.Damage, map.Player.Hp);
-        Assert.True(map.Player.IsAlive);
+        Map.Action(map.Flagman(0)!, ActionCode.Damage, map.Flagman(0)!.Hp);
+        Assert.True(map.Flagman(0)!.IsAlive);
     }
 
     [Fact]
@@ -73,7 +73,7 @@ public class MapTests
     {
         var map = EngineTestMap.CreateMap();
         map.Play(default);
-        var position = map.Player.Position + new Vector3(500, 0, 0);
+        var position = map.Flagman(0)!.Position + new Vector3(500, 0, 0);
         var enemy = map.CreateSprite(map.FindVid(KnownObject.Monster1), position, default)!;
         Map.Action(enemy, ActionCode.DeleteAllItems);
         Map.Action(enemy, ActionCode.AddItem, (int)KnownObject.Money);
@@ -86,8 +86,8 @@ public class MapTests
         }
 
         Assert.NotNull(dropped);
-        int droppedAt = map.Time;
-        while (map.Time <= droppedAt + DroppedItemMaxLifetime)
+        int droppedAt = map.CurrentTime;
+        while (map.CurrentTime <= droppedAt + DroppedItemMaxLifetime)
         {
             map.Play(default);
         }
@@ -100,7 +100,7 @@ public class MapTests
     {
         var map = EngineTestMap.CreateMap();
         map.Play(default);
-        var enemy = map.CreateSprite(map.FindVid(KnownObject.Monster1), map.Player.Position + new Vector3(500, 0, 0), default)!;
+        var enemy = map.CreateSprite(map.FindVid(KnownObject.Monster1), map.Flagman(0)!.Position + new Vector3(500, 0, 0), default)!;
         int maxHp = enemy.Hp;
         Map.Action(enemy, ActionCode.Damage, maxHp / 2);
 
@@ -114,7 +114,7 @@ public class MapTests
     {
         var map = EngineTestMap.CreateMap();
         map.Play(default);
-        var enemy = map.CreateSprite(map.FindVid(KnownObject.Monster1), map.Player.Position + new Vector3(500, 0, 0), default)!;
+        var enemy = map.CreateSprite(map.FindVid(KnownObject.Monster1), map.Flagman(0)!.Position + new Vector3(500, 0, 0), default)!;
         Map.Action(enemy, ActionCode.DeleteAllItems);
 
         Assert.Equal(-1, Map.Action(enemy, ActionCode.GetItemType));
@@ -130,38 +130,38 @@ public class MapTests
     {
         var map = EngineTestMap.CreateMap(camera: new Vector2(1000 - Graphics.DefaultScreenWidth / 2f, 1000 - Graphics.DefaultScreenHeight / 2f));
         map.Play(default);
-        var destination = map.Player.Position.AsVector2() + new Vector2(300, 0);
-        var command = new PlayerCommand(destination, PlayerCommand.GetCursor(map.Player.Position), false, Sprite.Pistols);
+        var destination = map.Flagman(0)!.Position.AsVector2() + new Vector2(300, 0);
+        var command = new PlayerCommand(destination, PlayerCommand.GetCursor(map.Flagman(0)!.Position), false, Sprite.Pistols);
         for (int tick = 0; tick < 250; tick++)
         {
             map.Play(command);
         }
 
-        Assert.NotEqual(Command.Move, map.Player.Command);
-        Assert.True(map.Player.IsTouching(destination, map.EmptyVid.Half));
+        Assert.NotEqual(Command.Move, map.Flagman(0)!.Command);
+        Assert.True(map.Flagman(0)!.IsTouching(destination, map.EmptyVid.Half));
         for (int tick = 0; tick < 50; tick++)
         {
             map.Play(default);
         }
 
-        Assert.Equal(0, map.Player.Speed);
-        Assert.Equal(Map.LevelStartTime + 301 * FramePacer.DefaultFrameTime, map.Time);
+        Assert.Equal(0, map.Flagman(0)!.Speed);
+        Assert.Equal(Map.LevelStartTime + 301 * FramePacer.DefaultFrameTime, map.CurrentTime);
     }
 
     [Fact]
     public void Step_MovesEnemiesWithoutAPlayerBot()
     {
         var map = EngineTestMap.CreateMap();
-        var start = map.Player.Position.AsVector2() + new Vector2(200, 0);
+        var start = map.Flagman(0)!.Position.AsVector2() + new Vector2(200, 0);
         var enemy = map.CreateSprite(map.FindVid(KnownObject.Monster1), new Vector3(start, map.GetGroundZ(start)), new Angle(192))!;
-        int health = map.Player.Hp;
+        int health = map.Flagman(0)!.Hp;
         for (int tick = 0; tick < 300; tick++)
         {
             map.Play(default);
         }
 
         Assert.NotEqual(start, enemy.Position.AsVector2());
-        Assert.True(map.Player.Hp < health);
+        Assert.True(map.Flagman(0)!.Hp < health);
     }
 
     [Theory]
@@ -169,11 +169,11 @@ public class MapTests
     public void Step_HighFrameRates_LetTheTankAlienReachThePlayer(int frameTime)
     {
         var map = EngineTestMap.CreateMap(frameTime: frameTime);
-        var player = map.Player.Position.AsVector2();
+        var player = map.Flagman(0)!.Position.AsVector2();
         var start = player + new Vector2(350, 0);
         var tank = map.CreateSprite(map.FindVid(KnownObject.TankMonster), new Vector3(start, 0), Angle.FromOffset(player - start) + 64)!;
 
-        while (map.Time < 6000)
+        while (map.CurrentTime < 6000)
         {
             map.Play(default);
         }

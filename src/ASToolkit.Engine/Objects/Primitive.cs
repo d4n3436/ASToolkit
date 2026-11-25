@@ -26,10 +26,10 @@ public sealed class Primitive : Sprite
     [EngineRoutine(0x00446070)]
     internal override void Tact()
     {
-        if ((uint)Vid.GetVisualFrameDuration(Animation) <= (uint)(Map.Time - LastTickTime))
+        if ((uint)Vid.GetVisualFrameDuration(Animation) <= (uint)(Map.CurrentTime - LastTickTime))
         {
             int frame = Frame + 1;
-            LastTickTime = Map.Time;
+            LastTickTime = Map.CurrentTime;
             Frame = frame;
 
             if (LastFrame < frame)

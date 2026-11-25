@@ -117,7 +117,7 @@ public sealed class Cannon : Sprite
 
         var vid = Vid;
         int elapsed = Map.FrameTime;
-        var next = CalculateNewCoordinates(elapsed);
+        var next = MoveTactCalculateCoordinates(elapsed);
 
         if (this is { IsBlocked: true, Animation: < SpriteAnimation.Death })
         {
@@ -240,7 +240,7 @@ public sealed class Cannon : Sprite
     {
         var goal = GoalPosition;
         var target = Goal!;
-        float distance = Position.AsVector2().MeasureOctagonalDistance(goal.AsVector2());
+        float distance = Position.AsVector2().NearLength(goal.AsVector2());
         var aim = DirectionTo(target) + (Speed < 0 ? Angle.HalfTurn : 0);
 
         if (!vid.Properties.HasFlag(ObjectProperties.SelfMoving))

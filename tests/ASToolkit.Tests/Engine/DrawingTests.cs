@@ -19,7 +19,7 @@ public class DrawingTests
         drawn.Session.Graphics.Screen = new Screen(Size.Round(drawn.Session.Graphics.ScreenSize), true);
 
         Step(drawn, Frames / 2);
-        var view = new Rectangle(Point.Round(new PointF(drawn.Camera.X, drawn.Camera.Y)), Size.Round(drawn.Session.Graphics.ScreenSize));
+        var view = new Rectangle(Point.Round(new PointF(drawn.Shift.X, drawn.Shift.Y)), Size.Round(drawn.Session.Graphics.ScreenSize));
         using (MapImage.Render(drawn, view, 1f))
         {
         }
@@ -47,7 +47,7 @@ public class DrawingTests
 
     private static string Snapshot(Map map)
     {
-        var lines = new List<string> { $"time {map.Time} random {map.RandomState} camera {map.Camera}" };
+        var lines = new List<string> { $"time {map.CurrentTime} random {map.RandomState} camera {map.Shift}" };
         for (int layer = 0; layer < Map.LayerCount; layer++)
         {
             foreach (var sprite in map.GetLayer(layer))

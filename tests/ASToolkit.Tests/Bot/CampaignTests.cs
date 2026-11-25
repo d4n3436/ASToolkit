@@ -51,11 +51,11 @@ public class CampaignTests
         var replay = play.LoadReplay(levels, endMoney, 1, null, true, 1, 1, recorded);
         while (replay.TryGetNextDemoTime(out int next))
         {
-            if (replay.StepAimed(replay.RealTime + (uint)(next - replay.Time)) || !replay.IsPlayingDemo)
+            if (replay.StepAimed(replay.RealCurrentTime + (uint)(next - replay.CurrentTime)) || !replay.IsPlayingDemo)
                 break;
         }
 
-        Assert.Equal(recorded.Time, replay.Time);
+        Assert.Equal(recorded.Time, replay.CurrentTime);
         Assert.Equal(recorded.Money, replay.ReadScriptNumber("PlayerMoney"u8));
         Assert.Equal(recorded.Ammo, new PlayerState(replay).GetRemainingAmmo());
     }
@@ -77,7 +77,7 @@ public class CampaignTests
         int frames = 0;
         while (replay.TryGetNextDemoTime(out int next))
         {
-            if (replay.StepAimed(replay.RealTime + (uint)(next - replay.Time)) || !replay.IsPlayingDemo)
+            if (replay.StepAimed(replay.RealCurrentTime + (uint)(next - replay.CurrentTime)) || !replay.IsPlayingDemo)
                 break;
 
             frames++;
@@ -85,8 +85,8 @@ public class CampaignTests
 
         Assert.True(frames > 1000);
         Assert.Equal(recorded.RandomState, replay.RandomState);
-        Assert.Equal(recorded.Player.Position, replay.Player.Position);
-        Assert.Equal(recorded.Player.Hp, replay.Player.Hp);
+        Assert.Equal(recorded.Flagman(0)!.Position, replay.Flagman(0)!.Position);
+        Assert.Equal(recorded.Flagman(0)!.Hp, replay.Flagman(0)!.Hp);
     }
 
     [Fact]

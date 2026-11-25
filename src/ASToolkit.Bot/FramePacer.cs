@@ -55,7 +55,7 @@ public sealed class FramePacer
     /// </summary>
     /// <param name="map">The map.</param>
     /// <returns>The real time in milliseconds.</returns>
-    public uint GetNextRealTime(Map map) => map.RealTime + (uint)_frameTimes[(_frame + 1) % _frameTimes.Count];
+    public uint GetNextRealTime(Map map) => map.RealCurrentTime + (uint)_frameTimes[(_frame + 1) % _frameTimes.Count];
 
     /// <summary>
     /// Returns the real time of the next frame after a map's current one and moves on to the next frame length.
@@ -85,10 +85,10 @@ public sealed class FramePacer
     /// </summary>
     /// <param name="map">The map.</param>
     /// <returns><see langword="true"/> when the game is quitting; otherwise, <see langword="false"/>.</returns>
-    public bool AdvanceClock(Map map)
+    public bool StartTact(Map map)
     {
         map.SetRealTime(TakeNextRealTime(map));
-        return map.AdvanceClock();
+        return map.StartTact();
     }
 
     /// <summary>

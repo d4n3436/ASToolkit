@@ -262,7 +262,7 @@ internal sealed class WalkField
         for (int order = 0; order < ReachedCount; order++)
         {
             int cell = _queue[order];
-            float distance = GetCenter(cell).MeasureOctagonalDistance(point);
+            float distance = GetCenter(cell).NearLength(point);
 
             if (distance < nearest)
             {

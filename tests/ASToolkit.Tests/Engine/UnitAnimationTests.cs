@@ -55,9 +55,9 @@ public class UnitAnimationTests
     public void Damage_LethalHit_EndsTheDeathAtTheNextAnimationTickWithItsChild()
     {
         var map = EngineTestMap.CreateMap();
-        var position = map.Player.Position + new Vector3(600, 0, 0);
+        var position = map.Flagman(0)!.Position + new Vector3(600, 0, 0);
         var enemy = map.CreateSprite(map.FindVid(KnownObject.Monster1), position, new Angle(64))!;
-        while (map.Time + map.FrameTime < Map.LevelStartTime + 96)
+        while (map.CurrentTime + map.FrameTime < Map.LevelStartTime + 96)
         {
             map.Play(default);
         }

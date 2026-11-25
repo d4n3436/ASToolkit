@@ -76,7 +76,7 @@ public sealed class PictureChannel : IDisposable
         {
             if (path.Length != 0)
             {
-                _error?.Write($"!!!ERROR!!!PICTURE '{path}': Unknown format file");
+                _error?.Log($"!!!ERROR!!!PICTURE '{path}': Unknown format file");
             }
 
             Format = PictureFormat.None;

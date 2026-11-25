@@ -17,7 +17,7 @@ public class ParticleTests
         var observer = new MapObserver(map);
         var scenery = observer.BakedEffects;
         map.CreateSprite(map.FindVid(flying), new Vector3(100, 200, 22), new Angle(64));
-        while (map.Time <= 4000)
+        while (map.CurrentTime <= 4000)
         {
             map.Play(default);
             observer.Observe();

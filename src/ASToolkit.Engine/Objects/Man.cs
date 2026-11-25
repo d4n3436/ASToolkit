@@ -102,7 +102,7 @@ public sealed class Man : Unit
     internal override void MoveTact()
     {
         int elapsed = Map.FrameTime;
-        var next = CalculateNewCoordinates(elapsed);
+        var next = MoveTactCalculateCoordinates(elapsed);
 
         if (Position.AsVector2() != next.AsVector2() && IsInsideMap(next.AsVector2()))
         {
@@ -263,7 +263,7 @@ public sealed class Man : Unit
     {
         var screen = Map.Session.Graphics.Screen;
         var player = Position;
-        var pixel = cursor - Map.Camera;
+        var pixel = cursor - Map.Shift;
         float y = cursor.Y;
         float height;
 

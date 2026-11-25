@@ -21,18 +21,18 @@ public class KeyframeTests
         weapons[record.WeaponIndex] = CreateWeapon(source.Weapon);
         var vid = new Vid(source.Id, record, weapons, source.SpriteSpeed) { HasTimers = true };
         map.SetChildAndLink(vid);
-        var sprite = map.CreateSprite(vid, map.Player.Position + new Vector3(600, 0, 0), default)!;
-        int start = map.Time;
+        var sprite = map.CreateSprite(vid, map.Flagman(0)!.Position + new Vector3(600, 0, 0), default)!;
+        int start = map.CurrentTime;
 
-        while (map.Time - start < Period / 2)
+        while (map.CurrentTime - start < Period / 2)
         {
             map.Play(default);
         }
 
-        float expected = (map.Time - sprite.KeyframeStart) * (WeaponRecord.KeyframeCount - 1) / (float)Period;
+        float expected = (map.CurrentTime - sprite.KeyframeStart) * (WeaponRecord.KeyframeCount - 1) / (float)Period;
         Assert.InRange(sprite.KeyframePosition, expected - 0.01f, expected + 0.01f);
 
-        while (map.Time - start <= Period + Period / 2)
+        while (map.CurrentTime - start <= Period + Period / 2)
         {
             map.Play(default);
         }

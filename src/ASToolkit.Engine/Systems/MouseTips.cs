@@ -27,16 +27,16 @@ internal sealed class MouseTips
     [EngineRoutine(0x0043da80)]
     public void Tact(Input input)
     {
-        uint now = _map.RealTime;
+        uint realTime = _map.RealCurrentTime;
         var cursor = input.ScreenCursor;
 
         if (_map.Session.MouseTipCursor != cursor)
         {
-            _map.Session.MouseTipMovedAt = now;
+            _map.Session.MouseTipMovedAt = realTime;
             _map.Session.MouseTipCursor = cursor;
         }
 
-        bool isResting = now - _map.Session.MouseTipMovedAt > (uint)_map.Constant.HoverDelay && !input.Flags.HasFlag(InputFlags.LeftClick) && input.Key == 0 &&
+        bool isResting = realTime - _map.Session.MouseTipMovedAt > (uint)_map.Constant.HoverDelay && !input.Flags.HasFlag(InputFlags.LeftClick) && input.Key == 0 &&
             !_map.Menu.Clicks.HasFlag(MenuClicks.Left) && _map.HasFlag(MapFlags.MouseTips);
 
         if (!isResting)
@@ -47,7 +47,7 @@ internal sealed class MouseTips
 
         if (_tip is not null)
         {
-            if (now - _map.Session.MouseTipMovedAt <= (uint)_map.Constant.HoverDelay + Recheck)
+            if (realTime - _map.Session.MouseTipMovedAt <= (uint)_map.Constant.HoverDelay + Recheck)
                 return;
 
             _map.Session.MouseTipMovedAt += Recheck;
@@ -84,7 +84,7 @@ internal sealed class MouseTips
 
         _tip = _map.CreateSprite(font, new Vector3(position, Depth), default);
 
-        if (_tip is not Text text)
+        if (_tip is not SText text)
             return;
 
         byte[] framed = new byte[length];

@@ -74,9 +74,9 @@ public sealed class Region : Sprite
     /// </summary>
     /// <param name="screen">The screen to draw to.</param>
     /// <param name="map">The map.</param>
-    /// <param name="camera">The top left corner of the view, in map pixels.</param>
+    /// <param name="shift">The top left corner of the view, in map pixels.</param>
     [EngineRoutine(0x00449810)]
-    public override void Draw(Screen screen, Map map, Vector2 camera)
+    public override void Draw(Screen screen, Map map, Vector2 shift)
     {
         var position = Position;
         int frame = Frame;
@@ -90,10 +90,10 @@ public sealed class Region : Sprite
             {
                 float groundY = position.Y - position.Z;
                 screen.Viewport = Rectangle.FromLTRB(
-                    (int)(position.X - half.X - camera.X),
-                    (int)(groundY - half.Y - camera.Y),
-                    (int)(half.X + position.X - camera.X),
-                    (int)(half.Y + groundY - camera.Y));
+                    (int)(position.X - half.X - shift.X),
+                    (int)(groundY - half.Y - shift.Y),
+                    (int)(half.X + position.X - shift.X),
+                    (int)(half.Y + groundY - shift.Y));
             }
 
             int tile = 0;
@@ -113,7 +113,7 @@ public sealed class Region : Sprite
                         }
 
                         Position = position with { X = frameSize.Center.X + left, Y = frameSize.Center.Y + top };
-                        Vid.Draw(screen, map, this, camera);
+                        Vid.Draw(screen, map, this, shift);
                     }
                 }
             }
@@ -140,7 +140,7 @@ public sealed class Region : Sprite
         }
         else
         {
-            int phase = map.Time & FogPhaseMask;
+            int phase = map.CurrentTime & FogPhaseMask;
 
             if ((uint)phase < (uint)FogPhase)
             {
@@ -166,8 +166,8 @@ public sealed class Region : Sprite
         }
 
         float centerY = position.Y - position.Z;
-        var topLeft = new Vector2(position.X - half.X - camera.X, centerY - half.Y - camera.Y);
-        var bottomRight = new Vector2(half.X + position.X - camera.X, half.Y + centerY - camera.Y);
+        var topLeft = new Vector2(position.X - half.X - shift.X, centerY - half.Y - shift.Y);
+        var bottomRight = new Vector2(half.X + position.X - shift.X, half.Y + centerY - shift.Y);
         map.Session.Graphics.DrawFog(screen, topLeft, bottomRight, FogNear, FogFar, FogColor, FogTable.Span, FogLevel, Flags.HasFlag(RegionFlags.LightFog));
     }
 
@@ -183,11 +183,11 @@ public sealed class Region : Sprite
     {
         var position = Position;
         var size = Size;
-        float left = position.X - size.X * Map.HalfShare - Map.Camera.X;
-        float top = position.Y - position.Z - size.Y * Map.HalfShare - Map.Camera.Y;
-        float right = size.X * Map.HalfShare + position.X - Map.Camera.X;
-        float bottom = size.Y * Map.HalfShare + (position.Y - position.Z) - Map.Camera.Y;
-        Map.Session.Graphics.DrawRectangle(Map, new Vector2(left - RegionBoxMargin, top - RegionBoxMargin), new Vector2(right + RegionBoxMargin, bottom + RegionBoxMargin), Map.White);
+        float left = position.X - size.X * Map.HalfShare - Map.Shift.X;
+        float top = position.Y - position.Z - size.Y * Map.HalfShare - Map.Shift.Y;
+        float right = size.X * Map.HalfShare + position.X - Map.Shift.X;
+        float bottom = size.Y * Map.HalfShare + (position.Y - position.Z) - Map.Shift.Y;
+        Map.Session.Graphics.Box(Map, new Vector2(left - RegionBoxMargin, top - RegionBoxMargin), new Vector2(right + RegionBoxMargin, bottom + RegionBoxMargin), Map.White);
     }
 
     [EngineRoutine(0x00449be0)]

@@ -58,7 +58,7 @@ public sealed partial class Graphics
             };
         }
 
-        EffectStartTimes[effect] = map.RealTime;
+        EffectStartTimes[effect] = map.RealCurrentTime;
         EffectDurations[effect] = duration;
         EffectFirst[effect] = first;
         EffectSecond[effect] = second;
@@ -81,7 +81,7 @@ public sealed partial class Graphics
         }
         else if (screenEffect == ScreenEffect.Scroll)
         {
-            ScrollFrom = new Vector2(map.Camera.Y);
+            ScrollFrom = new Vector2(map.Shift.Y);
         }
         else if (screenEffect == ScreenEffect.ShiftGamma)
         {
@@ -95,7 +95,7 @@ public sealed partial class Graphics
         if (effect is <= (int)ScreenEffect.None or >= EffectCount || EffectStartTimes[effect] == 0)
             return -1;
 
-        return (int)(unchecked(map.RealTime * 100 - EffectStartTimes[effect] * 100) / (uint)EffectDurations[effect]);
+        return (int)(unchecked(map.RealCurrentTime * 100 - EffectStartTimes[effect] * 100) / (uint)EffectDurations[effect]);
     }
 
     [EngineRoutine(0x00431b60)]
@@ -105,25 +105,25 @@ public sealed partial class Graphics
     [EngineRoutine(0x004311a0)]
     private void UpdateEffects(Map map, bool draw)
     {
-        uint now = map.RealTime;
+        uint realTime = map.RealCurrentTime;
         bool isShown = draw && Screen is not null;
 
-        if (TryAdvanceEffect(ScreenEffect.AlphaAppear, now, isShown, out uint appeared, out uint appearLength) && Capture is not null)
+        if (TryAdvanceEffect(ScreenEffect.AlphaAppear, realTime, isShown, out uint appeared, out uint appearLength) && Capture is not null)
         {
             DrawAlphaAppear(Capture, appeared, appearLength);
         }
 
         if (EffectStartTimes[(int)ScreenEffect.Scroll] != 0)
         {
-            UpdateScroll(map, now);
+            UpdateScroll(map, realTime);
         }
 
-        if (TryAdvanceEffect(ScreenEffect.Nuke, now, isShown, out uint elapsed, out uint length))
+        if (TryAdvanceEffect(ScreenEffect.Nuke, realTime, isShown, out uint elapsed, out uint length))
         {
             DrawNukeFlash(elapsed, length);
         }
 
-        if (TryAdvanceEffect(ScreenEffect.Fade, now, isShown, out elapsed, out length))
+        if (TryAdvanceEffect(ScreenEffect.Fade, realTime, isShown, out elapsed, out length))
         {
             uint rise = length * FadeRiseNumerator;
             uint hold = (uint)(length * FadeHoldNumerator * DivideByNine >> DivideByNineShift);
@@ -144,20 +144,20 @@ public sealed partial class Graphics
             DrawGrayFade(strength);
         }
 
-        if (TryAdvanceEffect(ScreenEffect.FadeIn, now, isShown, out elapsed, out length))
+        if (TryAdvanceEffect(ScreenEffect.FadeIn, realTime, isShown, out elapsed, out length))
         {
             uint rise = length * FadeInRiseNumerator;
             DrawGrayFade(elapsed < (uint)(rise * DivideByFive >> DivideByFiveShift) ? unchecked(elapsed * 5 << 8) / rise : FadeFullStrength);
         }
 
-        if (TryAdvanceEffect(ScreenEffect.FadeOut, now, isShown, out elapsed, out length))
+        if (TryAdvanceEffect(ScreenEffect.FadeOut, realTime, isShown, out elapsed, out length))
         {
             DrawGrayFade(unchecked((length - elapsed) << 8) / length);
         }
 
         if (EffectStartTimes[(int)ScreenEffect.ShiftGamma] != 0)
         {
-            UpdateGammaShift(map, now, draw);
+            UpdateGammaShift(map, realTime, draw);
         }
     }
 
@@ -183,11 +183,11 @@ public sealed partial class Graphics
         EffectStartTimes[(int)ScreenEffect.Fade] = 0;
     }
 
-    private bool TryAdvanceEffect(ScreenEffect effect, uint now, bool isShown, out uint elapsed, out uint length)
+    private bool TryAdvanceEffect(ScreenEffect effect, uint realTime, bool isShown, out uint elapsed, out uint length)
     {
         uint start = EffectStartTimes[(int)effect];
         length = (uint)EffectDurations[(int)effect];
-        elapsed = now - start;
+        elapsed = realTime - start;
         if (start != 0 && elapsed >= length)
         {
             EffectStartTimes[(int)effect] = 0;
@@ -218,20 +218,20 @@ public sealed partial class Graphics
         }
     }
 
-    private void UpdateScroll(Map map, uint now)
+    private void UpdateScroll(Map map, uint realTime)
     {
-        uint scrolled = now - EffectStartTimes[(int)ScreenEffect.Scroll];
+        uint scrolled = realTime - EffectStartTimes[(int)ScreenEffect.Scroll];
         int duration = EffectDurations[(int)ScreenEffect.Scroll];
         if ((uint)duration < scrolled)
         {
-            map.SetPosition(new Vector2(EffectFirst[(int)ScreenEffect.Scroll], EffectSecond[(int)ScreenEffect.Scroll]), CameraMove.None);
+            map.SetShiftCoordinates(new Vector2(EffectFirst[(int)ScreenEffect.Scroll], EffectSecond[(int)ScreenEffect.Scroll]), ShiftMove.None);
             EffectStartTimes[(int)ScreenEffect.Scroll] = 0;
         }
         else
         {
             var position = new Vector2((EffectFirst[(int)ScreenEffect.Scroll] - ScrollFrom.X) * (int)scrolled / duration + ScrollFrom.X,
                 (EffectSecond[(int)ScreenEffect.Scroll] - ScrollFrom.Y) * (int)scrolled / duration + ScrollFrom.Y);
-            map.SetPosition(position, CameraMove.None);
+            map.SetShiftCoordinates(position, ShiftMove.None);
         }
     }
 
@@ -251,9 +251,9 @@ public sealed partial class Graphics
 
     private void DrawGrayFade(uint strength) => DrawFade(Screen!, (strength << 8 | strength) << 8 | strength);
 
-    private void UpdateGammaShift(Map map, uint now, bool draw)
+    private void UpdateGammaShift(Map map, uint realTime, bool draw)
     {
-        uint shifted = now - EffectStartTimes[(int)ScreenEffect.ShiftGamma];
+        uint shifted = realTime - EffectStartTimes[(int)ScreenEffect.ShiftGamma];
         var target = Gamma.FromScript((uint)EffectFirst[(int)ScreenEffect.ShiftGamma]);
         if (shifted >= (uint)EffectDurations[(int)ScreenEffect.ShiftGamma])
         {

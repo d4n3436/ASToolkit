@@ -34,7 +34,7 @@ public class SoundTests
         var sound = Sound.Create(new GameFolder(TestGameFolder.RequireFolder()), device);
         var random = new GameRandom(7);
 
-        sound.Play(MonsterHit, 0, Sound.FullLoudness);
+        sound.PlaySfx(MonsterHit, 0, Sound.FullLoudness);
         sound.Tact(random, 100, 100);
         sound.Tact(random, 100 + FrameTime, 100 + FrameTime);
         sound.Tact(random, 100 + FrameTime * 2, 100 + FrameTime * 2);
@@ -48,7 +48,7 @@ public class SoundTests
         var sound = CreateSound();
         var random = new GameRandom(7);
 
-        sound.Play(MonsterHit, 0, Sound.FullLoudness);
+        sound.PlaySfx(MonsterHit, 0, Sound.FullLoudness);
         sound.Tact(random, 100, 100);
 
         Assert.Equal(1, CountDraws(random, 7));
@@ -72,9 +72,9 @@ public class SoundTests
         var sound = CreateSound();
         var random = new GameRandom(7);
 
-        sound.Play(MonsterHit, 0, Sound.FullLoudness);
+        sound.PlaySfx(MonsterHit, 0, Sound.FullLoudness);
         sound.Tact(random, 100, 100);
-        sound.Play(MonsterHit, 0, Sound.FullLoudness);
+        sound.PlaySfx(MonsterHit, 0, Sound.FullLoudness);
         sound.Tact(random, 100 + FrameTime, 100 + FrameTime);
 
         Assert.Equal(1, CountDraws(random, 7));
@@ -88,7 +88,7 @@ public class SoundTests
 
         for (int frame = 0; frame < 30; frame++)
         {
-            sound.Play(Footsteps, 0, Sound.FullLoudness);
+            sound.PlaySfx(Footsteps, 0, Sound.FullLoudness);
             sound.Tact(random, 100 + frame * FrameTime, (uint)(100 + frame * FrameTime));
         }
 
@@ -101,12 +101,12 @@ public class SoundTests
     {
         var sound = CreateSound();
         var random = new GameRandom(7);
-        sound.PlayMusicFile(@"music\mus00.ogg"u8, 1, 100);
+        sound.FadeAndPlayFile(@"music\mus00.ogg"u8, 1, 100);
 
         sound.Tact(random, 100, 100);
         sound.Tact(random, 100 + FrameTime, 100 + FrameTime);
         int playing = CountDraws(random, 7);
-        sound.PlayMusicFile(@"music\mus01.ogg"u8, 0, 200);
+        sound.FadeAndPlayFile(@"music\mus01.ogg"u8, 0, 200);
         int fadeStart = random.State;
         sound.Tact(random, 200, 200);
 
@@ -121,7 +121,7 @@ public class SoundTests
         var sound = CreateSound();
         var random = new GameRandom(7);
 
-        sound.Play(MonsterHit, 3000, -500);
+        sound.PlaySfx(MonsterHit, 3000, -500);
         sound.Tact(random, 100, 100);
 
         var states = GetPlayingBuffers(sound);
@@ -136,12 +136,12 @@ public class SoundTests
         var sound = CreateSound();
         var random = new GameRandom(7);
 
-        sound.Play(id, 0, Sound.FullLoudness);
+        sound.PlaySfx(id, 0, Sound.FullLoudness);
         sound.Tact(random, 100, 100);
-        sound.Play(id, 0, Sound.FullLoudness);
+        sound.PlaySfx(id, 0, Sound.FullLoudness);
         sound.Tact(random, 160, 160);
         int bothPlaying = GetPlayingBuffers(sound).Count(state => state.Sound == id);
-        sound.Stop(id, 160);
+        sound.StopSfx(id, 160);
 
         Assert.Equal(2, bothPlaying);
         Assert.Single(GetPlayingBuffers(sound), state => state.Sound == id && state.StartedAt == 100);
@@ -155,10 +155,10 @@ public class SoundTests
         var sound = CreateSound();
         var random = new GameRandom(7);
 
-        sound.Play(id, 0, Sound.FullLoudness);
+        sound.PlaySfx(id, 0, Sound.FullLoudness);
         sound.Tact(random, 100, 100);
-        sound.Stop(id, 100);
-        sound.Play(id, 0, Sound.FullLoudness);
+        sound.StopSfx(id, 100);
+        sound.PlaySfx(id, 0, Sound.FullLoudness);
         sound.Tact(random, 60000, 60000);
 
         Assert.Single(GetPlayingBuffers(sound), state => state.Sound == id && state.StartedAt == 60000);
@@ -169,7 +169,7 @@ public class SoundTests
     {
         var sound = CreateSound();
 
-        sound.PlayMusicFile(@"music\mus00.ogg"u8, 1, 100);
+        sound.FadeAndPlayFile(@"music\mus00.ogg"u8, 1, 100);
 
         Assert.True(sound.TryGetPlayingMusic(out var state));
         Assert.Equal(new MusicState(@"music\mus00.ogg", 100, 0), state);

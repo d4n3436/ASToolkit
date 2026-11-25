@@ -57,14 +57,14 @@ public sealed class RangeCoder
         {
             int symbol = BytesPerValue == 2 ? i < half ? input[2 * i] : input[2 * (i - half) + 1] : input[i];
             ref var model = ref _models[context];
-            encoder.Encode(model.GetStart(symbol), model.GetFrequency(symbol), FrequencyModel.TotalBits);
+            encoder.EncodeShift(model.GetStart(symbol), model.GetFrequency(symbol), FrequencyModel.TotalBits);
             model.Count(symbol);
             context = symbol;
         }
 
         ref var last = ref _models[context];
-        encoder.Encode(last.GetStart(EndSymbol), last.GetFrequency(EndSymbol), FrequencyModel.TotalBits);
-        return encoder.Finish();
+        encoder.EncodeShift(last.GetStart(EndSymbol), last.GetFrequency(EndSymbol), FrequencyModel.TotalBits);
+        return encoder.EndEncoding();
     }
 
     /// <summary>

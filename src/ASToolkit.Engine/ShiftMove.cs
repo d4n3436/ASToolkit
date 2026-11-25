@@ -1,7 +1,7 @@
 namespace ASToolkit.Engine;
 
 [Flags]
-internal enum CameraMove
+internal enum ShiftMove
 {
     None = 0,
     Smooth = 1 << 1,

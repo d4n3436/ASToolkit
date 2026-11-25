@@ -80,13 +80,13 @@ public class GammaTests
         var map = EngineTestMap.CreateMap(script: ShiftScript);
         var target = Gamma.FromScript(0x606060);
 
-        while (map.Time < 100)
+        while (map.CurrentTime < 100)
         {
             map.Play(default);
         }
 
-        int started = map.Time;
-        while (map.Time - started < 500)
+        int started = map.CurrentTime;
+        while (map.CurrentTime - started < 500)
         {
             map.Play(default);
         }
@@ -94,7 +94,7 @@ public class GammaTests
         var halfway = map.Gamma;
         Assert.InRange(halfway.Negative & 0xff, 0x50u, 0x70u);
         Assert.Equal(0u, halfway.Positive);
-        while (map.Time - started < 1100)
+        while (map.CurrentTime - started < 1100)
         {
             map.Play(default);
         }

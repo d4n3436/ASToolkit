@@ -280,7 +280,7 @@ public sealed class Playthrough
 
         map.RequestLoad(setup.MapName);
         map.TactAt((uint)seed);
-        var field = new WalkField(analysis.Grid, setup.DoorsLocked, map, map.Collector, map.FindVid(KnownObject.PlayerStart)!);
+        var field = new WalkField(analysis.Grid, setup.DoorsLocked, map, map.Sprites, map.FindVid(KnownObject.PlayerStart)!);
         var bot = new PlayerBot(map, new FramePacer(FrameTimes), analysis, field);
 
         return new PlaySession(map, bot, analysis.Exit is null && !analysis.ShouldClearMonsters);
@@ -290,8 +290,8 @@ public sealed class Playthrough
     {
         var map = session.Map;
 
-        return new PlaythroughResult(loadout, map is { HasPlayer: true, Player.IsAlive: true } && session.HasWon, map.Time, session.Bot.FarthestProgress, session.Log.Kills, session.Log.Respawns, session.Log.MinHealth,
-            map.ReadScriptNumber("PlayerMoney"u8), ReadImplants(map), session.Log.TakenPickups, ReadItems(map), map.HasPlayer ? new PlayerState(map).GetRemainingAmmo() : [],
+        return new PlaythroughResult(loadout, map.Flagman(0)?.IsAlive == true && session.HasWon, map.CurrentTime, session.Bot.FarthestProgress, session.Log.Kills, session.Log.Respawns, session.Log.MinHealth,
+            map.ReadScriptNumber("PlayerMoney"u8), ReadImplants(map), session.Log.TakenPickups, ReadItems(map), map.Flagman(0) is not null ? new PlayerState(map).GetRemainingAmmo() : [],
             session.Log.Timeline, record ? new DemoResource(map.FinishDemoRecording()) : null);
     }
 
@@ -315,7 +315,7 @@ public sealed class Playthrough
             items[KnownObject.Flashlight] = 1;
         }
 
-        if (map.HasPlayer && map.Player.Items.Contains((int)KnownObject.Medkit))
+        if (map.Flagman(0) is not null && map.Flagman(0)!.Items.Contains((int)KnownObject.Medkit))
         {
             items[KnownObject.Medkit] = 1;
         }

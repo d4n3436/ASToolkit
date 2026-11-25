@@ -159,7 +159,7 @@ internal sealed class Menu : SpriteList
 
     [EngineRoutine(0x0043e8a0)]
     public int GetDirectionUnderCursor() =>
-        Current is null ? 0 : Current.Vid.GetDirectionIndex(Current.Direction);
+        Current is null ? 0 : Current.Vid.RealDirection(Current.Direction);
 
     private bool TryOpen(ReadOnlySpan<byte> name, out Resource reader, out MenuHeader header)
     {

@@ -77,13 +77,13 @@ public sealed class Mouse : Sprite
     /// </summary>
     /// <param name="screen">The screen to draw to.</param>
     /// <param name="map">The map.</param>
-    /// <param name="camera">The top left corner of the view, in map pixels.</param>
+    /// <param name="shift">The top left corner of the view, in map pixels.</param>
     [EngineRoutine(0x00446d20)]
-    public override void Draw(Screen screen, Map map, Vector2 camera)
+    public override void Draw(Screen screen, Map map, Vector2 shift)
     {
         if (!IsHardwareCursor && IsCursorLoaded)
         {
-            base.Draw(screen, map, camera);
+            base.Draw(screen, map, shift);
         }
     }
 
@@ -198,7 +198,7 @@ public sealed class Mouse : Sprite
         switch (act)
         {
             case ActionCode.ChangeAnimation:
-                Map.CursorSprite.ChangeAnimation((SpriteAnimation)var1);
+                Map.Mouse.ChangeAnimation((SpriteAnimation)var1);
                 return 0;
             case ActionCode.ChangeVid:
                 if (Map.FindVid((KnownObject)var1) is null || (KnownObject)var1 == Vid.Id)
@@ -206,10 +206,10 @@ public sealed class Mouse : Sprite
 
                 AddToUpdates();
                 base.Action(act, var1, var2, var3, target);
-                Map.Collector.DeleteFromHash(this);
+                Map.Sprites.DeleteFromHash(this);
                 foreach (var link in EnumerateLinks())
                 {
-                    Map.Collector.DeleteFromHash(link);
+                    Map.Sprites.DeleteFromHash(link);
                 }
 
                 RemoveFromUpdates();

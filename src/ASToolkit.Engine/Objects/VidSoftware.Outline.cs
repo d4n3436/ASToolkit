@@ -16,14 +16,14 @@ public partial class VidSoftware
 
     /// <inheritdoc/>
     [EngineRoutine(0x00418640)]
-    public override void DrawOutline(Screen screen, Map map, Sprite sprite, Vector2 camera)
+    public override void DrawOutline(Screen screen, Map map, Sprite sprite, Vector2 shift)
     {
         if (Frames.IsEmpty || FrameOffsets.Length == 0 || IsHidden)
             return;
 
         int halfWidth = FrameSize.Width / 2;
         int halfHeight = FrameSize.Height / 2;
-        var origin = new Vector2(sprite.Position.X - camera.X - halfWidth, sprite.Position.Y - sprite.Position.Z - camera.Y - halfHeight);
+        var origin = new Vector2(sprite.Position.X - shift.X - halfWidth, sprite.Position.Y - sprite.Position.Z - shift.Y - halfHeight);
         var viewport = screen.Viewport;
         if ((int)origin.X + FrameSize.Width + OutlineMargin.Width < viewport.Left || (int)origin.X >= viewport.Right)
             return;
@@ -35,7 +35,7 @@ public partial class VidSoftware
         float z = sprite.Position.Z;
         if (Properties.HasFlag(ObjectProperties.Wave))
         {
-            z = new Angle((byte)(map.Time >> WaveTimeShift & WaveTableMask)).Sine * TopZ + z;
+            z = new Angle((byte)(map.CurrentTime >> WaveTimeShift & WaveTableMask)).Sine * TopZ + z;
         }
 
         int record = FrameOffsets[sprite.Frame];

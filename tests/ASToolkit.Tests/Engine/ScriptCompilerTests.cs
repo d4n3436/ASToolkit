@@ -21,7 +21,7 @@ public class ScriptCompilerTests
         Assert.True(compiled.Load(fileSystem, path));
         Assert.True(recorded.Load(fileSystem, path));
 
-        int offset = recorded.ReadState(demo.Body);
+        int offset = recorded.LoadVar(demo.Body);
         while (demo.TryReadFrame(ref offset, out _))
         {
         }

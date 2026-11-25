@@ -222,7 +222,7 @@ public sealed class Sound
     /// <param name="pan">The balance from -10000 (left) to 10000 (right).</param>
     /// <param name="volume">The volume in hundredths of a decibel, 0 at full loudness.</param>
     [EngineRoutine(0x0041d600)]
-    public void Play(int id, int pan, int volume)
+    public void PlaySfx(int id, int pan, int volume)
     {
         if (_deviceState != DeviceReady || IsInvalid(id))
             return;
@@ -284,7 +284,7 @@ public sealed class Sound
         int down = (int)offset.Y;
         int acrossLevel = unchecked(-GetMagnitude(across) * LoudnessScale);
         int downLevel = unchecked(-GetMagnitude(down) * LoudnessScale);
-        Play(id, unchecked(across * PanScale), Math.Min(acrossLevel, downLevel));
+        PlaySfx(id, unchecked(across * PanScale), Math.Min(acrossLevel, downLevel));
     }
 
     /// <summary>
@@ -327,7 +327,7 @@ public sealed class Sound
             if (request.Id < 0)
                 continue;
 
-            int picked = PickVoice(request.Id, random, time);
+            int picked = LoadBuffer(request.Id, random, time);
 
             if (picked >= 0)
             {
@@ -344,14 +344,14 @@ public sealed class Sound
     /// <param name="id">The sound, or -1 to stop every voice.</param>
     /// <param name="realTime">The real time in milliseconds.</param>
     [EngineRoutine(0x0041d560)]
-    public void Stop(int id, uint realTime)
+    public void StopSfx(int id, uint realTime)
     {
         if (_deviceState != DeviceReady)
             return;
 
         if (id == NoSound)
         {
-            StopAll(realTime);
+            StopSound(realTime);
 
             return;
         }
@@ -380,11 +380,11 @@ public sealed class Sound
     /// <param name="loop">Any nonzero value to play the track again when it ends.</param>
     /// <param name="realTime">The real time in milliseconds.</param>
     [EngineRoutine(0x0041dec0)]
-    public void PlayMusicFile(ReadOnlySpan<byte> name, int loop, uint realTime)
+    public void FadeAndPlayFile(ReadOnlySpan<byte> name, int loop, uint realTime)
     {
         if (_music is null)
         {
-            StartMusic(name.ToArray(), loop, realTime);
+            PlayFile(name.ToArray(), loop, realTime);
 
             return;
         }
@@ -417,7 +417,7 @@ public sealed class Sound
     /// <param name="volume">The volume from 0 to 100.</param>
     /// <param name="realTime">The real time in milliseconds.</param>
     [EngineRoutine(0x0041ddf0)]
-    public void SetMusicVolume(int volume, uint realTime)
+    public void VolumeMusic(int volume, uint realTime)
     {
         if (volume <= 0)
         {
@@ -425,7 +425,7 @@ public sealed class Sound
 
             if (_music is not null)
             {
-                DestroyMusic();
+                DisableMusic();
             }
         }
         else
@@ -440,7 +440,7 @@ public sealed class Sound
 
         if (_music is null && volume != 0)
         {
-            StartMusic(_trackName, _loop, realTime);
+            PlayFile(_trackName, _loop, realTime);
         }
 
         _music?.SetVolume((volume - FullVolume) * VolumeScale);
@@ -464,7 +464,7 @@ public sealed class Sound
     [EngineRoutine(0x0041d080)]
     public void Disable()
     {
-        DestroyMusic();
+        DisableMusic();
         DisableSound();
     }
 
@@ -556,7 +556,7 @@ public sealed class Sound
         }
         while (resource.GoNextSub(SfxTag) == Resource.Found);
 
-        Error?.Write($"LoadSFX::No   ={count,-15}   sizeof(SFX)   ={SfxRecordSize,-5}    load time     ={GameSession.TimeGetTime(_time) - start}ms Quality={(IsHighQuality ? 1 : 0)}");
+        Error?.Log($"LoadSFX::No   ={count,-15}   sizeof(SFX)   ={SfxRecordSize,-5}    load time     ={GameSession.TimeGetTime(_time) - start}ms Quality={(IsHighQuality ? 1 : 0)}");
     }
 
     [EngineRoutine(0x0041cd30)]
@@ -737,14 +737,14 @@ public sealed class Sound
 
         if (resource.GoBegin("fmt "u8) != 0)
         {
-            Error?.Write($"!!!ERROR!!!SFX:'{MyError.Decode(path)}' 'fmt ' not found");
+            Error?.Log($"!!!ERROR!!!SFX:'{MyError.Decode(path)}' 'fmt ' not found");
 
             return default;
         }
 
         if (resource.ChunkSize < FormatMinimumSize)
         {
-            Error?.Write($"!!!ERROR!!!SFX:'{MyError.Decode(path)}' incorrect size {resource.ChunkSize}");
+            Error?.Log($"!!!ERROR!!!SFX:'{MyError.Decode(path)}' incorrect size {resource.ChunkSize}");
 
             return default;
         }
@@ -755,7 +755,7 @@ public sealed class Sound
 
         if (resource.GoNext("data"u8) != 0 && resource.GoBegin("data"u8) != 0)
         {
-            Error?.Write($"!!!ERROR!!!SFX:'{MyError.Decode(path)}' 'data' not found");
+            Error?.Log($"!!!ERROR!!!SFX:'{MyError.Decode(path)}' 'data' not found");
 
             return default;
         }
@@ -839,7 +839,7 @@ public sealed class Sound
     }
 
     [EngineRoutine(0x0041d430)]
-    private int PickVoice(int id, GameRandom random, int time)
+    private int LoadBuffer(int id, GameRandom random, int time)
     {
         if (_deviceState != DeviceReady || IsInvalid(id))
             return -1;
@@ -884,7 +884,7 @@ public sealed class Sound
     }
 
     [EngineRoutine(0x0041dcd0)]
-    private void StopAll(uint realTime)
+    private void StopSound(uint realTime)
     {
         var voices = _voices.AsSpan();
         for (int v = 0; v < voices.Length; v++)
@@ -894,7 +894,7 @@ public sealed class Sound
     }
 
     [EngineRoutine(0x0041df20)]
-    private int StartMusic(ReadOnlyMemory<byte> name, int loop, uint realTime)
+    private int PlayFile(ReadOnlyMemory<byte> name, int loop, uint realTime)
     {
         if (name.Length == 0)
             return 1;
@@ -944,7 +944,7 @@ public sealed class Sound
     }
 
     [EngineRoutine(0x0041d0a0)]
-    private void DestroyMusic()
+    private void DisableMusic()
     {
         _music = null;
         _device?.SendMusicCommand("stop FWMUSIC"u8);
@@ -989,7 +989,7 @@ public sealed class Sound
             }
             else
             {
-                StartMusic(_trackName, _loop, realTime);
+                PlayFile(_trackName, _loop, realTime);
             }
         }
     }

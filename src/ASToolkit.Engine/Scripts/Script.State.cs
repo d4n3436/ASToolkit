@@ -44,7 +44,7 @@ public sealed partial class Script
     /// <param name="data">The stored state.</param>
     /// <returns>The number of bytes read.</returns>
     [EngineRoutine(0x0041fb20)]
-    public int ReadState(ReadOnlyMemory<byte> data)
+    public int LoadVar(ReadOnlyMemory<byte> data)
     {
         int offset = 0;
         for (int i = 0; i < _stack.Count; i++)

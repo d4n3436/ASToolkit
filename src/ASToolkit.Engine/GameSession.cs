@@ -29,10 +29,10 @@ public sealed class GameSession : IDisposable
     internal bool IsTextureDxt3Supported;
     internal bool IsTextureDxt5Supported;
     internal bool IsTextureAlphaPaletteSupported;
-    internal bool IsTextureConditionalNonPowerOfTwo;
-    internal int PrevCurrentTime;
+    internal bool IsTextureConditionalNonPowerOfTwoSupported;
+    internal int PreviousCurrentTime;
     internal int CurrentTime;
-    internal uint PrevRealCurrentTime;
+    internal uint PreviousRealCurrentTime;
     internal uint RealCurrentTime;
     internal uint DemoPacedAt;
     internal int DemoPacedTime;
@@ -70,7 +70,7 @@ public sealed class GameSession : IDisposable
     }
 
     /// <summary>
-    /// Gets or sets the speed the camera scrolls at along each axis in pixels per millisecond.
+    /// Gets or sets the speed the view scrolls at along each axis in pixels per millisecond.
     /// </summary>
     public Vector2 ScrollSpeed { get; set; }
 

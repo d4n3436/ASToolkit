@@ -200,7 +200,6 @@ public readonly partial record struct Angle(byte Value) : IComparable<Angle>
     /// <param name="directions">The number of direction frames.</param>
     /// <param name="offset">The offset added to the direction before it is divided into frames.</param>
     /// <returns>The index of the direction frame.</returns>
-    [EngineRoutine(0x0043a1c0)]
     public int GetDirectionIndex(int directions, int offset) => ((offset + Value) & 0xff) * directions >> 8;
 
     /// <summary>

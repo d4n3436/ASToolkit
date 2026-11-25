@@ -129,7 +129,7 @@ public sealed class Input
     }
 
     [EngineRoutine(0x00425d80)]
-    internal bool WindowProc(WindowMessageId message, int wParam, int lParam, Point windowOrigin, RectangleF view, Vector2 camera, Mouse cursorSprite)
+    internal bool WindowProc(WindowMessageId message, int wParam, int lParam, Point windowOrigin, RectangleF view, Vector2 shift, Mouse cursorSprite)
     {
         InputFlags flag;
         switch (message)
@@ -141,7 +141,7 @@ public sealed class Input
                 Flags &= ~LostFocusFlags;
                 break;
             case WindowMessageId.HitTest:
-                return MoveCursor(lParam, windowOrigin, view, camera, cursorSprite);
+                return MoveCursor(lParam, windowOrigin, view, shift, cursorSprite);
             case WindowMessageId.KeyDown:
                 Key = wParam << KeyShift;
                 VirtualKey = (VirtualKey)wParam;
@@ -232,7 +232,7 @@ public sealed class Input
         }
     }
 
-    private bool MoveCursor(int lParam, Point windowOrigin, RectangleF view, Vector2 camera, Mouse cursorSprite)
+    private bool MoveCursor(int lParam, Point windowOrigin, RectangleF view, Vector2 shift, Mouse cursorSprite)
     {
         WindowOrigin = windowOrigin;
         var point = new Vector2((lParam & 0xFFFF) - windowOrigin.X, ((lParam >> 16) & 0xFFFF) - windowOrigin.Y);
@@ -259,7 +259,7 @@ public sealed class Input
             clamped.Y = view.Bottom - 1;
         }
 
-        Cursor = clamped + camera;
+        Cursor = clamped + shift;
         cursorSprite.ChangeCoor(new Vector3(Cursor, cursorSprite.Position.Z));
 
         return view.Left <= point.X && point.X < view.Right && view.Top <= point.Y && point.Y < view.Bottom;

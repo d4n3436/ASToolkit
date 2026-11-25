@@ -74,7 +74,7 @@ public sealed partial class Graphics
     public int[] EffectSecond { get; } = new int[EffectCount];
 
     /// <summary>
-    /// Gets or sets the camera position a scroll effect starts from.
+    /// Gets or sets the shift a scroll effect starts from.
     /// </summary>
     public Vector2 ScrollFrom { get; set; }
 

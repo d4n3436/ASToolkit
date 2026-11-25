@@ -31,9 +31,9 @@ internal sealed class InputDriver
         bool hasClicked = false;
         bool hasFired = false;
 
-        if (_map.HasPlayer)
+        if (_map.Flagman(0) is not null)
         {
-            var player = _map.Player;
+            var player = _map.Flagman(0)!;
 
             if (command.Destination != _destination)
             {
@@ -69,7 +69,7 @@ internal sealed class InputDriver
 
         var point = GetMousePoint(cursor);
         var pixel = new Point((int)MathF.Round(point.X), (int)MathF.Round(point.Y));
-        Cursor = new Vector2(pixel.X, pixel.Y) + _map.Camera;
+        Cursor = new Vector2(pixel.X, pixel.Y) + _map.Shift;
         var screen = pixel + new Size(_map.Session.Graphics.WindowPosition);
         input.PostMessage(WindowMessageId.HitTest, 0, (screen.Y & 0xFFFF) << 16 | (screen.X & 0xFFFF));
 
@@ -97,7 +97,7 @@ internal sealed class InputDriver
     private Vector2 GetMousePoint(Vector2 cursor)
     {
         var view = _map.Session.Graphics.Viewport;
-        var point = cursor - _map.Camera;
+        var point = cursor - _map.Shift;
 
         return new Vector2(Math.Clamp(point.X, view.Left + BorderMargin, view.Right - BorderMargin), Math.Clamp(point.Y, view.Top + BorderMargin, view.Bottom - BorderMargin));
     }

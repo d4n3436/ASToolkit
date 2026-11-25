@@ -33,7 +33,7 @@ internal sealed class PlayLog
 
     public void Update(Map map)
     {
-        if (map.HasPlayer && map.Player != _player)
+        if (map.Flagman(0) is not null && map.Flagman(0) != _player)
         {
             if (_player is { IsAlive: false })
             {
@@ -41,12 +41,12 @@ internal sealed class PlayLog
                 MinHealth = Math.Min(MinHealth, 0);
             }
 
-            _player = map.Player;
+            _player = map.Flagman(0);
         }
 
-        if (map.HasPlayer)
+        if (map.Flagman(0) is not null)
         {
-            MinHealth = Math.Min(MinHealth, map.Player.Hp);
+            MinHealth = Math.Min(MinHealth, map.Flagman(0)!.Hp);
         }
 
         UpdateTimeline(map);
@@ -66,14 +66,14 @@ internal sealed class PlayLog
         {
             _doorsLocked = map.AreDoorsLocked;
             Timeline = _doorsLocked
-                ? Timeline with { BlackoutAt = Timeline.BlackoutAt ?? map.Time }
-                : Timeline with { DoorsOpenedAt = Timeline.DoorsOpenedAt ?? map.Time };
+                ? Timeline with { BlackoutAt = Timeline.BlackoutAt ?? map.CurrentTime }
+                : Timeline with { DoorsOpenedAt = Timeline.DoorsOpenedAt ?? map.CurrentTime };
         }
 
         if (_fencesUp && !map.AreFencesUp)
         {
             _fencesUp = false;
-            Timeline = Timeline with { FencesDownAt = map.Time };
+            Timeline = Timeline with { FencesDownAt = map.CurrentTime };
         }
     }
 

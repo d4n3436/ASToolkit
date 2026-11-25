@@ -65,21 +65,9 @@ public class Unit : Terrain
     public bool IsActive => Behavior.HasFlag(WeaponBehavior.Active);
 
     /// <summary>
-    /// Returns the ammunition the unit holds when full.
-    /// </summary>
-    /// <returns>The capacity in rounds.</returns>
-    [EngineRoutine(0x0043a200)]
-    public int GetAmmoCapacity()
-    {
-        var link = Vid.LinkVid;
-
-        return link is not null && link.CanFight() ? link.Weapon.Ammo : Vid.Weapon.Ammo;
-    }
-
-    /// <summary>
     /// Fills the unit's ammunition.
     /// </summary>
-    public void FillAmmo() => Ammo = GetAmmoCapacity() * AmmoScale;
+    public void FillAmmo() => Ammo = Vid.GetMaxAmmo() * AmmoScale;
 
     /// <summary>
     /// Returns the rounds the unit holds for its held weapon.
@@ -94,7 +82,7 @@ public class Unit : Terrain
     /// <returns>The rounds held after the addition.</returns>
     public int AddAmmo(int amount)
     {
-        if (GetAmmoCapacity() == Vid.Unlimited)
+        if (Vid.GetMaxAmmo() == Vid.Unlimited)
         {
             Ammo = Vid.Unlimited * AmmoScale;
 
@@ -106,7 +94,7 @@ public class Unit : Terrain
 
         if (ShouldRefillAmmo)
         {
-            Ammo = GetAmmoCapacity() * AmmoScale;
+            Ammo = Vid.GetMaxAmmo() * AmmoScale;
         }
 
         return ammo;
@@ -208,7 +196,7 @@ public class Unit : Terrain
     {
         int elapsed = Map.FrameTime;
         int framesPerSecond = Map.FramesPerSecond;
-        var next = CalculateNewCoordinates(elapsed);
+        var next = MoveTactCalculateCoordinates(elapsed);
 
         if (TurnTicks == 0)
         {

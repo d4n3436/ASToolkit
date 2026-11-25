@@ -18,7 +18,7 @@ public partial class Map
     private const int GridFirstColumnX = 12;
     private const int GridCellCenter = 4;
 
-    internal Vector2 GetScreenPoint(Sprite sprite) => new(sprite.Position.X - Camera.X, sprite.Position.Y - sprite.Position.Z - Camera.Y);
+    internal Vector2 GetScreenPoint(Sprite sprite) => new(sprite.Position.X - Shift.X, sprite.Position.Y - sprite.Position.Z - Shift.Y);
 
     private static bool IsInViewport(Rectangle viewport, Vector2 point) => viewport.Left <= point.X && point.X < viewport.Right && viewport.Top <= point.Y && point.Y < viewport.Bottom;
 
@@ -93,13 +93,13 @@ public partial class Map
                 short height = Math.Max(scenery[index], objects[index]);
                 short previousHeight = Math.Max(scenery[index - 1], objects[index - 1]);
                 int top = row * GridZCellSize;
-                var start = new Vector2(x - Camera.X, top - height + GridCellCenter - Camera.Y);
-                var end = new Vector2(x - GridZCellSize - Camera.X, top - previousHeight + GridCellCenter - Camera.Y);
+                var start = new Vector2(x - Shift.X, top - height + GridCellCenter - Shift.Y);
+                var end = new Vector2(x - GridZCellSize - Shift.X, top - previousHeight + GridCellCenter - Shift.Y);
 
                 if (!IsInViewport(viewport, start) && !IsInViewport(viewport, end))
                     continue;
 
-                Session.Graphics.DrawLine(this, start, end, Gray);
+                Session.Graphics.WuLine(this, start, end, Gray);
             }
         }
     }

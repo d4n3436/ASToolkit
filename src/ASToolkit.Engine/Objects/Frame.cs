@@ -20,7 +20,7 @@ public class Frame : Sprite
     /// <param name="map">The map the sprite belongs to.</param>
     [EngineRoutine(0x00448a60)]
     public Frame(Vid vid, Vector3 position, Angle direction, Sprite? parent, Map map)
-        : base(vid, new Vector3(position.AsVector2() + map.Camera, position.Z), direction, parent, map)
+        : base(vid, new Vector3(position.AsVector2() + map.Shift, position.Z), direction, parent, map)
     {
         Map.Menu.Insert(this);
     }

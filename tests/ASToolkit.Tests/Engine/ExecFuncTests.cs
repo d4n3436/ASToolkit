@@ -26,11 +26,11 @@ public class ExecFuncTests
               nobody = Flagman(1);
             }
             """);
-        var player = map.Player.Position;
+        var player = map.Flagman(0)!.Position;
 
         Assert.Equal((int)player.X, Read(script, "x"));
-        Assert.Equal((int)player.AsVector2().MeasureOctagonalDistance(new Vector2((int)player.X + 30, (int)player.Y + 40)), Read(script, "distance"));
-        Assert.Equal((int)map.Player.Vid.Id, Read(script, "vid"));
+        Assert.Equal((int)player.AsVector2().NearLength(new Vector2((int)player.X + 30, (int)player.Y + 40)), Read(script, "distance"));
+        Assert.Equal((int)map.Flagman(0)!.Vid.Id, Read(script, "vid"));
         Assert.Equal(0, Read(script, "nobody"));
     }
 
@@ -44,12 +44,12 @@ public class ExecFuncTests
               Pause(1);
             }
             """);
-        int pausedAt = map.Time;
-        map.AdvancePacedClock();
-        map.AdvancePacedClock();
+        int pausedAt = map.CurrentTime;
+        map.StartPacedTact();
+        map.StartPacedTact();
 
         Assert.True(map.IsPaused);
-        Assert.True(map.Time > pausedAt);
+        Assert.True(map.CurrentTime > pausedAt);
 
         var fileSystem = new MemoryWriteOverlay(new GameFolder(TestGameFolder.RequireFolder()));
         fileSystem.Set(ScriptPath, "#include \"maps\\export.lgc\"\nmain()\n{\n  Pause(0);\n}\n"u8.ToArray());
@@ -57,8 +57,8 @@ public class ExecFuncTests
         script.CallFunction(map, -1, 0, 0, 0);
 
         Assert.False(map.IsPaused);
-        Assert.Equal(pausedAt, map.Time);
-        Assert.Equal(pausedAt, map.Player.LastTickTime);
+        Assert.Equal(pausedAt, map.CurrentTime);
+        Assert.Equal(pausedAt, map.Flagman(0)!.LastTickTime);
     }
 
     [Fact]
@@ -105,7 +105,7 @@ public class ExecFuncTests
         Assert.Equal(5, Read(script, "length"));
         Assert.Equal(1024, Read(script, "sine"));
         Assert.Equal(-1024, Read(script, "cosine"));
-        Assert.Equal(map.Time, Read(script, "time"));
+        Assert.Equal(map.CurrentTime, Read(script, "time"));
         Assert.Equal('B', Read(script, "letter"));
         Assert.Equal(0, Read(script, "found"));
         Assert.Equal(0, Read(script, "roll"));
@@ -213,9 +213,9 @@ public class ExecFuncTests
               removed = GetVidData(50, VID_COUNT);
             }
             """);
-        var player = map.Player.Position.AsVector2();
+        var player = map.Flagman(0)!.Position.AsVector2();
 
-        Assert.InRange(Read(script, "units"), 3, map.Collector.Listed.Length + 2);
+        Assert.InRange(Read(script, "units"), 3, map.Sprites.Listed.Length + 2);
         Assert.Equal(Angle.East.Value, Read(script, "direction"));
         Assert.Equal((int)map.Size.Width, Read(script, "width"));
         Assert.Equal((int)map.GetGroundZ(new Vector2((int)player.X, (int)player.Y)), Read(script, "ground"));
@@ -269,7 +269,7 @@ public class ExecFuncTests
         Assert.Equal(sprite.Link is null ? 0 : 1, Read(script, "link") == 0 ? 0 : 1);
         Assert.Equal(ActionCode.Stop, sprite.ActionStack[sprite.ActionStack.Count - 1].Code);
         Assert.Equal(Read(script, "unit"), Read(script, "swapped"));
-        Assert.Equal(map.Player, map.Flagman(0));
+        Assert.Equal(map.Flagman(0), map.Flagman(0));
     }
 
     [Fact]
@@ -342,7 +342,7 @@ public class ExecFuncTests
             }
             """);
         var texts = Enumerable.Range(0, 17).SelectMany(layer => map.GetLayer(layer))
-            .Select(entry => (entry as Text)?.Shown.ToArray()).Where(text => text is not null)
+            .Select(entry => (entry as SText)?.Shown.ToArray()).Where(text => text is not null)
             .Select(text => Encoding.ASCII.GetString(text!)).ToList();
 
         Assert.Contains("BACK", texts);

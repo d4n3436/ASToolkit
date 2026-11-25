@@ -58,7 +58,7 @@ public partial class Map
         switch ((MenuCommand)(message.WParam & CommandIdMask))
         {
             case MenuCommand.Load when Constant.IsDebugMode:
-                Load(GetOpenFileName().Span);
+                Load(OpenSaveDialog().Span);
                 break;
             case MenuCommand.Exit:
                 Input.PostMessage(WindowMessageId.Close, 0, 0);
@@ -73,10 +73,10 @@ public partial class Map
     }
 
     [EngineRoutine(0x0040c400)]
-    private ReadOnlyMemory<byte> GetOpenFileName()
+    private ReadOnlyMemory<byte> OpenSaveDialog()
     {
-        Session.Graphics.EnterMenuLoop();
-        Session.Graphics.ExitMenuLoop();
+        Session.Graphics.BeginPause();
+        Session.Graphics.EndPause();
 
         return default;
     }
@@ -92,31 +92,31 @@ public partial class Map
     [EngineRoutine(0x0040b930)]
     private bool WindowProc(in WindowMessage message)
     {
-        if (_flags.HasFlag(MapFlags.WindowActive) && Input.WindowProc(message.Id, message.WParam, message.LParam, Session.Graphics.WindowPosition, Session.Graphics.Viewport, Camera, CursorSprite))
+        if (_flags.HasFlag(MapFlags.WindowActive) && Input.WindowProc(message.Id, message.WParam, message.LParam, Session.Graphics.WindowPosition, Session.Graphics.Viewport, Shift, Mouse))
             return true;
 
         switch (message.Id)
         {
             case WindowMessageId.EnterMenuLoop or WindowMessageId.EnterSizeMove:
-                Session.Graphics.EnterMenuLoop();
-                Sound.Pause(RealTime);
+                Session.Graphics.BeginPause();
+                Sound.Pause(RealCurrentTime);
                 break;
             case WindowMessageId.ExitMenuLoop or WindowMessageId.ExitSizeMove:
-                Session.Graphics.ExitMenuLoop();
-                Sound.Resume(RealTime);
+                Session.Graphics.EndPause();
+                Sound.Resume(RealCurrentTime);
                 break;
             case WindowMessageId.ActivateApp:
                 SetFlag(MapFlags.WindowActive, message.WParam != 0);
 
                 if (_flags.HasFlag(MapFlags.WindowActive))
                 {
-                    Sound.Resume(RealTime);
-                    CursorSprite.Enable(FileSystem);
+                    Sound.Resume(RealCurrentTime);
+                    Mouse.Enable(FileSystem);
                 }
                 else
                 {
-                    Sound.Pause(RealTime);
-                    CursorSprite.Disable();
+                    Sound.Pause(RealCurrentTime);
+                    Mouse.Disable();
                 }
 
                 break;
@@ -132,7 +132,7 @@ public partial class Map
                 Input.PostQuitMessage();
                 break;
             case WindowMessageId.Paint:
-                Session.Error.Write("WM_PAINT"u8);
+                Session.Error.Log("WM_PAINT"u8);
                 break;
             case WindowMessageId.SysCommand when (SystemCommand)message.WParam is SystemCommand.Size or SystemCommand.Move or SystemCommand.Maximize or SystemCommand.MonitorPower:
                 return Session.Graphics.Flags.HasFlag(GraphicsFlags.FullScreen);

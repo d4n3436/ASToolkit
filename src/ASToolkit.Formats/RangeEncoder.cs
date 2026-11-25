@@ -31,7 +31,7 @@ internal ref struct RangeEncoder
     }
 
     [EngineRoutine(0x004252a0)]
-    public void Encode(int start, int frequency, int bits)
+    public void EncodeShift(int start, int frequency, int bits)
     {
         while (_range < NormalizeLimit + 1)
         {
@@ -72,7 +72,7 @@ internal ref struct RangeEncoder
     }
 
     [EngineRoutine(0x004253b0)]
-    public int Finish()
+    public int EndEncoding()
     {
         if (_output is null)
             return -1;

@@ -79,7 +79,7 @@ public static class MapExtensions
         {
             var screen = map.Session.Graphics.Screen ??= new Screen(Size.Round(map.Session.Graphics.ScreenSize), true);
             var fullViewport = new Rectangle(Point.Empty, screen.Size);
-            var pixel = cursor - map.Camera;
+            var pixel = cursor - map.Shift;
             var corner = new Point(Math.Clamp((int)pixel.X - AimWindow / 2, 0, screen.Size.Width - AimWindow), Math.Clamp((int)pixel.Y - AimWindow / 2, 0, screen.Size.Height - AimWindow));
             screen.Viewport = new Rectangle(corner, new Size(AimWindow, AimWindow));
             bool isQuitting = map.Tact();

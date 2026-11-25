@@ -49,14 +49,14 @@ public sealed class VidHighColor : VidSoftware
     /// <param name="screen">The screen to draw to.</param>
     /// <param name="map">The map.</param>
     /// <param name="sprite">The sprite.</param>
-    /// <param name="camera">The top left corner of the view, in map pixels.</param>
+    /// <param name="shift">The top left corner of the view, in map pixels.</param>
     [EngineRoutine(0x00417780)]
-    public override void Draw(Screen screen, Map map, Sprite sprite, Vector2 camera)
+    public override void Draw(Screen screen, Map map, Sprite sprite, Vector2 shift)
     {
         if (IsHidden)
             return;
 
-        var origin = GetScreenOrigin(sprite, camera);
+        var origin = GetScreenOrigin(sprite, shift);
         if (!TryLocateFrame(map, sprite, screen.Viewport, ref origin, out int depth, out var rows))
             return;
 

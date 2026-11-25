@@ -70,10 +70,10 @@ internal sealed class PickupTracker
 
     private void Update()
     {
-        if (_checkedAt == _map.Time)
+        if (_checkedAt == _map.CurrentTime)
             return;
 
-        _checkedAt = _map.Time;
+        _checkedAt = _map.CurrentTime;
         _removed.Clear();
         int population = GetPopulation();
 

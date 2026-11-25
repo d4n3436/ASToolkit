@@ -102,7 +102,7 @@ public partial class Map : IScriptFunctionHost
                 PushSprite(script, FirstInBox(script));
                 break;
             case ScriptFunction.NextInBox:
-                PushSprite(script, Collector.NextHashInBox());
+                PushSprite(script, Sprites.NextHashInBox());
                 break;
             case ScriptFunction.DirectionTo:
                 script.PushInt(DirectionTo(script));
@@ -205,7 +205,7 @@ public partial class Map : IScriptFunctionHost
                 SetVidData(script);
                 break;
             case ScriptFunction.Log:
-                Session.Error.Write(script.PopText().Span);
+                Session.Error.Log(script.PopText().Span);
                 break;
             case ScriptFunction.ReloadVid:
                 ReloadVid();
@@ -280,7 +280,7 @@ public partial class Map : IScriptFunctionHost
                 MessageText(script);
                 break;
             case ScriptFunction.SetPosition:
-                SetPosition(PopPoint(script), CameraMove.None);
+                SetShiftCoordinates(PopPoint(script), ShiftMove.None);
                 break;
             case ScriptFunction.SetMouseClick:
                 SetMouseClick(script.PopNumber(), script.PopNumber());
@@ -298,7 +298,7 @@ public partial class Map : IScriptFunctionHost
                 script.PushInt((int)Session.Graphics.ScreenSize.Height);
                 break;
             case ScriptFunction.ToScreenX:
-                script.PushInt((int)(script.PopNumber() - Camera.X));
+                script.PushInt((int)(script.PopNumber() - Shift.X));
                 break;
             case ScriptFunction.ToScreenY:
                 script.PushInt(ToScreenY(script));
@@ -308,13 +308,13 @@ public partial class Map : IScriptFunctionHost
                 Sound.SetVolume(script.PopNumber());
                 break;
             case ScriptFunction.SetMusicVolume:
-                Sound.SetMusicVolume(script.PopNumber(), Session.RealCurrentTime);
+                Sound.VolumeMusic(script.PopNumber(), Session.RealCurrentTime);
                 break;
             case ScriptFunction.PlaySfx:
-                Sound.Play(script.PopNumber(), 0, Sound.FullLoudness);
+                Sound.PlaySfx(script.PopNumber(), 0, Sound.FullLoudness);
                 break;
             case ScriptFunction.StopSfx:
-                Sound.Stop(script.PopNumber(), Session.RealCurrentTime);
+                Sound.StopSfx(script.PopNumber(), Session.RealCurrentTime);
                 break;
             case ScriptFunction.StopMusic:
                 Sound.StopMusic(Session.RealCurrentTime);
@@ -376,7 +376,7 @@ public partial class Map : IScriptFunctionHost
                 if (script.PopNumber() != 0)
                 {
                     Pause();
-                    CursorSprite.ChangeAnimation(0);
+                    Mouse.ChangeAnimation(0);
                 }
                 else
                 {
@@ -389,7 +389,7 @@ public partial class Map : IScriptFunctionHost
                 break;
             case ScriptFunction.Exec:
                 // TODO: Port the shell launch of Exec; the port only logs the command
-                Session.Error.Write($"Exec '{MyError.Decode(script.PopText().Span)}'");
+                Session.Error.Log($"Exec '{MyError.Decode(script.PopText().Span)}'");
                 break;
             case ScriptFunction.FClose:
                 FClose();
@@ -504,7 +504,7 @@ public partial class Map : IScriptFunctionHost
                 GetPlayer(1).IsCleverEnemyAttack = PopNumber() != 0;
                 break;
             default:
-                Session.Error.Write($"!!!ERROR!!!LOGIC: Unknown extern Function {function}");
+                Session.Error.Log($"!!!ERROR!!!LOGIC: Unknown extern Function {function}");
                 break;
         }
     }
@@ -538,8 +538,8 @@ public partial class Map : IScriptFunctionHost
         if (search.HasFlag(SpriteSearch.Hash))
         {
             float ground = GetGroundZ(point);
-            Collector.FirstHashInBox(point - new Vector2(ScreenSpriteReach), new Vector2(point.X + ScreenSpriteReach, ground + point.Y + ScreenSpriteReach));
-            for (var sprite = Collector.NextHashInBox(); sprite is not null; sprite = Collector.NextHashInBox())
+            Sprites.FirstHashInBox(point - new Vector2(ScreenSpriteReach), new Vector2(point.X + ScreenSpriteReach, ground + point.Y + ScreenSpriteReach));
+            for (var sprite = Sprites.NextHashInBox(); sprite is not null; sprite = Sprites.NextHashInBox())
             {
                 if (sprite.Owner is null && IsSearched(sprite, search, types, armies) && IsScreenHit(sprite, sprite.Vid.Half, point, found))
                 {
@@ -552,7 +552,7 @@ public partial class Map : IScriptFunctionHost
 
         if (IsListedSearch(types))
         {
-            var listed = Collector.Listed;
+            var listed = Sprites.Listed;
             for (int i = listed.Length - 1; i >= 0; i--)
             {
                 var sprite = listed[i];
@@ -676,7 +676,7 @@ public partial class Map : IScriptFunctionHost
     private static bool IsMenuClass(Vid vid) => vid.Class is SpriteClass.Frame or SpriteClass.Text;
 
     private static bool IsMenuMatch(Sprite sprite, Vid vid, int direction) =>
-        sprite.Vid == vid && (direction == AnyDirection || vid.GetDirectionIndex(sprite.Direction) == direction);
+        sprite.Vid == vid && (direction == AnyDirection || vid.RealDirection(sprite.Direction) == direction);
 
     private static string ReadText(ReadOnlyMemory<byte> text) => GameTextEncoding.Cyrillic.GetString(text.Span);
 
@@ -800,10 +800,10 @@ public partial class Map : IScriptFunctionHost
         }
     }
 
-    private int GetTime() => Time;
+    private int GetTime() => CurrentTime;
 
     private void LogInvalidVid(ReadOnlySpan<byte> function, int id) =>
-        Session.Error.Write($"!!!ERROR!!!SCRIPT: Invalid nvid {MyError.Decode(function)} {id}");
+        Session.Error.Log($"!!!ERROR!!!SCRIPT: Invalid nvid {MyError.Decode(function)} {id}");
 
     private void SetMouseClick(int key, int button)
     {
@@ -822,21 +822,21 @@ public partial class Map : IScriptFunctionHost
         switch (type)
         {
             case CursorOff:
-                CursorSprite.Disable();
+                Mouse.Disable();
                 break;
             case HardwareCursor:
-                CursorSprite.HardwareOn(EmptyVid, FileSystem);
+                Mouse.HardwareOn(EmptyVid, FileSystem);
                 break;
             case SoftwareCursor:
-                CursorSprite.HardwareOff(FindVid(KnownObject.Cursor) ?? EmptyVid, FileSystem);
+                Mouse.HardwareOff(FindVid(KnownObject.Cursor) ?? EmptyVid, FileSystem);
                 break;
             default:
-                if (!CursorSprite.IsCursorLoaded)
+                if (!Mouse.IsCursorLoaded)
                 {
-                    CursorSprite.Enable(FileSystem);
+                    Mouse.Enable(FileSystem);
                 }
 
-                CursorSprite.ChangeAnimation((SpriteAnimation)type);
+                Mouse.ChangeAnimation((SpriteAnimation)type);
                 break;
         }
     }
@@ -971,14 +971,14 @@ public partial class Map : IScriptFunctionHost
         if (!TryGetSearchedTypes(ref search, out var types, out var armies, out var vid))
             return null;
 
-        float previousDistance = previous is null ? -1 : point.MeasureOctagonalDistance(previous.Position.AsVector2());
+        float previousDistance = previous is null ? -1 : point.NearLength(previous.Position.AsVector2());
         float reach = radius;
         Sprite? found = null;
 
         if (search.HasFlag(SpriteSearch.Hash))
         {
-            Collector.FirstHashInBox(point - new Vector2(radius), point + new Vector2(radius));
-            for (var sprite = Collector.NextHashInBox(); sprite is not null; sprite = Collector.NextHashInBox())
+            Sprites.FirstHashInBox(point - new Vector2(radius), point + new Vector2(radius));
+            for (var sprite = Sprites.NextHashInBox(); sprite is not null; sprite = Sprites.NextHashInBox())
             {
                 TakeNearer(sprite);
             }
@@ -988,7 +988,7 @@ public partial class Map : IScriptFunctionHost
 
         if (IsListedSearch(types))
         {
-            var listed = Collector.Listed;
+            var listed = Sprites.Listed;
             for (int i = listed.Length - 1; i >= 0; i--)
             {
                 TakeNearer(listed[i]);
@@ -1030,7 +1030,7 @@ public partial class Map : IScriptFunctionHost
             if (sprite.Owner is not null || !IsSearched(sprite, search, types, armies))
                 return;
 
-            float distance = point.MeasureOctagonalDistance(sprite.Position.AsVector2());
+            float distance = point.NearLength(sprite.Position.AsVector2());
 
             if (distance < reach && previousDistance < distance)
             {
@@ -1132,9 +1132,9 @@ public partial class Map : IScriptFunctionHost
     [EngineRoutine(0x00412e80)]
     private Sprite? GetNextUnit()
     {
-        _unitIndex = Math.Min(_unitIndex, Collector.Listed.Length) - 1;
+        _unitIndex = Math.Min(_unitIndex, Sprites.Listed.Length) - 1;
 
-        return _unitIndex >= 0 ? Collector.Listed[_unitIndex] : null;
+        return _unitIndex >= 0 ? Sprites.Listed[_unitIndex] : null;
     }
 
     private Sprite? FindUnitOfMask(Sprite? sprite)
@@ -1173,7 +1173,7 @@ public partial class Map : IScriptFunctionHost
                 script.PushSprite(Action(sprite, code, first, second, third));
                 return;
 
-            case ActionCode.GetTextDesc when sprite is Text text:
+            case ActionCode.GetTextDesc when sprite is SText text:
                 script.PushText(text.Description);
                 return;
 
@@ -1213,7 +1213,7 @@ public partial class Map : IScriptFunctionHost
     private Sprite? FirstUnit(Script script)
     {
         _unitMask = (OldSpriteType)script.PopNumber();
-        var sprites = Collector.Listed;
+        var sprites = Sprites.Listed;
         _unitIndex = sprites.Length - 1;
         return sprites.IsEmpty ? null : FindUnitOfMask(sprites[_unitIndex]);
     }
@@ -1221,7 +1221,7 @@ public partial class Map : IScriptFunctionHost
     private Sprite? FirstInBox(Script script)
     {
         var max = PopPoint(script);
-        return Collector.First(PopPoint(script), max);
+        return Sprites.First(PopPoint(script), max);
     }
 
     private int DirectionTo(Script script)
@@ -1258,7 +1258,7 @@ public partial class Map : IScriptFunctionHost
             LogInvalidVid("for CanPlace"u8, id);
         }
 
-        return Collector.CanPlace(vid ?? EmptyVid, position);
+        return Sprites.CanPlace(vid ?? EmptyVid, position);
     }
 
     private void Genocide(Script script)
@@ -1291,7 +1291,7 @@ public partial class Map : IScriptFunctionHost
     {
         var point = PopPoint(script);
         var sprite = PopSprite(script);
-        return sprite is null ? NoUnitDistance : (int)sprite.Position.AsVector2().MeasureOctagonalDistance(point);
+        return sprite is null ? NoUnitDistance : (int)sprite.Position.AsVector2().NearLength(point);
     }
 
     private void Effect(Script script)
@@ -1506,7 +1506,7 @@ public partial class Map : IScriptFunctionHost
         vid.Speed = value == ASToolkit.Engine.Vid.Unlimited ? ASToolkit.Engine.Vid.Unlimited : value * ASToolkit.Engine.Vid.PerMillisecond;
         foreach (var entry in _layers[(int)vid.Layer].Items)
         {
-            if (entry is not null && entry.Vid == vid && entry.HasExtra)
+            if (entry is not null && entry.Vid == vid && entry.HasExtraData)
             {
                 entry.MaxSpeed = vid.Speed;
             }
@@ -1591,7 +1591,7 @@ public partial class Map : IScriptFunctionHost
     {
         int y = script.PopNumber();
         var target = new Point(script.PopNumber(), y);
-        Action(CursorSprite, ActionCode.ChangeCoor, target.X, target.Y);
+        Action(Mouse, ActionCode.ChangeCoor, target.X, target.Y);
     }
 
     private void SetWind(Script script)
@@ -1604,19 +1604,19 @@ public partial class Map : IScriptFunctionHost
     {
         int z = script.PopNumber();
         int y = script.PopNumber();
-        return (int)((float)y - z - Camera.Y);
+        return (int)((float)y - z - Shift.Y);
     }
 
     private void PlaySfxFromCoor(Script script)
     {
         var point = PopPoint(script);
-        Sound.PlayAt(script.PopNumber(), point - Camera - Session.Graphics.ScreenSize.ToVector2() * HalfShare);
+        Sound.PlayAt(script.PopNumber(), point - Shift - Session.Graphics.ScreenSize.ToVector2() * HalfShare);
     }
 
     private void PlayMusicFile(Script script)
     {
         int loop = script.PopNumber();
-        Sound.PlayMusicFile(script.PopText().Span, loop, Session.RealCurrentTime);
+        Sound.FadeAndPlayFile(script.PopText().Span, loop, Session.RealCurrentTime);
     }
 
     private int CountGamma(Script script)

@@ -141,7 +141,7 @@ public partial class Sprite
             case ActionCode.GetStackCount:
                 return ActionStack.Count;
             case ActionCode.GetPercentHp:
-                return GetPercentHp() * 100 / 0xff;
+                return PercentHp() * 100 / 0xff;
             case ActionCode.CopyStackTo:
                 CopyStackToCase(target);
                 break;
@@ -154,12 +154,12 @@ public partial class Sprite
                 break;
             case ActionCode.UndoRemove:
                 SetFlag(SpriteFlags.Removed, true);
-                Map.Collector.DeleteFromHash(this);
+                Map.Sprites.DeleteFromHash(this);
                 RemoveFromUpdates();
                 return 0;
             case ActionCode.UndoInsert:
                 SetFlag(SpriteFlags.Removed, false);
-                Map.Collector.InsertToHash(this);
+                Map.Sprites.InsertToHash(this);
                 AddToUpdates();
                 return 0;
             case ActionCode.DestroyUnit:
@@ -176,7 +176,7 @@ public partial class Sprite
             case ActionCode.HaveItem:
                 return GetItemNumber(var1) >= 0 ? 1 : 0;
             case ActionCode.DeleteAllItems:
-                Extra?.Items.Release();
+                ExtraData?.Items.Release();
                 break;
             case ActionCode.GetItem:
                 return var1 >= 0 && var1 < Items.Count ? Items[var1] : 0;
@@ -247,11 +247,11 @@ public partial class Sprite
                 var items = stream.Read<int>(itemCount);
                 if (itemCount != 0)
                 {
-                    EnsureExtra();
-                    Extra!.Items.Release();
+                    EnsureExtraData();
+                    ExtraData!.Items.Release();
                     foreach (int item in items)
                     {
-                        Extra.Items.Insert(item);
+                        ExtraData.Items.Insert(item);
                     }
                 }
 
@@ -358,7 +358,7 @@ public partial class Sprite
             vid.Counts[previous]--;
         }
 
-        vid.LastCreatedAt = Map.RealTime;
+        vid.LastCreatedAt = Map.RealCurrentTime;
         vid.Counts[current]++;
     }
 
@@ -493,7 +493,7 @@ public partial class Sprite
     {
         var flagman = Map.Flagman(Map.ControlledPlayer);
 
-        if (flagman is null || flagman.Position.AsVector2().MeasureOctagonalDistance(new Vector2(point.X, point.Y)) >= range)
+        if (flagman is null || flagman.Position.AsVector2().NearLength(new Vector2(point.X, point.Y)) >= range)
         {
             ActionStack.Insert(new Act((int)ActionCode.FlagmanTrigger, point.X, point.Y, range));
         }
@@ -507,13 +507,13 @@ public partial class Sprite
             return;
 
         Map.DropLinks(this);
-        Map.Collector.DeleteFromHash(this);
+        Map.Sprites.DeleteFromHash(this);
         RemoveFromUpdates();
         var state = animation < 0 ? Animation : (SpriteAnimation)animation;
         var direction = Direction;
         ChangeVid(vid);
         AddToUpdates();
-        Map.Collector.InsertToHash(this);
+        Map.Sprites.InsertToHash(this);
 
         CreateLink();
 
@@ -681,7 +681,7 @@ public partial class Sprite
         bool isScaled = payload.IsExplosive && !payload.DeathRange.IsExactlyZero();
         int damage = payload.Damage;
         
-        for (var sprite = Map.Collector.First(point - reach, point + reach); sprite is not null; sprite = Map.Collector.NextHashInBox())
+        for (var sprite = Map.Sprites.First(point - reach, point + reach); sprite is not null; sprite = Map.Sprites.NextHashInBox())
         {
             if (sprite == this || sprite.Vid.MaxHp == 0 || payload.ShouldSkipOwnArmy && sprite.Army == Army)
                 continue;
@@ -697,7 +697,7 @@ public partial class Sprite
                 top < Map.GetGroundZ((victim.AsVector2() * 3 + point) * 0.25f))
                 continue;
 
-            float distance = victim.AsVector2().MeasureOctagonalDistance(point);
+            float distance = victim.AsVector2().NearLength(point);
 
             if (isScaled && distance > payload.DeathRange)
                 continue;

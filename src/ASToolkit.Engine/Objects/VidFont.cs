@@ -74,9 +74,9 @@ public sealed class VidFont : Vid
     /// <param name="screen">The screen to draw to.</param>
     /// <param name="map">The map.</param>
     /// <param name="sprite">The sprite.</param>
-    /// <param name="camera">The top left corner of the view, in map pixels.</param>
+    /// <param name="shift">The top left corner of the view, in map pixels.</param>
     [EngineRoutine(0x00415200)]
-    public override void Draw(Screen screen, Map map, Sprite sprite, Vector2 camera)
+    public override void Draw(Screen screen, Map map, Sprite sprite, Vector2 shift)
     {
         if (Font is null)
             return;
@@ -84,7 +84,7 @@ public sealed class VidFont : Vid
         var position = sprite.Position;
 
         var gamma = sprite.GetGamma();
-        Font.Draw(screen, new Vector2(position.X - camera.X, position.Y - position.Z - camera.Y), ~gamma.Negative, ""u8);
+        Font.Draw(screen, new Vector2(position.X - shift.X, position.Y - position.Z - shift.Y), ~gamma.Negative, ""u8);
     }
 
     /// <inheritdoc/>
@@ -100,7 +100,7 @@ public sealed class VidFont : Vid
         GlyphSize = new Size((int)Size.X, (int)Size.Y);
         Style = D3DFontStyle.FixedPitch;
         Font = new D3DFont(Path, GlyphSize, Style);
-        Font.Create(MaxTextureSize);
+        Font.InitDeviceObjects(MaxTextureSize);
         Font.CreateStateBlocks();
     }
 }

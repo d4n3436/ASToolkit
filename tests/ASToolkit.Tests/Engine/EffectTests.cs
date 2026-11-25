@@ -19,13 +19,13 @@ public class EffectTests
         var scenery = observer.BakedEffects;
         map.Play(default);
         observer.Observe();
-        int start = map.Time;
+        int start = map.CurrentTime;
         Emit(map, map.FindVid(KnownObject.Monster1)!, SpriteAnimation.Close, new Vector3(100, 100, 0), new Angle(64));
 
         Assert.Contains(map.GetEffects(), effect => effect.Vid.Id == KnownObject.RedBloodSpray && effect.CreatedAt == start);
         Assert.Contains(map.GetEffects(), effect => effect is { Vid.Id: KnownObject.SmallBloodPool, Animation: SpriteAnimation.Death });
         Assert.Empty(scenery);
-        while (map.Time <= 2000)
+        while (map.CurrentTime <= 2000)
         {
             map.Play(default);
             observer.Observe();
@@ -48,7 +48,7 @@ public class EffectTests
 
         Assert.Contains(map.GetEffects(), effect => effect.Vid.Id == KnownObject.Monster1Death);
         Assert.Contains(map.GetEffects(), effect => effect.Vid.Id == KnownObject.LargeBloodPool);
-        while (map.Time <= 2000)
+        while (map.CurrentTime <= 2000)
         {
             map.Play(default);
             observer.Observe();
@@ -67,12 +67,12 @@ public class EffectTests
         string game = TestGameFolder.RequireFolder();
         var map = EngineTestMap.CreateMap();
 
-        int start = map.Time;
+        int start = map.CurrentTime;
         Emit(map, map.FindVid(KnownObject.WeaponMonster)!, SpriteAnimation.Death, new Vector3(100, 100, 0), default);
 
         Assert.Empty(map.Monsters);
         int duration = map.FindVid(KnownObject.WeaponMonsterDeath)!.GetAnimationDuration(SpriteAnimation.Death);
-        while (map.Time <= start + duration + 2 * FramePacer.DefaultFrameTime)
+        while (map.CurrentTime <= start + duration + 2 * FramePacer.DefaultFrameTime)
         {
             map.Play(default);
         }

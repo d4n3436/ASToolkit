@@ -9,6 +9,7 @@ namespace ASToolkit.Engine.Scripts;
 /// </summary>
 public sealed partial class Script
 {
+    private const byte VariableElementStart = (byte)'[';
     private const int MinCapacity = 0x80;
 
     private readonly MyList<ScriptStack> _stack = new();
@@ -214,6 +215,27 @@ public sealed partial class Script
     [EngineRoutine(0x0043a0f0)]
     public void PushSprite(int value) => _stack.Insert(ScriptStack.FromHandle(value));
 
+    [EngineRoutine(0x004231c0)]
+    internal ReadOnlyMemory<byte> GetVariableString(ReadOnlySpan<byte> reference)
+    {
+        int bracket = reference.IndexOf(VariableElementStart);
+        int index = _objects.Location(bracket < 0 ? reference : reference[..bracket]);
+        if (index < 0)
+        {
+            Error?.Log($"!!!ERROR!!! SCRIPT Can't find variable '{MyError.Decode(reference)}' in GetVariableString");
+            return default;
+        }
+
+        int element = ScriptStack.ParseNumber(bracket < 0 ? default : reference[(bracket + 1)..]);
+        ref var slot = ref GetSlot(_objects[index].Address + element);
+        if (slot.Flags.HasFlag(ScriptStackFlags.Number))
+        {
+            slot.Text = ScriptStack.FormatNumber(slot.Value);
+        }
+
+        return slot.Text;
+    }
+
     /// <summary>
     /// Runs a function of the script.
     /// </summary>
@@ -285,7 +307,7 @@ public sealed partial class Script
     {
         if (function >= _objects.Count || function < 0)
         {
-            Error?.Write($"!!!ERROR!!! SCRIPT Call unexisted function {function}");
+            Error?.Log($"!!!ERROR!!! SCRIPT Call unexisted function {function}");
 
             return false;
         }
@@ -293,7 +315,7 @@ public sealed partial class Script
         ref readonly var entry = ref _objects[function];
         if (entry.Kind != ScriptObjectKind.Function)
         {
-            Error?.Write($"!!!ERROR!!!LOGIC: Call unexisted function {MyError.Decode(_objects.Name(function).Span)}()");
+            Error?.Log($"!!!ERROR!!!LOGIC: Call unexisted function {MyError.Decode(_objects.Name(function).Span)}()");
 
             return false;
         }
@@ -325,7 +347,7 @@ public sealed partial class Script
     {
         if (_stack.Count - frame > 1)
         {
-            Error?.Write($"!!!ERROR!!!LOGIC: '{name}' stack error {programCounter}");
+            Error?.Log($"!!!ERROR!!!LOGIC: '{name}' stack error {programCounter}");
         }
 
         RestoreStack(frame);
@@ -342,7 +364,7 @@ public sealed partial class Script
         {
             if (_stack.Count < frame)
             {
-                Error?.Write($"!!!ERROR!!!LOGIC: 'pop, but not push' stack error {programCounter}");
+                Error?.Log($"!!!ERROR!!!LOGIC: 'pop, but not push' stack error {programCounter}");
 
                 throw new InvalidOperationException($"Script function {function} pops more values than it pushes, at address {programCounter}.");
             }
@@ -540,7 +562,7 @@ public sealed partial class Script
     {
         if (_stack.Count - frame > 1)
         {
-            Error?.Write($"!!!ERROR!!!LOGIC: 'return' stack error {programCounter}");
+            Error?.Log($"!!!ERROR!!!LOGIC: 'return' stack error {programCounter}");
         }
 
         bool hasValue = _stack.Count > frame;
@@ -633,7 +655,7 @@ public sealed partial class Script
                 left.Value = current << (value & 31);
                 break;
             default:
-                Error?.Write($"!!!ERROE!!!LOGIC::Unknown Binary command {(int)opcode}");
+                Error?.Log($"!!!ERROE!!!LOGIC::Unknown Binary command {(int)opcode}");
                 break;
         }
 

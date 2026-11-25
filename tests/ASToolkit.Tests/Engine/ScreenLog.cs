@@ -15,7 +15,7 @@ internal sealed class ScreenLog
         var graphics = map.Session.Graphics;
         if (graphics.Environment.HasFlag(MapEnvironment.Earthquake))
         {
-            Shakes.Add(map.Time);
+            Shakes.Add(map.CurrentTime);
         }
 
         uint started = graphics.EffectStartTimes[(int)ScreenEffect.Nuke];

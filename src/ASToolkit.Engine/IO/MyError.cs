@@ -44,7 +44,7 @@ internal sealed class MyError : IDisposable
         }
 
         _path = path;
-        Write($"----< {date} {clock} >----< {program} ({FormatFileTimes(fileSystem?.GetWriteTime(program))}) >----");
+        Log($"----< {date} {clock} >----< {program} ({FormatFileTimes(fileSystem?.GetWriteTime(program))}) >----");
     }
 
     public bool IsOpen => _stream is not null;
@@ -77,7 +77,7 @@ internal sealed class MyError : IDisposable
     }
 
     [EngineRoutine(0x00408950)]
-    public void Write(string text)
+    public void Log(string text)
     {
         if (_stream is null)
             return;
@@ -85,7 +85,7 @@ internal sealed class MyError : IDisposable
         WriteLine(Encode(text));
     }
 
-    public void Write(ReadOnlySpan<byte> text)
+    public void Log(ReadOnlySpan<byte> text)
     {
         if (_stream is null)
             return;
@@ -96,13 +96,13 @@ internal sealed class MyError : IDisposable
     [EngineRoutine(0x004089b0)]
     public void Fatal(string text)
     {
-        Write(text);
+        Log(text);
         _stream?.Dispose();
         _stream = null;
     }
 
     [EngineRoutine(0x00408840)]
-    public void Alert(string text) => Write(text);
+    public void Window(string text) => Log(text);
 
     [EngineRoutine(0x00408e00)]
     public void Error(string tag, LogError code, int value, ReadOnlySpan<byte> text = default)
@@ -111,7 +111,7 @@ internal sealed class MyError : IDisposable
             return;
 
         string time = _time.GetLocalNow().ToString(TimeFormat, CultureInfo.InvariantCulture);
-        Write($"!!!ERROR {time}!!!{tag}: {FormatError(code, value, text)}");
+        Log($"!!!ERROR {time}!!!{tag}: {FormatError(code, value, text)}");
     }
 
     public void Error(ReadOnlySpan<byte> tag, LogError code, int value, ReadOnlySpan<byte> text = default) => Error(Decode(tag), code, value, text);

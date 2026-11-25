@@ -18,15 +18,15 @@ internal sealed class PlayerState
         _map = map;
     }
 
-    public float Speed => _map.Player.MaxSpeed / Vid.PerMillisecond;
+    public float Speed => _map.Flagman(0)!.MaxSpeed / Vid.PerMillisecond;
 
     public bool HasDynamite => _map.ReadScriptNumber("PlayerExplosive"u8) > 0;
 
     private static ReadOnlySpan<byte> ItemsVariable => "PlayerItem"u8;
 
-    public bool HoldsWeapon(int slot) => slot is >= 0 and < Sprite.WeaponSlots && _map.Player.Items.Contains(Sprite.WeaponItemBase + slot);
+    public bool HoldsWeapon(int slot) => slot is >= 0 and < Sprite.WeaponSlots && _map.Flagman(0)!.Items.Contains(Sprite.WeaponItemBase + slot);
 
-    public int GetAmmo(int slot) => slot == _map.Player.WeaponSlot ? ((Man)_map.Player).GetAmmo() : ((Man)_map.Player).SlotAmmo[slot];
+    public int GetAmmo(int slot) => slot == _map.Flagman(0)!.WeaponSlot ? ((Man)_map.Flagman(0)!).GetAmmo() : ((Man)_map.Flagman(0)!).SlotAmmo[slot];
 
     public bool HasAmmo(int slot) => HoldsWeapon(slot) && GetAmmo(slot) > 0;
 
@@ -48,7 +48,7 @@ internal sealed class PlayerState
 
     public bool CanTakePickup(KnownObject id)
     {
-        var player = _map.Player;
+        var player = _map.Flagman(0)!;
         int maxHealth = player.Vid.ArmyMaxHp[(int)player.Army & 3];
 
         return id switch
@@ -72,7 +72,7 @@ internal sealed class PlayerState
 
     private int GetArmorHp()
     {
-        foreach (var link in _map.Player.EnumerateLinks())
+        foreach (var link in _map.Flagman(0)!.EnumerateLinks())
         {
             if (link.Vid.Id is >= KnownObject.WornGreenArmor and <= KnownObject.WornRedArmor)
                 return link.Hp;

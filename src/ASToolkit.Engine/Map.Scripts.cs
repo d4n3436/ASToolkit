@@ -65,7 +65,7 @@ public partial class Map
         var vid = new VidHardware(HardwareGroundId, System.Drawing.Size.Truncate(Size), _weapons!, Session);
         _vids[(int)HardwareGroundId] = vid;
         CreateSprite(vid, new Vector3(Size.ToVector2() * HalfShare, 0), default);
-        Session.Error.Write("Create Empty Hardware Ground"u8);
+        Session.Error.Log("Create Empty Hardware Ground"u8);
     }
 
     private ScriptInput GetInputState()

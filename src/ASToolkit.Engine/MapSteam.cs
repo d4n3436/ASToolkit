@@ -48,14 +48,14 @@ public sealed class MapSteam : Map
     }
 
     /// <summary>
-    /// Runs one frame of the level, advancing the clock and playing or recording the demo frame first.
+    /// Runs one frame of the level, advancing the game time and playing or recording the demo frame first.
     /// </summary>
     /// <returns><see langword="true"/> when the game is quitting; otherwise, <see langword="false"/>.</returns>
     /// <remarks>The frame doesn't run while the window is inactive or a menu is open, unless the debug keys allow it.</remarks>
     [EngineRoutine(0x00405190)]
     public override bool Tact()
     {
-        if (AdvanceClock())
+        if (StartTact())
             return true;
 
         if (Constant.IsDebugMode)
@@ -90,7 +90,7 @@ public sealed class MapSteam : Map
 
         if (!isActive && !_debug.HasFlag(StepFlags.RunInBackground) || Session.Graphics.IsMenuLoopActive || Constant.IsDebugMode && _debug.HasFlag(StepFlags.SingleStep) && Input.Key != StepKey)
         {
-            Session.CurrentTime = Session.PrevCurrentTime;
+            Session.CurrentTime = Session.PreviousCurrentTime;
             return false;
         }
 
@@ -99,7 +99,7 @@ public sealed class MapSteam : Map
             return false;
 
         _stepCount++;
-        int demoResult = StepDemo() ? 1 : 0;
+        int demoResult = DemoTact() ? 1 : 0;
 
         if (demoResult == DemoStopResult)
         {
@@ -143,7 +143,7 @@ public sealed class MapSteam : Map
         }
 
         _mouseTips.Tact(Input);
-        Scroll();
+        ControlShiftCoordinates();
 
         if (!isPaused && _flags.HasFlag(MapFlags.PlayerControlled))
         {
@@ -174,7 +174,7 @@ public sealed class MapSteam : Map
             Session.Graphics.PostTact(true);
         }
 
-        Sound.Tact(_rng, Time, Session.RealCurrentTime);
+        Sound.Tact(_rng, CurrentTime, Session.RealCurrentTime);
 
         return false;
     }
@@ -194,9 +194,9 @@ public sealed class MapSteam : Map
 
         if (_debug.HasFlag(StepFlags.DrawHashedNumbers))
         {
-            for (int index = Collector.Listed.Length - 1; index >= 0; index = Math.Min(Collector.Listed.Length, index) - 1)
+            for (int index = Sprites.Listed.Length - 1; index >= 0; index = Math.Min(Sprites.Listed.Length, index) - 1)
             {
-                var sprite = Collector.Listed[index];
+                var sprite = Sprites.Listed[index];
 
                 if (sprite.Owner is null)
                 {
@@ -207,9 +207,9 @@ public sealed class MapSteam : Map
 
         if (_debug.HasFlag(StepFlags.DrawHashedSprites))
         {
-            for (int index = Collector.Listed.Length - 1; index >= 0; index = Math.Min(Collector.Listed.Length, index) - 1)
+            for (int index = Sprites.Listed.Length - 1; index >= 0; index = Math.Min(Sprites.Listed.Length, index) - 1)
             {
-                Collector.Listed[index].DrawGoalLine();
+                Sprites.Listed[index].DrawGoalLine();
             }
         }
     }

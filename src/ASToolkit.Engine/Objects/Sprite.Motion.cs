@@ -152,7 +152,7 @@ public partial class Sprite
     }
 
     [EngineRoutine(0x0043fb10)]
-    internal Vector3 CalculateNewCoordinates(int elapsed)
+    internal Vector3 MoveTactCalculateCoordinates(int elapsed)
     {
         var vid = Vid;
         var next = Position;

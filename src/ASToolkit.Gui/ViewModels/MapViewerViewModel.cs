@@ -292,7 +292,7 @@ public partial class MapViewerViewModel : ViewModelBase
         return null;
     }
 
-    private static bool IsPlaced(Map map, Sprite sprite) => sprite != map.CursorSprite && !map.MenuSprites.Contains(sprite);
+    private static bool IsPlaced(Map map, Sprite sprite) => sprite != map.Mouse && !map.MenuSprites.Contains(sprite);
 
     private static bool IsHidden(Sprite sprite) => sprite.IsInvisible || sprite.Vid.IsHidden;
 

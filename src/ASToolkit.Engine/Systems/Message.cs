@@ -71,7 +71,7 @@ internal sealed class Message
         if (text.IsEmpty)
             return;
 
-        _shownAt = _map.Time;
+        _shownAt = _map.CurrentTime;
         if (_lines[_count] is not null)
         {
             Shift();
@@ -87,7 +87,7 @@ internal sealed class Message
         var line = _lines[_count];
         if (line is not null)
         {
-            ((Text)line).SetText(text);
+            ((SText)line).SetText(text);
         }
 
         _targets[_count] = target;
@@ -98,7 +98,7 @@ internal sealed class Message
             _markers[_count] = _map.CreateSprite(FindVid(_markerId), position, default);
         }
 
-        _map.Sound.Play(MessageSound, 0, Sound.FullLoudness);
+        _map.Sound.PlaySfx(MessageSound, 0, Sound.FullLoudness);
     }
 
     [EngineRoutine(0x0042e2c0)]
@@ -112,7 +112,7 @@ internal sealed class Message
 
             if ((uint)_map.FrameTime < (uint)message.Time)
             {
-                _pending[index] = message with { Time = message.Time - _map.Time + _map.FrameTime };
+                _pending[index] = message with { Time = message.Time - _map.CurrentTime + _map.FrameTime };
                 continue;
             }
 
@@ -121,10 +121,10 @@ internal sealed class Message
             index--;
         }
 
-        if ((uint)(_map.Time - _shownAt) > (uint)_idleTime)
+        if ((uint)(_map.CurrentTime - _shownAt) > (uint)_idleTime)
         {
             Shift();
-            _shownAt = _map.Time;
+            _shownAt = _map.CurrentTime;
         }
 
         var clicked = _map.Menu.LeftClick;
@@ -132,11 +132,11 @@ internal sealed class Message
         if (clicked is null || (int)clicked.Vid.Id != _markerId)
             return;
 
-        int i = (int)(clicked.Position.Y - clicked.Position.Z - _map.Camera.Y - _map.Session.Graphics.Viewport.Top) / lineHeight + 1;
+        int i = (int)(clicked.Position.Y - clicked.Position.Z - _map.Shift.Y - _map.Session.Graphics.Viewport.Top) / lineHeight + 1;
 
         if (_targets[i] != NoTarget)
         {
-            _map.SetPosition(_targets[i], CameraMove.Smooth);
+            _map.SetShiftCoordinates(_targets[i], ShiftMove.Smooth);
         }
     }
 

@@ -46,7 +46,7 @@ public sealed partial class Graphics
     private int _groundSnowStart;
     private int _groundSnowAge;
     private float _snowWind;
-    private Vector2 _snowCamera;
+    private Vector2 _snowShift;
     private byte _snowWindDirection;
     private float _snowWindSpeed = NoWind;
     private float _rainWind;
@@ -61,21 +61,21 @@ public sealed partial class Graphics
 
         if (!Environment.HasFlag(MapEnvironment.GroundSnow))
         {
-            _groundSnowStart = map.Time;
+            _groundSnowStart = map.CurrentTime;
             _groundSnowAge = 0;
             return;
         }
 
         if (_groundSnowAge < SnowAgeLimit)
         {
-            _groundSnowAge = (map.Time - _groundSnowStart) >>> SnowGrowthShift;
+            _groundSnowAge = (map.CurrentTime - _groundSnowStart) >>> SnowGrowthShift;
         }
 
         if (Screen is null)
             return;
 
         var size = Screen.Size;
-        var start = new Point(-(int)map.Camera.X & SnowCellMask, -(int)map.Camera.Y & SnowCellMask);
+        var start = new Point(-(int)map.Shift.X & SnowCellMask, -(int)map.Shift.Y & SnowCellMask);
         var ramp = EnsureBuffers().ColorTable;
         var texture = TextureBuffer;
         var format = TextureFormat;
@@ -115,7 +115,7 @@ public sealed partial class Graphics
     }
 
     [EngineRoutine(0x00432c10)]
-    private void UpdateSnow(Map map)
+    private void DrawSnow(Map map)
     {
         if (!Environment.HasFlag(MapEnvironment.StopSnow) && !Environment.HasFlag(MapEnvironment.BornSnow))
         {
@@ -167,7 +167,7 @@ public sealed partial class Graphics
             }
 
             float fall = (flake[1].Position.Z - flake[0].Position.Z - DepthPerLength) * map.FrameTime * SnowFallRate;
-            var offset = new Vector2((_snowWind * fall + 50f - map.Random.Next() % DriftRange) * SnowDrift, fall) - (_snowCamera + map.Camera);
+            var offset = new Vector2((_snowWind * fall + 50f - map.Random.Next() % DriftRange) * SnowDrift, fall) - (_snowShift + map.Shift);
             float dz = fall * DepthPerLength;
 
             if (offset.X + flake[0].Position.X < view.Left - WrapMargin)
@@ -197,7 +197,7 @@ public sealed partial class Graphics
             }
         }
 
-        _snowCamera = -map.Camera;
+        _snowShift = -map.Shift;
 
         int slot = 0;
         for (int i = 0; i < _snowflakeCount; i++)
@@ -229,7 +229,7 @@ public sealed partial class Graphics
     }
 
     [EngineRoutine(0x00432770)]
-    private void UpdateRain(Map map)
+    private void DrawRain(Map map)
     {
         if (!Environment.HasFlag(MapEnvironment.StopRain) && !Environment.HasFlag(MapEnvironment.BornRain))
         {
