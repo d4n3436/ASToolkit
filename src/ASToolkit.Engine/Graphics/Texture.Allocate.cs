@@ -84,7 +84,13 @@ public readonly ref partial struct Texture
     }
 
     [EngineRoutine(0x00403620)]
-    internal static void Release(Size size, VidPixelFormat format) => _memoryInUse -= GetTexelBytes(format) * size.Width * size.Height;
+    internal static void Release(Size size, VidPixelFormat format)
+    {
+        if (format != VidPixelFormat.D16)
+        {
+            _memoryInUse -= GetTexelBytes(format) * size.Width * size.Height;
+        }
+    }
 
     [EngineRoutine(0x00402fa0)]
     private static string ReadCapabilities()

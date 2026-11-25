@@ -1,5 +1,4 @@
 using System.Drawing;
-using System.Globalization;
 using System.Numerics;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -362,7 +361,7 @@ public sealed class GameSession : IDisposable
         AddCap(caps, !Graphics.Flags.HasFlag(GraphicsFlags.CanZBlt), "CAN'T_Z_BLT "u8);
         AddCap(caps, Graphics.Flags.HasFlag(GraphicsFlags.Color32), "COLOR32 "u8);
         AddCap(caps, Graphics.Flags.HasFlag(GraphicsFlags.VSync), "VSYNC "u8);
-        caps.AddRange(Encoding.ASCII.GetBytes(string.Create(CultureInfo.InvariantCulture, $"PIXELSHADER={Graphics.PixelShaderVersion}")));
+        caps.AddRange(Encoding.ASCII.GetBytes($"PIXELSHADER={Graphics.PixelShaderVersion}"));
         Error.Write($"caps={MyError.Decode(CollectionsMarshal.AsSpan(caps))}");
     }
 }

@@ -13,7 +13,6 @@ public sealed class VidLight : Vid
 {
     private const uint BlackColor = 0xff000000;
 
-    private const uint ColorMask = 0xffffff;
     private const int HeadFieldsSize = 5 * sizeof(short);
 
     private int _dataSize;
@@ -89,7 +88,7 @@ public sealed class VidLight : Vid
     public override void Draw(Screen screen, Map map, Sprite sprite, Vector2 camera)
     {
         int frame = sprite.Frame;
-        uint color = frame >= 0 && frame < _colors.Length / sizeof(uint) ? MemoryMarshal.Read<uint>(_colors.AsSpan(frame * sizeof(uint))) & ColorMask : 0;
+        uint color = frame >= 0 && frame < _colors.Length / sizeof(uint) ? MemoryMarshal.Read<uint>(_colors.AsSpan(frame * sizeof(uint))) : 0;
         if (IsHidden || color == 0 || color == BlackColor)
             return;
 

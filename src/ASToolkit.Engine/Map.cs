@@ -1,5 +1,4 @@
 using System.Drawing;
-using System.Globalization;
 using System.Numerics;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -340,7 +339,7 @@ public partial class Map : IDisposable
 
         _flags &= ~MapFlags.Loading;
         Relation.Release();
-        Session.Error.Write(string.Create(CultureInfo.InvariantCulture, $"Vid    release {Texture.MemoryInUse} {ASToolkit.Engine.Vid.MemoryInUse}"));
+        Session.Error.Write($"Vid    release {Texture.MemoryInUse} {ASToolkit.Engine.Vid.MemoryInUse}");
         LoadScript(name);
         if (IsPlayingDemo)
         {
@@ -489,7 +488,22 @@ public partial class Map : IDisposable
     /// <summary>
     /// Releases the loaded level.
     /// </summary>
-    public void Dispose() => Release();
+    [EngineRoutine(0x0040b180)]
+    public void Dispose()
+    {
+        Release();
+        for (int i = _vidCount - 1; i >= 0; i--)
+        {
+            if (_vids[i] is not null)
+            {
+                _vids[i]!.Destruct(Session.Error);
+                _vids[i] = null;
+            }
+        }
+
+        _vidCount = 0;
+        Session.Error.Write($"Vid    release {Texture.MemoryInUse} {ASToolkit.Engine.Vid.MemoryInUse}");
+    }
 
     /// <summary>
     /// Gets the sprites of the update list of a layer.

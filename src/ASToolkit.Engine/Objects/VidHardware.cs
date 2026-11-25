@@ -65,6 +65,27 @@ public sealed class VidHardware : Vid
     [EngineRoutine(0x00412750)]
     internal override Vid CreateMirror() => new VidHardware(this);
 
+    [EngineRoutine(0x00419ad0)]
+    internal override void Destruct(MyError? error)
+    {
+        if (NextMirror == this)
+        {
+            _tiles.Clear();
+            for (int surface = SurfaceCount - 1; surface >= 0; surface--)
+            {
+                if (surface < _surfaces.Length && !_surfaces[surface].IsEmpty)
+                {
+                    Texture.Release(_surfaces[surface].Size, _surfaces[surface].Format);
+                }
+            }
+
+            _surfaces = [];
+            SurfaceCount = 0;
+        }
+
+        base.Destruct(error);
+    }
+
     [EngineRoutine(0x00419750)]
     internal VidHardware(KnownObject id, Size size, AlienShooterWeaponRecord[] weapons, MyError? error)
         : base(id, new GameObject(SpriteClass.Primitive, GroundObjectSize), weapons, Map.DefaultSpriteSpeed)

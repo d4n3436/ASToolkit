@@ -149,8 +149,8 @@ public partial class VidSoftware : Vid
             }
             else
             {
-                // TODO: Port the uninitialized palette of a file without PAL
                 Report(error, LogError.Load, 0, "PAL "u8);
+                throw new InvalidDataException($"There is no palette in '{Path}'.");
             }
         }
 

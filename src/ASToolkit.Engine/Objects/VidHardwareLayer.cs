@@ -44,6 +44,27 @@ public sealed class VidHardwareLayer : Vid
     [EngineRoutine(0x004128a0)]
     internal override Vid CreateMirror() => new VidHardwareLayer(this);
 
+    [EngineRoutine(0x0041b990)]
+    internal override void Destruct(MyError? error)
+    {
+        if (NextMirror == this)
+        {
+            for (int frame = 0; frame < Textures.Length; frame++)
+            {
+                var texture = Textures[frame];
+                if (texture.IsEmpty || IsRepeatedTexture(frame))
+                    continue;
+
+                Texture.Release(texture.Size, texture.Format);
+            }
+
+            Textures = [];
+            Meshes = [];
+        }
+
+        base.Destruct(error);
+    }
+
     /// <summary>
     /// Gets the mesh of each frame, in the order of the records of the sprite file.
     /// </summary>
@@ -211,4 +232,15 @@ public sealed class VidHardwareLayer : Vid
         VidPixelFormat.Dxt1 => 4,
         _ => 0
     };
+
+    private bool IsRepeatedTexture(int frame)
+    {
+        for (int earlier = 0; earlier < frame; earlier++)
+        {
+            if (ReferenceEquals(Textures[earlier].Texels, Textures[frame].Texels))
+                return true;
+        }
+
+        return false;
+    }
 }

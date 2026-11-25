@@ -38,6 +38,17 @@ public sealed class VidFont : Vid
     [EngineRoutine(0x00412850)]
     internal override Vid CreateMirror() => new VidFont(this);
 
+    [EngineRoutine(0x00415100)]
+    internal override void Destruct(MyError? error)
+    {
+        if (NextMirror == this)
+        {
+            Font = null;
+        }
+
+        base.Destruct(error);
+    }
+
     /// <summary>
     /// Gets the font of this object ID, or <see langword="null"/> before the sprite file loads.
     /// </summary>

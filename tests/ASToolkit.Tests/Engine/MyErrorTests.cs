@@ -100,6 +100,8 @@ public class MyErrorTests
         Assert.Contains("from the script", lines);
         Assert.Contains(lines, line => line.StartsWith("NoVid[  9]="));
         Assert.Equal(["Player release", "Sprite release", "Menu   release"], lines.SkipWhile(line => line != "Player release").Take(3));
+        Assert.Equal(2, lines.Count(line => line.StartsWith("Vid    release ", StringComparison.Ordinal)));
+        Assert.StartsWith("Vid    release ", lines.Last(line => line.Length != 0));
     }
 
     private static string Read(MemoryWriteOverlay fileSystem, string path)
