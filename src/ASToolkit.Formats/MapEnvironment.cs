@@ -84,5 +84,10 @@ public enum MapEnvironment
     /// <summary>
     /// Clear the given effects instead of setting them.
     /// </summary>
-    Stop = 1 << 31
+    Stop = 1 << 31,
+
+    /// <summary>
+    /// Clear every effect.
+    /// </summary>
+    StopAll = ~None
 }

@@ -9,9 +9,7 @@ namespace ASToolkit.Engine;
 /// </summary>
 public class Terrain : Sprite
 {
-    private const KnownObject RelinkCountedId = (KnownObject)35;
-    private const KnownObject RelinkEffectId = (KnownObject)590;
-    private const KnownObject RelinkLimitId = KnownObject.Slug;
+    private protected int _unused;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="Terrain"/> class on a map.
@@ -25,6 +23,7 @@ public class Terrain : Sprite
     public Terrain(Vid vid, Vector3 position, Angle direction, Sprite? parent, Map map)
         : base(vid, position, direction, parent, map)
     {
+        _unused = -1;
         ShouldRefillAmmo = false;
     }
 
@@ -66,14 +65,14 @@ public class Terrain : Sprite
 
         if (linkVid is not null && Link?.Vid != linkVid && relink)
         {
-            var counted = Map.FindVid(RelinkCountedId);
-            var limit = Map.FindVid(RelinkLimitId);
-            bool atLimit = Vid.Id == RelinkCountedId && (counted?.Counts[army] ?? 0) <= (limit?.Counts[army] ?? 0);
+            var counted = Map.FindVid(KnownObject.AirshipCart);
+            var limit = Map.FindVid(KnownObject.Slug);
+            bool atLimit = Vid.Id == KnownObject.AirshipCart && (counted?.Counts[army] ?? 0) <= (limit?.Counts[army] ?? 0);
 
             if (!atLimit)
             {
                 CreateLink();
-                Map.CreateSprite(Map.Vid((int)RelinkEffectId), Position, default);
+                Map.CreateSprite(Map.Vid((int)KnownObject.TowerRepairSmokeGenerator), Position, default);
 
                 return;
             }

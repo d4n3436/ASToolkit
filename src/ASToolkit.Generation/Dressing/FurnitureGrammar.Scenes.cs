@@ -40,7 +40,7 @@ internal sealed partial record FurnitureGrammar
     // Offsets are lattice cells
     private static Module[] SceneModuleRows =>
     [
-        new(Breaker, 0,
+        new(BreakerOff, 0,
         [
             new(Transformer, 0, -0.45f, -1.1f, 0, 0, 0.5f), new(Transformer, 0, -0.45f, -1.6f, 0, 0, 0.5f),
             new(Transformer, 1, -0.45f, 1.1f, 0, 0, 0.5f), new(Transformer, 1, -0.45f, 1.6f, 0, 0, 0.5f),

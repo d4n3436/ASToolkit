@@ -101,7 +101,7 @@ internal static class PlayMenuPatcher
         for (int recordIndex = 0; recordIndex < records.Count; recordIndex++)
         {
             var element = new MenuElement(records[recordIndex], version);
-            if (records[recordIndex].Length <= ElementSize || element.Sprite.Id != KnownObject.MenuLabel || element.Text.IsEmpty
+            if (records[recordIndex].Length <= ElementSize || element.Sprite.Id != KnownObject.LargeFont || element.Text.IsEmpty
                 || Math.Abs(element.Sprite.Position.X - center.X) > 5)
             {
                 continue;

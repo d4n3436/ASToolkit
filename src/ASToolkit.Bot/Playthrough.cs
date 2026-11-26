@@ -227,7 +227,7 @@ public sealed class Playthrough
 
         map.RequestLoad(setup.MapName);
         map.TactAt((uint)seed);
-        var field = new WalkField(analysis.Grid, setup.DoorsLocked, map, map.Sprites, map.FindVid(KnownObject.PlayerStart)!);
+        var field = new WalkField(analysis.Grid, setup.DoorsLocked, map, map.Sprites, map.FindVid(KnownObject.PlayerLegs)!);
         var bot = new PlayerBot(map, new FramePacer(FrameTimes), analysis, field);
 
         return new PlaySession(map, bot, analysis.Exit is null && !analysis.ShouldClearMonsters);

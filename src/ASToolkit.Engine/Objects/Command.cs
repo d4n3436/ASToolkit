@@ -104,6 +104,11 @@ public enum Command
     /// A single engine attack.
     /// </summary>
     EngineOneAttack = 29,
+
+    /// <summary>
+    /// The end of a single engine attack.
+    /// </summary>
+    EngineOneAttackDone = 30,
     
     /// <summary>
     /// Any other command.

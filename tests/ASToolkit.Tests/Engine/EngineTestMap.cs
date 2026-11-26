@@ -37,7 +37,7 @@ internal static class EngineTestMap
     public static ReadOnlySpan<byte> MapName => "maps\\engine_test.map"u8;
 
     public static IEnumerable<Sprite> GetEffects(this Map map) => map.UpdatedSprites.Where(sprite =>
-        sprite.Vid.Class is not (SpriteClass.Man or SpriteClass.Frame or SpriteClass.Text) && sprite.Vid.Id is not (Map.HardwareGroundId or KnownObject.SmallShadow) &&
+        sprite.Vid.Class is not (SpriteClass.Man or SpriteClass.Frame or SpriteClass.Text) && sprite.Vid.Id is not (KnownObject.HardwareGround or KnownObject.SmallShadow) &&
         !SpriteCollector.IsListed(sprite.Vid) && sprite.Owner?.Vid.Class != SpriteClass.Man);
 
     public static Registry CreateRegistry(PlayerLoadout? loadout = null, string? blood = null)
@@ -87,7 +87,7 @@ internal static class EngineTestMap
         var placed = new List<MergedMapSprite>();
         if (placePlayer)
         {
-            placed.Add(new MergedMapSprite(StartHandle, KnownObject.PlayerStart, new Vector3(1000, 1000, 0), default, Army.Player, []));
+            placed.Add(new MergedMapSprite(StartHandle, KnownObject.PlayerLegs, new Vector3(1000, 1000, 0), default, Army.Player, []));
         }
 
         placed.AddRange(sprites ?? []);

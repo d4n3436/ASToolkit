@@ -33,6 +33,7 @@ public sealed class GameSession : IDisposable
     internal uint DemoPacedAt;
     internal int DemoPacedTime;
     internal Profile? Strings;
+    internal ReadOnlyMemory<byte> ScriptText;
     internal Map? Map;
     internal int VidMemoryInUse;
     internal ControlSettings? Controls;
@@ -106,6 +107,11 @@ public sealed class GameSession : IDisposable
     /// Gets or sets the tuning values of the game.
     /// </summary>
     public Constant? Constant { get; set; }
+
+    /// <summary>
+    /// Gets or sets the shell that opens the files and links scripts launch.
+    /// </summary>
+    public IShellDevice? Shell { get; set; }
 
     /// <summary>
     /// Gets or sets the real time, in milliseconds, when the current frame rate measurement started.

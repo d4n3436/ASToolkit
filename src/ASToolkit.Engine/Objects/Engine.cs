@@ -1,4 +1,5 @@
 using System.Numerics;
+using ASToolkit.Engine.IO;
 using ASToolkit.Formats;
 
 namespace ASToolkit.Engine;
@@ -22,10 +23,79 @@ public sealed class Engine : Unit
     {
     }
 
+    internal Engine? PrevEngine { get; set; }
+
+    internal Engine? NextEngine { get; set; }
+
     internal bool IsDepoBatchEnd { get; set; }
 
     internal int DepoBatch { get; set; }
-    
-    // TODO: Port Engine and Rail class tails (0x44e8b0, 0x44a140); the port builds those classes with their base constructors
-    // TODO: Port slots (Engine destructor 0x44e9d0, action 0x44f320, move tact 0x44ec20, forget 0x44ed10, info 0x44ed90 and goal lines 0x44f0f0; Rail destructor 0x44a1a0 and action 0x44a240)
+
+    [EngineRoutine(0x0043a920)]
+    internal void SetCommandToTrain(Command command, int x, int y) => SetCommandToTrain(command, null, Map.RailMap.GetNearestDot(x, y), null);
+
+    [EngineRoutine(0x00450000)]
+    internal void SetCommandToTrain(Command command, Sprite? target, RailDot? first, RailDot? second)
+    {
+        // Stub
+    }
+
+    [EngineRoutine(0x00450580)]
+    internal Engine? GetTrain()
+    {
+        // Stub
+        return null;
+    }
+
+    [EngineRoutine(0x004505c0)]
+    internal bool HaveArmy(Army army)
+    {
+        for (var car = this; car is not null; car = car.NextEngine)
+        {
+            if (car.Army == army)
+                return true;
+        }
+
+        for (var car = PrevEngine; car is not null; car = car.PrevEngine)
+        {
+            if (car.Army == army)
+                return true;
+        }
+
+        return false;
+    }
+
+    [EngineRoutine(0x004513c0)]
+    internal void BreakTrain(float x, float y)
+    {
+        // Stub
+    }
+
+    [EngineRoutine(0x00451810)]
+    internal Engine FirstEngine()
+    {
+        var first = this;
+        while (first.PrevEngine is not null)
+        {
+            first = first.PrevEngine;
+        }
+
+        return first;
+    }
+
+    [EngineRoutine(0x00454530)]
+    internal void CheckPrevNextEngine()
+    {
+        if (PrevEngine is not null && PrevEngine.NextEngine != this)
+        {
+            Map.Session.Error.Error($"ENGINE {(int)Vid.Id}", LogError.Invalid, 0, "PrevEngine->NextEngine!=this"u8);
+            PrevEngine.NextEngine = this;
+        }
+
+        if (NextEngine is not null && NextEngine.PrevEngine != this)
+        {
+            Map.Session.Error.Error($"ENGINE {(int)Vid.Id}", LogError.Invalid, 0, "NextEngine->PrevEngine!=this"u8);
+            NextEngine.PrevEngine = this;
+        }
+    }
 }

@@ -361,7 +361,7 @@ public sealed class LevelGenerator
 
         (float px, float py) = layout.Lattice.GetCenter(player);
 
-        map.Add(KnownObject.PlayerStart, px, py, 0, 96);
+        map.Add(KnownObject.PlayerLegs, px, py, 0, 96);
         context.Taken.Add(player);
 
         var script = new LevelScript

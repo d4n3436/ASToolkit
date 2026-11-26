@@ -741,7 +741,7 @@ public sealed class Sound
 
     private OggMusic CreateMusic(ReadOnlyMemory<byte> name)
     {
-        // TODO: Port the DirectShow music class for tracks that are not ogg
+        // TODO: Port DirectShow music class for tracks that are not ogg
         string path = Encoding.ASCII.GetString(name.Span);
 
         if (!_trackFormats.TryGetValue(path, out var format))
@@ -965,7 +965,7 @@ public sealed class Sound
 
         if (_sfx.Length > 0)
         {
-            Error?.Error("SOUND"u8, LogError.Invalid, 0);
+            Error?.Error("SOUND"u8, LogError.Invalid, id, "nsfx"u8);
         }
 
         return true;

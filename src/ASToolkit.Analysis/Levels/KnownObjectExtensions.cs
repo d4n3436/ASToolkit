@@ -43,10 +43,10 @@ public static class KnownObjectExtensions
 
     private static readonly FrozenSet<KnownObject> GameplaySet = new[] 
     {
-        Cursor, UndefinedObject7, UndefinedObject8, PlayerStart, PlayerStartFemaleLegs, DynamiteSite, ObjectMarker, Fence, Generator, GeneratorDead, Breaker,
+        Cursor, LightFont, UnitNumberFont, PlayerLegs, FemalePlayerLegs, DynamiteSite, ObjectMarker, Fence, Generator, GeneratorDead, BreakerOff,
         KeypadOn, KeypadOff, MountedCannon, TeleportPad, SilentTeleportPad, GeneratorSound, Spawner, ShakeDummy, SpawnDummy, ShootHere, ShootHereSpawner,
         PutDynamiteHere, PutDynamiteHereSpawner, BigExplosion, ExplosionSpark, FlyingGibs
-    }.Concat(Enumerable.Range((int)FirstEndlessGenerator, LastEndlessGenerator - FirstEndlessGenerator + 1).Select(id => (KnownObject)id)).ToFrozenSet();
+    }.Concat(Enumerable.Range((int)EndlessGenerator1, RedEndlessGenerator6 - EndlessGenerator1 + 1).Select(id => (KnownObject)id)).ToFrozenSet();
 
     private const int EmptyCratePayloadSize = 12;
     private const int CratePayloadSize = 16;

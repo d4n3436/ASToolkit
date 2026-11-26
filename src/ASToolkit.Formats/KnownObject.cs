@@ -14,23 +14,32 @@ public enum KnownObject
     /// <summary>The font sprite.</summary>
     Font = 2,
 
-    /// <summary>The menu text label.</summary>
-    MenuLabel = 3,
+    /// <summary>The large font.</summary>
+    LargeFont = 3,
 
-    /// <summary>An editor leftover without an object record that only tmp.map places.</summary>
-    UndefinedObject7 = 7,
+    /// <summary>The small font.</summary>
+    SmallFont = 4,
 
-    /// <summary>An editor leftover without an object record that only tmp.map places.</summary>
-    UndefinedObject8 = 8,
+    /// <summary>The mouse-tip font.</summary>
+    MouseTipsFont = 6,
 
-    /// <summary>The player start marker.</summary>
-    PlayerStart = 9,
+    /// <summary>The light font.</summary>
+    LightFont = 7,
+
+    /// <summary>The font of unit numbers and prices.</summary>
+    UnitNumberFont = 8,
+
+    /// <summary>The player's legs.</summary>
+    PlayerLegs = 9,
 
     /// <summary>The player's torso with the secret weapon.</summary>
     SecretWeaponTorso = 10,
 
     /// <summary>The player's torso with pistols.</summary>
     PistolsTorso = 11,
+
+    /// <summary>The airship cart.</summary>
+    AirshipCart = 35,
 
     /// <summary>The green slug monster.</summary>
     Slug = 40,
@@ -452,8 +461,8 @@ public enum KnownObject
     /// <summary>The electric breaker switched on.</summary>
     BreakerOn = 417,
 
-    /// <summary>The breaker.</summary>
-    Breaker = 418,
+    /// <summary>The breaker, switched off.</summary>
+    BreakerOff = 418,
 
     /// <summary>The breakable wooden crate.</summary>
     Crate = 419,
@@ -536,8 +545,11 @@ public enum KnownObject
     /// <summary>The flat grass tile with alpha.</summary>
     FlatGrass = 507,
 
-    /// <summary>The female player legs, placed as a player start.</summary>
-    PlayerStartFemaleLegs = 549,
+    /// <summary>The female player's legs.</summary>
+    FemalePlayerLegs = 549,
+
+    /// <summary>The tower repair smoke generator.</summary>
+    TowerRepairSmokeGenerator = 590,
 
     /// <summary>The basement wall (wall 1) that runs along '/'.</summary>
     BasementWallSlash = 601,
@@ -711,7 +723,7 @@ public enum KnownObject
     VolumetricLampLight = 785,
 
     /// <summary>The endless generator of green monsters of kind 1 (<see cref="Monster1"/>).</summary>
-    FirstEndlessGenerator = 800,
+    EndlessGenerator1 = 800,
 
     /// <summary>The endless generator of yellow monsters of kind 1 (<see cref="YellowMonster1"/>).</summary>
     YellowEndlessGenerator1 = 801,
@@ -753,7 +765,7 @@ public enum KnownObject
     YellowEndlessGenerator6 = 813,
 
     /// <summary>The endless generator of red slug monsters (<see cref="RedSlug"/>).</summary>
-    LastEndlessGenerator = 814,
+    RedEndlessGenerator6 = 814,
 
     /// <summary>The boss of level 1.</summary>
     Boss1 = 850,
@@ -856,6 +868,9 @@ public enum KnownObject
 
     /// <summary>The neural bullet.</summary>
     NeuralBullet = 929,
+
+    /// <summary>The hardware ground.</summary>
+    HardwareGround = 1024,
 
     /// <summary>The soft black cover that hides ground outside the rooms in Alien Shooter 2.</summary>
     SoftCover = 1127,

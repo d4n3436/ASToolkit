@@ -801,11 +801,11 @@ public sealed class LevelSurveyor
         var triggers = elements.Where(element => element is { Kind: ElementKind.Spawner, Program.Trigger: not null }).Select(element => element.Program!.Trigger!.Value).ToArray();
         var gating = _analysis.Gating;
 
-        var start = _map.Sprites.FirstOrDefault(sprite => sprite.Id is KnownObject.PlayerStart or KnownObject.PlayerStartFemaleLegs);
+        var start = _map.Sprites.FirstOrDefault(sprite => sprite.Id is KnownObject.PlayerLegs or KnownObject.FemalePlayerLegs);
         if (start is not null)
         {
             landmarks.Add(CreateLandmark(LandmarkKind.PlayerStart, start.Position.X, start.Position.Y, 0,
-                ("direction", start.Direction.Value), ("femaleLegs", start.Id == KnownObject.PlayerStartFemaleLegs ? 1 : null)));
+                ("direction", start.Direction.Value), ("femaleLegs", start.Id == KnownObject.FemalePlayerLegs ? 1 : null)));
         }
 
         foreach (var breaker in elements.Where(element => element.Kind == ElementKind.Breaker))

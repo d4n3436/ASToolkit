@@ -51,7 +51,7 @@ internal sealed class ScenePlanner
         _grammar = grammar;
 
         // Used to keep a hole's alcove free of units that die into units
-        _unitLeavingGenerators = Enumerable.Sequence((int)KnownObject.FirstEndlessGenerator, (int)KnownObject.LastEndlessGenerator, 1)
+        _unitLeavingGenerators = Enumerable.Sequence((int)KnownObject.EndlessGenerator1, (int)KnownObject.RedEndlessGenerator6, 1)
             .Select(id => (KnownObject)id)
             .Where(id => !LeavesNoUnit(id))
             .ToFrozenSet();
@@ -196,7 +196,7 @@ internal sealed class ScenePlanner
         int breakerRoom = breaker is null ? -1 : _layout.Cells.GetValueOrDefault(new Cell(breaker.Wall.A - 1, breaker.Wall.B), -1);
         if (breakerRoom >= 0)
         {
-            requests.Add(new SceneRequest(breakerRoom, KnownObject.Breaker, breaker!.Position, 0, []));
+            requests.Add(new SceneRequest(breakerRoom, KnownObject.BreakerOff, breaker!.Position, 0, []));
         }
 
         if (cannon is not null)

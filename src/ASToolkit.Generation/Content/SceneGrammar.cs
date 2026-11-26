@@ -25,12 +25,12 @@ internal sealed record SceneGrammar(
     public KnownObject DrawEndlessGenerator(Random rng, int level, IReadOnlySet<KnownObject> excluded)
     {
         int top = EndlessGeneratorRanks[Math.Min(level, EndlessGeneratorRanks.Length - 1)];
-        var ids = Enumerable.Range((int)FirstEndlessGenerator, top + 1)
+        var ids = Enumerable.Range((int)EndlessGenerator1, top + 1)
             .Select(id => (KnownObject)id)
             .Where(id => id != RedEndlessGenerator1 && !excluded.Contains(id))
             .ToArray();
 
-        var window = ids.Where(id => (int)id >= (int)FirstEndlessGenerator + top - RankWindow).ToArray();
+        var window = ids.Where(id => (int)id >= (int)EndlessGenerator1 + top - RankWindow).ToArray();
         return window.Length > 0 ? window[rng.Next(window.Length)] : ids[rng.Next(ids.Length)];
     }
 }

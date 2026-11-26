@@ -154,7 +154,10 @@ public sealed class SText : Frame
         Frame = savedFrame;
     }
 
-    // TODO: Port saving the text (ACT_SAVE) and the text address GetTextDesc and GetText return
+    [EngineRoutine(0x0040eda0)]
+    internal override void Destruct() => base.Destruct();
+
+    // TODO: Port ACT_SAVE
     [EngineRoutine(0x00448ff0)]
     internal override int Action(ActionCode act, int var1, int var2, int var3)
     {
@@ -175,8 +178,10 @@ public sealed class SText : Frame
                 Shown = MyLib.LoadFile(Map.FileSystem, ReadTextAddress(var1).Span);
                 VisibleCount = Shown.Length;
                 return 0;
-            case ActionCode.GetTextDesc or ActionCode.GetText:
-                return 0;
+            case ActionCode.GetTextDesc:
+                return -2 * Map.GetSpriteHandle(this);
+            case ActionCode.GetText:
+                return -2 * Map.GetSpriteHandle(this) - 1;
             case ActionCode.NextCommand:
                 var shown = Shown.Span;
                 if (shown.IsEmpty || Timer != 0)
@@ -290,7 +295,16 @@ public sealed class SText : Frame
 
     private static byte GetCharacter(ReadOnlySpan<byte> text, int index) => index < text.Length ? text[index] : (byte)0;
 
-    private ReadOnlyMemory<byte> ReadTextAddress(int address) => address == 0 ? default : Map.Script.GetSlot(address - 1).Text;
+    private ReadOnlyMemory<byte> ReadTextAddress(int address)
+    {
+        if (address >= 0)
+            return address == 0 ? default : Map.Script.GetSlot(address - 1).Text;
+
+        if (Map.FindSprite(-(address / 2)) is not SText owner)
+            throw new InvalidOperationException($"There is no text at the address {address}.");
+
+        return address % 2 == 0 ? owner.Description : owner.Shown;
+    }
 
     private ReadOnlyMemory<byte> ReadMenuString(ReadOnlySpan<byte> key) => Map.Session.Strings?.GetString("menu"u8, key) ?? default;
 }

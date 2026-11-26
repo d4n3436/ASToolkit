@@ -85,7 +85,7 @@ public sealed class OutdoorLevelBuilder
             else
             {
                 BuildCompound(site, script, style, start, original, originalExit);
-                site.Map.Add(KnownObject.PlayerStart, start.X, start.Y, 0, 16);
+                site.Map.Add(KnownObject.PlayerLegs, start.X, start.Y, 0, 16);
             }
         }
         while (style == OutdoorStyle.Campaign && script.Exit is not null && Distance(new PointF(script.Exit.Value.Center.X, script.Exit.Value.Center.Y), start) < MinExitLine && ++tries < CompoundTries);
@@ -197,7 +197,7 @@ public sealed class OutdoorLevelBuilder
 
         var start = new PointF(Margin * 2.5f, Margin * 2);
         site.Map.Source = SpriteSource.Model;
-        site.Map.Add(KnownObject.PlayerStartFemaleLegs, start.X, start.Y, 0, 130);
+        site.Map.Add(KnownObject.FemalePlayerLegs, start.X, start.Y, 0, 130);
         foreach (var item in new[] { KnownObject.Shotgun, KnownObject.Shotgun, KnownObject.GrenadeLauncher, KnownObject.LifeImplant, KnownObject.StrengthImplant })
         {
             var spot = site.FindOpenSpot(_ => true);

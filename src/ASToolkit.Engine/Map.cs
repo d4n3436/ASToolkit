@@ -98,6 +98,8 @@ public partial class Map : IDisposable
     private int _lastHandle;
     private int _unitIndex;
     private OldSpriteType _unitMask;
+    private int _trainArmy;
+    private int _trainIndex;
     private int _spriteLayer;
     private int _spriteIndex;
 
@@ -296,6 +298,8 @@ public partial class Map : IDisposable
 
     internal static ReadOnlySpan<byte> GraphSection => "graph"u8;
 
+    internal RailMap RailMap { get; } = new();
+
     internal int PreviousCurrentTime => Session.PreviousCurrentTime;
 
     internal Relation Relation { get; } = new();
@@ -443,6 +447,8 @@ public partial class Map : IDisposable
             {
             }
 
+            RailMap.CreateAdditionalDots();
+
             if (!FindSection(ref reader, SpriteDataTag))
                 return;
 
@@ -525,7 +531,7 @@ public partial class Map : IDisposable
 
                 Session.Graphics.DrawLoadBar(_vids[0]);
             }
-            // TODO: Port the trains; the loader builds the rail map (0x43c510) after the terrain and the sprite records, and the Engine links (0x454530) after the sprites
+            RailMap.CreateAdditionalDots();
             ShowLoadingStep("Load data for sprite"u8);
             if (!FindSection(ref reader, SpriteDataTag))
                 return;
@@ -734,7 +740,18 @@ public partial class Map : IDisposable
                     }
                 }
             }
+        }
 
+        for (int layer = 0; layer < LayerCount; layer++)
+        {
+            var list = _layers[layer];
+            for (int i = list.Count - 1; i >= 0; i--)
+            {
+                if (list[i] is Engine engine)
+                {
+                    engine.CheckPrevNextEngine();
+                }
+            }
         }
 
         if (!IsPlayingDemo)
@@ -1065,7 +1082,7 @@ public partial class Map : IDisposable
         }
 
         Session.Error.Log("Sprite release"u8);
-        // TODO: Port the trains; the release sets the flag (DAT_005da58c) that makes the Engine destructors (0x44e9f0, 0x450e20) skip their scripts while it destroys the sprites
+        // NOTE: Trains are left unported; the release sets the flag (DAT_005da58c) that makes the Engine destructors (0x44e9f0, 0x450e20) skip their scripts while it destroys the sprites
         DeleteAll();
 
         Session.Error.Log("Menu   release"u8);

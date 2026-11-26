@@ -11,6 +11,7 @@ public partial class Map : IScriptFunctionHost
 {
     private const int AnyDirection = 999999;
     private const int AllArmies = 0xff;
+    private const int AnyTrainArmy = 4;
     private const int FirstMouseClick = 0x400;
     private const int CursorOff = -1;
     private const int HardwareCursor = 0x100;
@@ -161,7 +162,7 @@ public partial class Map : IScriptFunctionHost
                 PushInt((int)Size.Height);
                 break;
             case ScriptFunction.Genocide:
-                var genocideVid = PopVid();
+                var genocideVid = PopVid("for Genocide"u8);
                 if (genocideVid == EmptyVid)
                     break;
 
@@ -176,8 +177,8 @@ public partial class Map : IScriptFunctionHost
 
                 break;
             case ScriptFunction.ReplaceUnit:
-                var replacementVid = PopVid();
-                var replacedVid = PopVid();
+                var replacementVid = PopVid("for Replace Unit 2"u8);
+                var replacedVid = PopVid("for Replace Unit 1"u8);
                 if (replacedVid == EmptyVid || replacementVid == EmptyVid)
                     break;
 
@@ -213,7 +214,7 @@ public partial class Map : IScriptFunctionHost
 
                 switch (actionCode)
                 {
-                    case ActionCode.GetGoal or ActionCode.GetLink or ActionCode.GetUplink:
+                    case ActionCode.GetGoal or ActionCode.GetLink or ActionCode.GetUplink or ActionCode.FirstEngine or ActionCode.LastEngine or ActionCode.NextEngine:
                         PushSprite(Action(actionSprite, actionCode, actionFirst, actionSecond, actionThird));
                         return;
 
@@ -224,11 +225,6 @@ public partial class Map : IScriptFunctionHost
 
                     case ActionCode.GetTextDesc when actionSprite is SText text:
                         PushText(text.Description);
-                        return;
-
-                    // TODO: Port the trains
-                    case ActionCode.FirstEngine or ActionCode.LastEngine or ActionCode.NextEngine:
-                        PushSprite(null);
                         return;
                 }
 
@@ -309,8 +305,8 @@ public partial class Map : IScriptFunctionHost
                 break;
             case ScriptFunction.Charat:
                 int charIndex = PopInt();
-                var charText = PopText().Span;
-                PushInt(charIndex == charText.Length ? 0 : (sbyte)charText[charIndex]);
+                Session.ScriptText = CRuntime.GetString(PopText()).ToArray();
+                PushInt(charIndex == Session.ScriptText.Length ? 0 : (sbyte)Session.ScriptText.Span[charIndex]);
                 break;
             case ScriptFunction.Random:
                 int randomMax = PopInt();
@@ -321,7 +317,7 @@ public partial class Map : IScriptFunctionHost
                 break;
             case ScriptFunction.GetVidData:
                 int getType = PopInt();
-                var getVid = PopVid();
+                var getVid = PopVid("for GetVid"u8);
                 if (getVid == EmptyVid)
                 {
                     PushInt(0);
@@ -420,7 +416,7 @@ public partial class Map : IScriptFunctionHost
             case ScriptFunction.SetVidData:
                 int setValue = PopInt();
                 int setType = PopInt();
-                var setVid = PopVid();
+                var setVid = PopVid("for SetVid"u8);
                 if (setVid == EmptyVid)
                     break;
 
@@ -602,14 +598,14 @@ public partial class Map : IScriptFunctionHost
                 Menu.Load(PopText().Span);
                 break;
             case ScriptFunction.MenuRelease:
-                var releaseName = PopText();
-                if (releaseName.IsEmpty)
+                Session.ScriptText = CRuntime.GetString(PopText()).ToArray();
+                if (Session.ScriptText.IsEmpty)
                 {
                     Menu.DeleteAll();
                 }
                 else
                 {
-                    Menu.DeleteFromFile(releaseName.Span);
+                    Menu.DeleteFromFile(Session.ScriptText.Span);
                 }
 
                 break;
@@ -793,7 +789,7 @@ public partial class Map : IScriptFunctionHost
                 PushInt((int)Gamma.ToScript());
                 break;
 
-            // TODO: Port the saves
+            // TODO: Port game saves
             case ScriptFunction.GetCommands:
                 var commandsSprite = PopSprite();
                 if (commandsSprite is null)
@@ -810,32 +806,47 @@ public partial class Map : IScriptFunctionHost
                 PushText(commandText);
                 break;
             case ScriptFunction.SetCommands:
-                var commandsText = PopText();
+                Session.ScriptText = CRuntime.GetString(PopText()).ToArray();
                 var setCommandsSprite = PopSprite();
                 if (setCommandsSprite is null)
                     break;
 
-                setCommandsSprite.SetTextItems(commandsText);
-                if (commandsText.Span.IndexOf(ItemsEnd) >= 0)
+                setCommandsSprite.SetTextItems(Session.ScriptText);
+                if (Session.ScriptText.Span.IndexOf(ItemsEnd) >= 0)
                 {
-                    commandsText = commandsText.After(ItemsEnd);
+                    Session.ScriptText = Session.ScriptText.After(ItemsEnd).ToArray();
                 }
 
-                setCommandsSprite.SetTextActions(commandsText);
+                setCommandsSprite.SetTextActions(Session.ScriptText);
                 break;
             case ScriptFunction.FRead:
                 var readFile = PopScriptFile();
-                var readLine = IsPlayingDemo || readFile is null ? default : readFile.ReadLine();
-                // TODO: Port the demo stream strings of FRead and the shared text buffer a null handle pushes; recording stores each line and playback reads it back
-                PushText(readLine);
+                if (!IsPlayingDemo)
+                {
+                    if (readFile is not null)
+                    {
+                        Session.ScriptText = readFile.ReadLine();
+                    }
+                }
+                else
+                {
+                    Session.ScriptText = Resource.ReadText(_playedDemo!.Value.Body.Span, ref _playedOffset).ToArray();
+                }
+
+                if (_flags.HasFlag(MapFlags.RecordingDemo))
+                {
+                    Session.ScriptText.Write(_recordedDemo!);
+                }
+
+                PushText(Session.ScriptText);
                 break;
             case ScriptFunction.FWrite:
-                var writeText = PopText();
+                Session.ScriptText = CRuntime.GetString(PopText()).ToArray();
                 var writeFile = PopScriptFile();
                 if (writeFile is null)
                     break;
 
-                writeFile.WriteText(writeText.Span);
+                writeFile.WriteText(Session.ScriptText.Span);
                 writeFile.SeekBack();
                 writeFile.WriteLineFeed();
                 break;
@@ -847,8 +858,8 @@ public partial class Map : IScriptFunctionHost
 
                 break;
             case ScriptFunction.GetString:
-                var stringKeyword = PopText();
-                PushText(Session.Strings?.GetString(PopText().Span, stringKeyword.Span) ?? default);
+                Session.ScriptText = CRuntime.GetString(PopText()).ToArray();
+                PushText(Session.Strings?.GetString(PopText().Span, Session.ScriptText.Span) ?? default);
                 break;
             case ScriptFunction.Pause:
                 if (PopInt() != 0)
@@ -866,8 +877,10 @@ public partial class Map : IScriptFunctionHost
                 PopText();
                 break;
             case ScriptFunction.Exec:
-                // TODO: Port the shell launch of Exec; the port only logs the command
-                Session.Error.Log($"Exec '{MyError.Decode(PopText().Span)}'");
+                Session.ScriptText = CRuntime.GetString(PopText()).ToArray();
+                Session.Error.Log($"Exec '{MyError.Decode(Session.ScriptText.Span)}'");
+                var parameters = Session.ScriptText.After(" "u8);
+                Session.Shell?.Execute(ReadText(Session.ScriptText.Before(" "u8)), ReadText(parameters));
                 break;
             case ScriptFunction.FClose:
                 int closeHandle = PopInt();
@@ -887,7 +900,8 @@ public partial class Map : IScriptFunctionHost
                 PushText(_mapName);
                 break;
             case ScriptFunction.Crc32:
-                PushInt(ComputeChecksum(PopText().Span));
+                Session.ScriptText = CRuntime.GetString(PopText()).ToArray();
+                PushInt(ComputeChecksum(Session.ScriptText.Span));
                 break;
             case ScriptFunction.Printf:
                 bool isText = Script.IsLastStackString;
@@ -907,7 +921,8 @@ public partial class Map : IScriptFunctionHost
                 PushText(upperText);
                 break;
             case ScriptFunction.FOpen:
-                string openName = ReadText(PopText());
+                Session.ScriptText = CRuntime.GetString(PopText()).ToArray();
+                string openName = ReadText(Session.ScriptText);
                 int openHandle = 0;
                 if (!IsPlayingDemo)
                 {
@@ -923,7 +938,8 @@ public partial class Map : IScriptFunctionHost
                 PushInt(openHandle);
                 break;
             case ScriptFunction.FCreate:
-                string createName = ReadText(PopText());
+                Session.ScriptText = CRuntime.GetString(PopText()).ToArray();
+                string createName = ReadText(Session.ScriptText);
                 int createHandle = 0;
                 if (!IsPlayingDemo)
                 {
@@ -939,12 +955,14 @@ public partial class Map : IScriptFunctionHost
                 break;
             case ScriptFunction.GetReg:
                 string regDefault = ReadText(PopText());
-                string regName = ReadText(PopText());
+                Session.ScriptText = CRuntime.GetString(PopText()).ToArray();
+                string regName = ReadText(Session.ScriptText);
                 PushText(GameTextEncoding.Cyrillic.GetBytes(new Registry(ReadText(PopText()), Registry).Get(regName, regDefault)));
                 break;
             case ScriptFunction.SetReg:
                 string regValue = ReadText(PopText());
-                string setRegName = ReadText(PopText());
+                Session.ScriptText = CRuntime.GetString(PopText()).ToArray();
+                string setRegName = ReadText(Session.ScriptText);
                 new Registry(ReadText(PopText()), Registry).Set(setRegName, regValue);
                 break;
             case ScriptFunction.DelReg:
@@ -1003,7 +1021,7 @@ public partial class Map : IScriptFunctionHost
                 break;
             case ScriptFunction.AddUnitLimit:
                 int limitArmy = PopInt();
-                var limitVid = PopVid();
+                var limitVid = PopVid("for AddUnitLimit"u8);
                 int limitValue = PopInt();
                 if (limitVid == EmptyVid)
                     break;
@@ -1012,10 +1030,9 @@ public partial class Map : IScriptFunctionHost
                 {
                     limitVid.MaxUnits = limitValue;
                 }
-                // TODO: Port AS1's out-of-range write for armies outside 0..3; AS1 writes def+0x398+army*4 into the fields around ArmyMaxUnits
-                else if (limitArmy >= 0 && limitArmy < limitVid.ArmyMaxUnits.Length)
+                else
                 {
-                    limitVid.ArmyMaxUnits[limitArmy] = limitValue;
+                    limitVid.SetArmyMaxUnits(limitArmy, limitValue);
                 }
 
                 break;
@@ -1030,29 +1047,95 @@ public partial class Map : IScriptFunctionHost
                 PushInt(Player(PopInt()).Money);
                 break;
 
-            // TODO: Port the trains and the rail map
             case ScriptFunction.TrainProperty:
-                PopInt();
-                PopSprite();
+                var trainProperty = (TrainProperty)PopInt();
+                if (PopSprite() is Engine trainEngine)
+                {
+                    var train = new TrainInfo(trainEngine);
+                    switch (trainProperty)
+                    {
+                        case TrainProperty.Speed:
+                            PushInt(train.Speed);
+                            return;
+                        case TrainProperty.Weapon:
+                            PushInt(train.FireDamage);
+                            return;
+                        case TrainProperty.Life:
+                            PushInt(train.Hp * Percent / train.MaxHp);
+                            return;
+                        case TrainProperty.Hp:
+                            PushInt(train.Hp);
+                            return;
+                        case TrainProperty.Ammo:
+                            PushInt(train.AmmoShare);
+                            return;
+                        case TrainProperty.Acceleration:
+                            PushInt(train.Acceleration());
+                            return;
+                        case TrainProperty.BuildTime:
+                            PushInt(train.BuildTime);
+                            return;
+                        case TrainProperty.Free:
+                            for (var car = trainEngine.FirstEngine(); car is not null; car = car.NextEngine)
+                            {
+                                if (car.Command != Command.None)
+                                {
+                                    PushInt(0);
+                                }
+                            }
+
+                            PushInt(1);
+                            return;
+                        case TrainProperty.AmmoCount:
+                            PushInt(train.Rounds);
+                            return;
+                        case TrainProperty.MaxAmmo:
+                            PushInt(train.MaxRounds);
+                            return;
+                    }
+                }
+
                 PushInt(0);
                 break;
             case ScriptFunction.SetSemaphore:
-                PopValues(4);
+                PopInt();
+                int semaphore = PopInt();
+                int semaphoreY = PopInt();
+                RailMap.SetSemaphoreOrMine(PopInt(), semaphoreY, semaphore);
                 break;
             case ScriptFunction.BreakTrain:
-            case ScriptFunction.PatrolEngine:
-                PopValues(2);
-                PopSprite();
+                int breakY = PopInt();
+                int breakX = PopInt();
+                var broken = PopSprite();
+                if (broken is null)
+                    break;
+
+                if (broken is not Engine brokenEngine)
+                    throw new NotSupportedException("BreakTrain can only break the train of an engine.");
+
+                brokenEngine.BreakTrain(breakX, breakY);
                 break;
             case ScriptFunction.FirstTrain:
-                PopInt();
-                PushSprite(null);
+                PushSprite(FirstTrain(PopInt()));
                 break;
             case ScriptFunction.NextTrain:
-                PushSprite(null);
+                PushSprite(NextTrain());
+                break;
+            case ScriptFunction.PatrolEngine:
+                int patrolY = PopInt();
+                int patrolX = PopInt();
+                if (PopSprite() is Engine patrolEngine)
+                {
+                    patrolEngine.SetCommandToTrain(Command.EnginePatrol, patrolX, patrolY);
+                }
+
                 break;
             case ScriptFunction.SetPushLine:
-                PopValues(5);
+                int pushFlag = PopInt();
+                int pushEndY = PopInt();
+                int pushEndX = PopInt();
+                int pushBeginY = PopInt();
+                RailMap.SetPushLine(PopInt(), pushBeginY, pushEndX, pushEndY, pushFlag);
                 break;
             case ScriptFunction.SetCleverEnemyAttack:
                 Player(1).IsCleverEnemyAttack = PopInt() != 0;
@@ -1210,7 +1293,7 @@ public partial class Map : IScriptFunctionHost
         if (search.HasFlag(SpriteSearch.Class) && (int)vid.Class != (int)(search & SpriteSearch.ValueMask))
             return false;
 
-        return !search.HasFlag(SpriteSearch.Id) || (int)vid.Id == (int)(search & SpriteSearch.ValueMask);
+        return !search.HasFlag(SpriteSearch.Vid) || (int)vid.Id == (int)(search & SpriteSearch.ValueMask);
     }
 
     private static bool IsMenuMatch(Sprite sprite, Vid vid, int direction) =>
@@ -1350,7 +1433,7 @@ public partial class Map : IScriptFunctionHost
         armies = armies == 0 ? SpriteSearch.AnyArmy : armies;
         vid = null;
 
-        if (!search.HasFlag(SpriteSearch.Id))
+        if (!search.HasFlag(SpriteSearch.Vid))
         {
             types = (OldSpriteType)((int)search >> TypeShift) & SearchedTypes;
             types = types == 0 ? SearchedTypes : types;
@@ -1373,6 +1456,62 @@ public partial class Map : IScriptFunctionHost
         types = vid.SpriteType;
 
         return true;
+    }
+
+    [EngineRoutine(0x0043aa10)]
+    private Engine? FirstTrain(int army)
+    {
+        if (army < 0)
+            return null;
+
+        _trainArmy = Math.Min(army, ASToolkit.Engine.Vid.ArmyCount - 1);
+        _trainIndex = 1;
+
+        return FindTrain(_trainArmy, 1, out _);
+    }
+
+    [EngineRoutine(0x0043aa50)]
+    private Engine? FindTrain(int army, int number, out int counted)
+    {
+        int seen = 0;
+        int found = 0;
+        var listed = Sprites.ListedSprites;
+        int index = 0;
+        for (var sprite = listed.BeginIterate(ref index); sprite is not null; sprite = listed.NextIterate(ref index))
+        {
+            if (sprite is not Engine { PrevEngine: null } engine)
+                continue;
+
+            seen++;
+            if (army != AnyTrainArmy && (int)engine.Army != army)
+                continue;
+
+            if (found + 1 != number)
+            {
+                found++;
+                continue;
+            }
+
+            counted = seen;
+            var train = engine.GetTrain();
+            if (train is null)
+                return engine;
+
+            if (train.Army == engine.Army)
+                return train;
+        }
+
+        counted = 0;
+
+        return null;
+    }
+
+    [EngineRoutine(0x0043ab00)]
+    private Engine? NextTrain()
+    {
+        _trainIndex++;
+
+        return FindTrain(_trainArmy, _trainIndex, out _);
     }
 
     private void PopValues(int count)
@@ -1449,13 +1588,14 @@ public partial class Map : IScriptFunctionHost
     }
 
     [EngineRoutine(0x0043a510)]
-    private Vid PopVid()
+    private Vid PopVid(ReadOnlySpan<byte> function)
     {
-        var vid = Vid(PopInt());
+        int id = PopInt();
+        var vid = Vid(id);
 
         if (vid == EmptyVid)
         {
-            LogInvalidVid(default, 0);
+            LogInvalidVid(function, id);
         }
 
         return vid;

@@ -1171,6 +1171,52 @@ public class Vid
         return start < end ? CollectionsMarshal.AsSpan(HeightPoints)[start..end] : [];
     }
 
+    internal void SetArmyMaxUnits(int army, int value)
+    {
+        switch (army)
+        {
+            case < -5 or >= 7 * ArmyCount + StateCount:
+                throw new NotSupportedException($"The army {army} lies outside the per-army fields of the vid.");
+            case -5:
+                Half = Half with { X = BitConverter.Int32BitsToSingle(value) };
+                break;
+            case -4:
+                Half = Half with { Y = BitConverter.Int32BitsToSingle(value) };
+                break;
+            case -3:
+                Layer = (ObjectLayer)value;
+                break;
+            case -2:
+                DirectionOffset = value;
+                break;
+            case -1:
+                MaxUnits = value;
+                break;
+            case < ArmyCount:
+                _armyMaxUnits[army] = value;
+                break;
+            case < 2 * ArmyCount:
+                _counts[army - ArmyCount] = value;
+                break;
+            case < 3 * ArmyCount:
+                _killed[army - 2 * ArmyCount] = value;
+                break;
+            case < 4 * ArmyCount:
+                _recolored[army - 3 * ArmyCount] = value;
+                break;
+            case < 5 * ArmyCount:
+                _armyMaxHp[army - 4 * ArmyCount] = value;
+                break;
+            case < 7 * ArmyCount:
+                int gamma = (army - 5 * ArmyCount) / 2;
+                _gammas[gamma] = army % 2 == 0 ? _gammas[gamma] with { Negative = (uint)value } : _gammas[gamma] with { Positive = (uint)value };
+                break;
+            default:
+                StateHandlers[army - 7 * ArmyCount] = value;
+                break;
+        }
+    }
+
     [EngineRoutine(0x00414570)]
     private protected void StoreGamma(Gamma gamma, int army)
     {

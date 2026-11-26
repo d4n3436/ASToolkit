@@ -71,6 +71,11 @@ public enum ScriptFunction
     SizeTo = 80,
 
     /// <summary>
+    /// Recalculate the height grid with a unit's size.
+    /// </summary>
+    ReCalcGridZ = 81,
+
+    /// <summary>
     /// Add an order to a sprite's order stack.
     /// </summary>
     AddCommand = 82,
@@ -556,6 +561,36 @@ public enum ScriptFunction
     GetDefaultRegPath = 185,
 
     /// <summary>
+    /// Return a parameter of the network game.
+    /// </summary>
+    GetNetInfo = 192,
+
+    /// <summary>
+    /// Send a value over the network.
+    /// </summary>
+    Send = 193,
+
+    /// <summary>
+    /// Return a value received over the network.
+    /// </summary>
+    Receive = 194,
+
+    /// <summary>
+    /// Turn the network game on or off.
+    /// </summary>
+    SetNet = 195,
+
+    /// <summary>
+    /// Return the key a network player pressed.
+    /// </summary>
+    GetNetKey = 196,
+
+    /// <summary>
+    /// Return the mouse button state of a network player.
+    /// </summary>
+    GetNetInputState = 197,
+
+    /// <summary>
     /// Return the length of a string.
     /// </summary>
     Strlen = 205,
@@ -574,6 +609,21 @@ public enum ScriptFunction
     /// Encode a string in base64.
     /// </summary>
     ToBase64 = 208,
+
+    /// <summary>
+    /// Return whether a character is a letter.
+    /// </summary>
+    IsAlpha = 209,
+
+    /// <summary>
+    /// Return a statistic of an army.
+    /// </summary>
+    GetStatistics = 210,
+
+    /// <summary>
+    /// Compute a statistic over an area.
+    /// </summary>
+    CalcStatistics = 211,
 
     /// <summary>
     /// Return a property of a train.
@@ -629,6 +679,11 @@ public enum ScriptFunction
     /// Turn automatic rebirth on or off.
     /// </summary>
     SetAutoReBirth = 247,
+
+    /// <summary>
+    /// Patrol a train between two points.
+    /// </summary>
+    PatrolEngineToPoints = 248,
 
     /// <summary>
     /// Set the limit of sprites of an object ID on the map.

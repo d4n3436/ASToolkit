@@ -13,11 +13,6 @@ public partial class Map
     public const int MaxLaunchDepth = 3;
 
     /// <summary>
-    /// Represents the object ID of the prerendered ground.
-    /// </summary>
-    public const KnownObject HardwareGroundId = (KnownObject)1024;
-
-    /// <summary>
     /// Represents the default largest texture width and height.
     /// </summary>
     public const int DefaultMaxTextureSize = 32768;
@@ -184,7 +179,7 @@ public partial class Map
     /// </summary>
     /// <param name="vid">The shared data of the object ID.</param>
     /// <returns>The name.</returns>
-    public string GetVidName(Vid vid) => vid.RecordId == HardwareGroundId ? VidHardware.GroundName : _objects.GetName(vid.RecordId);
+    public string GetVidName(Vid vid) => vid.RecordId == KnownObject.HardwareGround ? VidHardware.GroundName : _objects.GetName(vid.RecordId);
 
     [EngineRoutine(0x00413a60)]
     internal void SetChildAndLink(Vid vid)

@@ -124,7 +124,7 @@ public class CampaignTests
         var play = new Playthrough(game, TestGameFolder.Objects, TestGameFolder.Table);
         var level = EmptyLevel();
 
-        var weapons = Enumerable.Range(Sprite.WeaponIdBase, Sprite.WeaponSlots).Select(id => (KnownObject)id).ToArray();
+        var weapons = Enumerable.Range((int)KnownObject.SecretWeaponTorso, Sprite.WeaponSlots).Select(id => (KnownObject)id).ToArray();
         var plain = play.Start(level, new PlayerLoadout(0, new Dictionary<KnownObject, int>(), new PlayerImplants(0, 0, 0, 0)), 1);
         plain.PlayUntil(100);
         int[] aims = weapons.Select(id => (int)plain.Map.FindVid(id)!.Weapon.Aim).ToArray();
@@ -154,7 +154,7 @@ public class CampaignTests
         {
             Kind = ElementKind.Pickup, Placement = placement, Id = placement.Id, X = (int)start.X, Y = (int)start.Y, Cell = tour[0], Hidden = false, Direction = 0
         }).ToArray();
-        placed.Insert(0, new MergedMapSprite(0, KnownObject.PlayerStart, position, default, Army.Player, []));
+        placed.Insert(0, new MergedMapSprite(0, KnownObject.PlayerLegs, position, default, Army.Player, []));
 
         return new RouteAnalysis
         {

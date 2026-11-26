@@ -10,6 +10,9 @@ namespace ASToolkit.Engine;
 /// </summary>
 public class Unit : Terrain
 {
+    private protected int _itemCount;
+    private protected int _itemList;
+    private protected int _playerSlot;
     private const int AmmoScale = 64;
     private const int IdleScanOdds = 11;
     private const int SecondMask = -1024;
@@ -30,6 +33,9 @@ public class Unit : Terrain
     public Unit(Vid vid, Vector3 position, Angle direction, Sprite? parent, Map map)
         : base(vid, position, direction, parent, map)
     {
+        _itemCount = 0;
+        _itemList = 0;
+        _playerSlot = -1;
         TurnTicks = 0;
         Behavior = (ArmedLink ?? this).Vid.Weapon.Behavior;
         FillAmmo();
@@ -38,7 +44,7 @@ public class Unit : Terrain
     /// <summary>
     /// Gets the ammunition the unit holds, in 1/64 rounds.
     /// </summary>
-    public int Ammo { get; private set; }
+    public int Ammo { get; private protected set; }
 
     /// <summary>
     /// Gets the whole rounds the unit holds.

@@ -19,7 +19,7 @@ public enum SpriteSearch
     /// <summary>
     /// Sprites of the object ID in the value bits.
     /// </summary>
-    Id = 1 << 11,
+    Vid = 1 << 11,
 
     /// <summary>
     /// Sprites of the sprite class in the value bits.

@@ -11,7 +11,7 @@ public class PlayerMovementTests
     public void MoveTact_NoTarget_BrakesWithoutDiscardingMomentum()
     {
         var map = EngineTestMap.CreateMap(frameTime: 20);
-        var vid = map.FindVid(KnownObject.PlayerStart)!;
+        var vid = map.FindVid(KnownObject.PlayerLegs)!;
         var player = new Man(vid, new Vector3(1000, 1000, 0), default, null, map) { Direction = new Angle(64) };
         player.Move(new Sprite(map.EmptyVid, new Vector3(1400, 1000, 0), default, null, map));
         map.StartPacedTact();
@@ -34,7 +34,7 @@ public class PlayerMovementTests
     public void MoveTact_DisplacesAlongTheDirectionFromBeforeTheTurn()
     {
         var map = EngineTestMap.CreateMap(frameTime: 20);
-        var vid = map.FindVid(KnownObject.PlayerStart)!;
+        var vid = map.FindVid(KnownObject.PlayerLegs)!;
         var player = new Man(vid, new Vector3(1000, 1000, 0), default, null, map);
         player.Move(new Sprite(map.EmptyVid, new Vector3(1400, 1000, 0), default, null, map));
         map.StartPacedTact();

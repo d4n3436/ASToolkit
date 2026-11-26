@@ -15,11 +15,6 @@ namespace ASToolkit.Engine;
 public partial class Sprite
 {
     /// <summary>
-    /// Represents the object ID of the torso for weapon slot 0.
-    /// </summary>
-    public const int WeaponIdBase = 10;
-
-    /// <summary>
     /// Represents the number of weapon slots.
     /// </summary>
     public const int WeaponSlots = 10;
@@ -436,7 +431,7 @@ public partial class Sprite
     /// <summary>
     /// Gets the weapon slot of the torso linked by the sprite's object ID.
     /// </summary>
-    public int WeaponSlot => (int)(Vid.LinkVid?.Id ?? 0) - WeaponIdBase;
+    public int WeaponSlot => (Vid.LinkVid?.Id ?? 0) - KnownObject.SecretWeaponTorso;
 
     /// <summary>
     /// Gets a value indicating whether the sprite has a goal.
@@ -1374,7 +1369,10 @@ public partial class Sprite
                     owner.SetCommand(Command.None);
                 }
 
-                // TODO: Port the trains; the engine owner with command 0x1d takes action 0x1e
+                if (owner.Vid.Class == SpriteClass.Engine && owner.Command == Command.EngineOneAttack)
+                {
+                    ((Engine)owner).SetCommandToTrain(Command.EngineOneAttackDone, null, null, null);
+                }
             }
 
             SetCommand(Command.None);
@@ -1596,7 +1594,7 @@ public partial class Sprite
             return;
         }
 
-        // TODO: Port the trains; the IsTrain action of the attack test answers for every class
+        // NOTE: Trains are left unported; the IsTrain action of the attack test answers for every class
         if (target is null || target.Vid == Map.EmptyVid || CanAttackThisSprite(target) || vid.Class == SpriteClass.Cannon ||
             Map.Action(this, ActionCode.IsTrain) != 0)
         {

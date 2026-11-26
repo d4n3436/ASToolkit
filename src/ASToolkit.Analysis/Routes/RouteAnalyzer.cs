@@ -168,7 +168,7 @@ public static class RouteAnalyzer
         public RouteAnalysis? Run()
         {
             MergedMapSprite? start = null;
-            foreach (var id in new[] { KnownObject.PlayerStart, KnownObject.PlayerStartFemaleLegs, KnownObject.Cursor })
+            foreach (var id in new[] { KnownObject.PlayerLegs, KnownObject.FemalePlayerLegs, KnownObject.Cursor })
             {
                 start = _model.Sprites.FirstOrDefault(s => s.Id == id);
                 if (start is not null)
@@ -695,7 +695,7 @@ public static class RouteAnalyzer
                 {
                     Add(ElementKind.DynamiteSite, sprite);
                 }
-                else if (i == KnownObject.Breaker)
+                else if (i == KnownObject.BreakerOff)
                 {
                     Add(ElementKind.Breaker, sprite);
                 }

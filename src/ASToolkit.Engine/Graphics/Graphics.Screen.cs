@@ -273,7 +273,7 @@ public sealed partial class Graphics
         {
             if (Screen is not null)
             {
-                if (map.FindVid(Map.HardwareGroundId) is null || map.Shift.X < 0f || map.Size.Width < Viewport.Right + map.Shift.X - Viewport.Left || map.Shift.Y < 0f || map.Size.Height < Viewport.Bottom + map.Shift.Y - Viewport.Top)
+                if (map.FindVid(KnownObject.HardwareGround) is null || map.Shift.X < 0f || map.Size.Width < Viewport.Right + map.Shift.X - Viewport.Left || map.Shift.Y < 0f || map.Size.Height < Viewport.Bottom + map.Shift.Y - Viewport.Top)
                 {
                     ClearScreen(Screen, ClearColor);
                 }

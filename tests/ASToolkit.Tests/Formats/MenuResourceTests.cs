@@ -18,7 +18,7 @@ public class MenuResourceTests
         Assert.Equal(KnownObject.MenuButton, elements[0].Sprite.Id);
         Assert.True(elements[0].ClassFields.IsEmpty);
         var play = elements[5];
-        Assert.Equal(KnownObject.MenuLabel, play.Sprite.Id);
+        Assert.Equal(KnownObject.LargeFont, play.Sprite.Id);
         Assert.Equal(TextBehavior.Center | TextBehavior.StringsIni, play.TextBehavior);
         Assert.Equal("Play", Encoding.ASCII.GetString(play.Text));
     }

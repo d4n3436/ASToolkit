@@ -779,7 +779,7 @@ public class LevelGeneratorIntegrationTests
     private static Dictionary<Cell, int> MeasureWalk(GeneratedLevel level)
     {
         var layout = level.Layout!;
-        var player = level.Map.Sprites.First(sprite => sprite.Id == KnownObject.PlayerStart).Position;
+        var player = level.Map.Sprites.First(sprite => sprite.Id == KnownObject.PlayerLegs).Position;
         var start = layout.Lattice.GetCell(player);
         var walk = new Dictionary<Cell, int> { [start] = 0 };
         var queue = new Queue<Cell>([start]);

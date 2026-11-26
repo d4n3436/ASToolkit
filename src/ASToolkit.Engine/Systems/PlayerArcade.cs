@@ -7,8 +7,6 @@ internal sealed class PlayerArcade : Player
 {
     private const int FirstWeaponKey = '0';
     private const int LastWeaponKey = '9';
-    private const int MessageLineId = 4;
-    private const int NoMarkerId = -1;
     private const int MessageLines = 5;
     private const int MessageLifetime = 5000;
     private const float MessageRightMargin = 242;
@@ -27,7 +25,7 @@ internal sealed class PlayerArcade : Player
         : base(session, index)
     {
         var screen = session.Graphics.ScreenSize;
-        Messages = new Message(Map, MessageLineId, NoMarkerId, MessageDefaultOrigin, MessageLines, MessageLifetime)
+        Messages = new Message(Map, KnownObject.SmallFont, KnownObject.None, MessageDefaultOrigin, MessageLines, MessageLifetime)
         {
             Origin = new Vector2(screen.Width - MessageRightMargin, screen.Height - MessageBottomMargin),
             LineStep = MessageLineStep
@@ -119,7 +117,7 @@ internal sealed class PlayerArcade : Player
                 var sprite = (Man)Flagman;
                 if (sprite.Rounds < sprite.Vid.ChildCounts[(int)SpriteAnimation.Fight])
                 {
-                    for (int slot = (int)sprite.Link!.Vid.Id - Sprite.WeaponIdBase - 1; !sprite.ChangeWeapon(slot); slot--)
+                    for (int slot = sprite.Link!.Vid.Id - KnownObject.SecretWeaponTorso - 1; !sprite.ChangeWeapon(slot); slot--)
                     {
                     }
                 }
@@ -226,7 +224,7 @@ internal sealed class PlayerArcade : Player
 
         if (torso is not null && torso.Vid == player.Vid.LinkVid)
         {
-            if (player is { Speed: 0, Vid.Id: KnownObject.PlayerStart })
+            if (player is { Speed: 0, Vid.Id: KnownObject.PlayerLegs })
             {
                 if (!Session.IsTurningLegs)
                 {
@@ -240,7 +238,7 @@ internal sealed class PlayerArcade : Player
 
             torso.RotateTact(cursorDirection, Map.FrameTime);
         }
-        if (Hovered is not null && Hovered.Vid.SpriteType.HasFlag(OldSpriteType.Terrain))
+        if (Hovered is not null && Hovered.Vid.SpriteType.HasFlag(OldSpriteType.Object))
         {
             Map.Release(Hovered);
             Hovered = null;

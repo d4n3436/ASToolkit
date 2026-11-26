@@ -9,12 +9,13 @@ internal sealed class Message
     private const float MarkerIndent = 10;
     private const int MessageSound = 0x6a;
     private const int DefaultLineStep = -1;
+    private const int MaxLines = 45;
 
     private static readonly Vector2 NoTarget = new(-999999f);
     private static readonly Vector2 Unset = new(-1);
     private readonly Map _map;
-    private readonly int _lineId;
-    private readonly int _markerId;
+    private readonly KnownObject _lineId;
+    private readonly KnownObject _markerId;
     private readonly int _count;
     private readonly int _idleTime;
     private readonly Sprite?[] _lines;
@@ -24,7 +25,7 @@ internal sealed class Message
     private int _shownAt;
 
     [EngineRoutine(0x0042e120)]
-    public Message(Map map, int lineId, int markerId, Vector2 origin, int count, int idleTime)
+    public Message(Map map, KnownObject lineId, KnownObject markerId, Vector2 origin, int count, int idleTime)
     {
         _map = map;
         _count = count;
@@ -33,9 +34,9 @@ internal sealed class Message
         _markerId = markerId;
         Origin = origin;
         LineStep = DefaultLineStep;
-        _lines = new Sprite?[count + 1];
-        _markers = new Sprite?[count + 1];
-        _targets = new Vector2[count + 1];
+        _lines = new Sprite?[MaxLines];
+        _markers = new Sprite?[MaxLines];
+        _targets = new Vector2[MaxLines];
     }
 
     public Vector2 Origin { get; set; }
@@ -45,21 +46,21 @@ internal sealed class Message
     [EngineRoutine(0x0042e230)]
     public void Clear()
     {
-        for (int i = 1; i <= _count; i++)
+        for (int i = 0; i < _count; i++)
         {
-            if (_markers[i] is not null)
-            {
-                _map.DeleteSprite(_markers[i]!);
-            }
-
-            _markers[i] = null;
-
             if (_lines[i] is not null)
             {
                 _map.DeleteSprite(_lines[i]!);
             }
 
             _lines[i] = null;
+
+            if (_markers[i] is not null)
+            {
+                _map.DeleteSprite(_markers[i]!);
+            }
+
+            _markers[i] = null;
         }
     }
 
@@ -68,14 +69,14 @@ internal sealed class Message
     {
         for (int i = 0; i < _count; i++)
         {
-            if (_markers[i] == removed)
-            {
-                _markers[i] = null;
-            }
-
             if (_lines[i] == removed)
             {
                 _lines[i] = null;
+            }
+
+            if (_markers[i] == removed)
+            {
+                _markers[i] = null;
             }
         }
     }
@@ -106,12 +107,12 @@ internal sealed class Message
             _shownAt = _map.CurrentTime;
         }
 
-        var clicked = _map.Menu.LeftClick;
-
-        if (clicked is null || (int)clicked.Vid.Id != _markerId)
+        if (!_map.Menu.Clicks.HasFlag(MenuClicks.Left) || (KnownObject)_map.Menu.GetIdUnderCursor() != _markerId)
             return;
 
-        int i = (int)(clicked.Position.Y - clicked.Position.Z - _map.Shift.Y - _map.Session.Graphics.Viewport.Top) / lineHeight + 1;
+        var clicked = _map.Menu.Current!;
+
+        int i = (int)(clicked.Position.Y - clicked.Position.Z - _map.Shift.Y - _map.Session.Graphics.Viewport.Top) / lineHeight;
 
         if (_targets[i] != NoTarget)
         {
@@ -128,30 +129,30 @@ internal sealed class Message
             return;
 
         _shownAt = _map.CurrentTime;
-        if (_lines[_count] is not null)
+        if (_lines[_count - 1] is not null)
         {
             Shift();
         }
 
         float bottom = _map.Session.Graphics.Viewport.Top + (_count - 1) * lineHeight;
-        if (_lines[_count] is null)
+        if (_lines[_count - 1] is null)
         {
             var position = new Vector3(Origin.X, bottom + Origin.Y + ScreenDepth, ScreenDepth);
-            _lines[_count] = _map.CreateSprite(FindVid(_lineId), position, default);
+            _lines[_count - 1] = _map.CreateSprite(FindVid(_lineId), position, default);
         }
 
-        var line = _lines[_count];
+        var line = _lines[_count - 1];
         if (line is not null)
         {
             ((SText)line).SetText(text);
         }
 
-        _targets[_count] = target;
+        _targets[_count - 1] = target;
         if (target != Unset)
         {
             int halfLine = lineHeight / 2;
             var position = new Vector3(Origin.X - MarkerIndent, bottom + halfLine + Origin.Y + ScreenDepth, ScreenDepth);
-            _markers[_count] = _map.CreateSprite(FindVid(_markerId), position, default);
+            _markers[_count - 1] = _map.CreateSprite(FindVid(_markerId), position, default);
         }
 
         _map.Sound.PlaySfx(MessageSound, 0, Sound.FullLoudness);
@@ -161,9 +162,9 @@ internal sealed class Message
     private void Shift()
     {
         int lineHeight = GetLineHeight();
-        Remove(_lines, 1);
-        Remove(_markers, 1);
-        for (int i = 2; i <= _count; i++)
+        Remove(_lines, 0);
+        Remove(_markers, 0);
+        for (int i = 1; i < _count; i++)
         {
             var marker = _markers[i];
 
@@ -176,7 +177,7 @@ internal sealed class Message
             _markers[i] = null;
         }
 
-        for (int i = 2; i <= _count; i++)
+        for (int i = 1; i < _count; i++)
         {
             var line = _lines[i];
 
@@ -205,5 +206,5 @@ internal sealed class Message
 
     private int GetLineHeight() => FindVid(_lineId).FrameSize.Height + 1;
 
-    private Vid FindVid(int id) => _map.FindVid((KnownObject)id) ?? _map.EmptyVid;
+    private Vid FindVid(KnownObject id) => _map.FindVid(id) ?? _map.EmptyVid;
 }

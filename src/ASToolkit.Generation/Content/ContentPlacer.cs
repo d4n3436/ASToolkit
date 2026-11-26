@@ -125,7 +125,7 @@ internal static class ContentPlacer
             return;
         }
 
-        ctx.Map.Add(KnownObject.Breaker, breaker.Position.X, breaker.Position.Y);
+        ctx.Map.Add(KnownObject.BreakerOff, breaker.Position.X, breaker.Position.Y);
         ctx.Taken.Add(new Cell(breaker.Wall.A - 1, breaker.Wall.B));
         script.DoorsOpen = plan.Gate != GateKind.LockedDoors;
         if (plan is { Gate: GateKind.Blackout, BlackoutLink: not null })

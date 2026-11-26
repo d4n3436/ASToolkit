@@ -29,7 +29,7 @@ public class DoorTests
     {
         var map = EngineTestMap.CreateMap();
         var vid = map.FindVid(KnownObject.SmallDoor)!;
-        var walker = map.FindVid(KnownObject.PlayerStart)!;
+        var walker = map.FindVid(KnownObject.PlayerLegs)!;
         var position = new Vector2(1000);
         var sprite = new Sprite(walker, position.AsVector3(), default, null, map);
         _ = new Sprite(vid, position.AsVector3(), default, null, map);

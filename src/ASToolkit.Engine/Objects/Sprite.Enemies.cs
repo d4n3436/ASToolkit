@@ -68,7 +68,7 @@ public partial class Sprite
                 isAccepted = distance <= vid.Weapon.BattleRange || seeker.IsBetter(distance, bestDistance, candidate, best);
             }
 
-            if (!isAccepted || (seeker.Army == Army.Player && candidate.Vid.Class == SpriteClass.Engine && HasCarOfArmy(candidate, Army.Player)))
+            if (!isAccepted || (seeker.Army == Army.Player && candidate.Vid.Class == SpriteClass.Engine && ((Engine)candidate).HaveArmy(Army.Player)))
                 continue;
 
             best = candidate;
@@ -80,10 +80,6 @@ public partial class Sprite
 
         return best;
     }
-
-    // TODO: Port the trains
-    [EngineRoutine(0x004505c0)]
-    private static bool HasCarOfArmy(Sprite engine, Army army) => engine.Army == army;
 
     [EngineRoutine(0x00445c80)]
     private bool IsBetter(float distance, float bestDistance, Sprite candidate, Sprite? best)

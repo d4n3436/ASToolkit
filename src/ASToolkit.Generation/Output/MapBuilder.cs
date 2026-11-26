@@ -69,7 +69,7 @@ public sealed class MapBuilder
 
         _handle += 0x10;
         byte[] data = !payload.IsEmpty ? payload.ToArray()
-            : id == KnownObject.PlayerStart ? PlayerStartPayload
+            : id == KnownObject.PlayerLegs ? PlayerStartPayload
             : KnownObject.Monsters.Contains(id) || KnownObject.Bosses.Contains(id) ? MonsterPayload
             : new byte[8];
         Sprites.Add(new MergedMapSprite(_handle, id, new Vector3(x, y, z), dir, army ?? _armies.GetArmy(id), data));

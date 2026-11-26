@@ -63,7 +63,7 @@ public enum ActionCode
     /// <summary>
     /// Turn the sprite toward a direction.
     /// </summary>
-    Turn = 41,
+    Rotate = 41,
 
     /// <summary>
     /// Drop the current command.
@@ -133,7 +133,7 @@ public enum ActionCode
     /// <summary>
     /// Change the sprite's height.
     /// </summary>
-    ChangeCoorZ = 69,
+    ChangeZ = 69,
 
     /// <summary>
     /// Push the current command onto the action stack.
@@ -366,9 +366,14 @@ public enum ActionCode
     NextCommand = 130,
 
     /// <summary>
-    /// Set a script variable.
+    /// Run a script function with the sprite.
     /// </summary>
-    ScriptVar = 131,
+    ScriptRun = 131,
+
+    /// <summary>
+    /// Set a script variable (Alien Shooter 2).
+    /// </summary>
+    ScriptVar = ScriptRun,
 
     /// <summary>
     /// Hide the sprite for an editor undo.

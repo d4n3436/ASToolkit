@@ -415,6 +415,84 @@ public class ExecFuncTests
         throw new InvalidOperationException("There is no pair of object IDs sharing a weapon.");
     }
 
+    [Fact]
+    public void ExecFunc_ExecAndFReadWithoutFile_ShareTheTextBuffer()
+    {
+        var map = EngineTestMap.CreateMap();
+        var shell = new RecordingShellDevice();
+        map.Session.Shell = shell;
+        var script = Compile(map, """
+            int length, first, launched;
+            main()
+            {
+              Crc32("hello");
+              length = strlen(FRead(0));
+              Exec("http://example.test one two");
+              launched = strlen(FRead(0));
+              first = charat(FRead(0), 0);
+            }
+            """);
+        script.CallFunction(-1, 0, 0, 0);
+
+        Assert.Equal(5, Read(script, "length"));
+        Assert.Equal([("http://example.test", "one two")], shell.Launches);
+        Assert.Equal(27, Read(script, "launched"));
+        Assert.Equal('h', Read(script, "first"));
+    }
+
+    [Fact]
+    public void Action_TextAddressFromGetTextDesc_SetsAnotherTextsDescription()
+    {
+        var (map, _) = Run("""
+            main()
+            {
+              MenuLoad("maps\\gamemenu.men");
+            }
+            """);
+        var texts = Enumerable.Range(0, 17).SelectMany(layer => map.GetLayer(layer)).OfType<SText>()
+            .Where(text => !text.Description.IsEmpty).Take(2).ToArray();
+
+        int address = texts[0].Action(ActionCode.GetTextDesc, 0, 0, 0);
+        texts[1].Action(ActionCode.SetText, address, 0, 0);
+
+        Assert.True(address < 0);
+        Assert.Equal(texts[0].Description.ToArray(), texts[1].Description.ToArray());
+    }
+
+    [Fact]
+    public void Action_AddAmmoBelowTheSlots_ChangesTheUnitFieldsBeforeThem()
+    {
+        var map = EngineTestMap.CreateMap();
+        var man = (Man)map.Flagman(0)!;
+        int ammo = man.Ammo;
+
+        int added = man.Action(ActionCode.AddAmmo, 64, -4, 0);
+        man.Action(ActionCode.AddAmmo, 3, -2, 0);
+
+        Assert.Equal(ammo + 64, added);
+        Assert.Equal(ammo + 64, man.Ammo);
+        Assert.Equal(ammo + 64, man.Action(ActionCode.GetAmmo, -4, 0, 0));
+        Assert.Equal(3, man.TurnTicks);
+        Assert.Equal(-1, man.Action(ActionCode.GetAmmo, -8, 0, 0));
+        Assert.Throws<NotSupportedException>(() => man.Action(ActionCode.GetAmmo, 10, 0, 0));
+    }
+
+    [Fact]
+    public void SetArmyMaxUnits_ArmiesPastTheLimits_WriteTheFollowingFields()
+    {
+        var map = EngineTestMap.CreateMap();
+        var vid = map.Flagman(0)!.Vid;
+
+        vid.SetArmyMaxUnits(-1, 5);
+        vid.SetArmyMaxUnits(4, 7);
+        vid.SetArmyMaxUnits(21, 9);
+
+        Assert.Equal(5, vid.MaxUnits);
+        Assert.Equal(7, vid.Counts[0]);
+        Assert.Equal(9u, vid.Gammas[0].Positive);
+        Assert.Throws<NotSupportedException>(() => vid.SetArmyMaxUnits(-6, 0));
+    }
+
     private static (Map Map, Script Script) Run(string text)
     {
         var map = EngineTestMap.CreateMap();

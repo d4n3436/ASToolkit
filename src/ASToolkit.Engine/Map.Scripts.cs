@@ -24,7 +24,7 @@ public partial class Map
     /// <summary>
     /// Gets the shared data and frames of the hardware ground, or shared data without frames if there isn't a hardware ground.
     /// </summary>
-    public Vid HardwareGroundVid => _vids[(int)HardwareGroundId] ?? EmptyVid;
+    public Vid HardwareGroundVid => _vids[(int)KnownObject.HardwareGround] ?? EmptyVid;
 
     /// <summary>
     /// Gets a value indicating whether the map has a hardware ground.
@@ -56,14 +56,14 @@ public partial class Map
     [EngineRoutine(0x00412a40)]
     internal void CreateEmptyHardwareGround()
     {
-        if (_vidCount < (int)HardwareGroundId + 1)
+        if (_vidCount < (int)KnownObject.HardwareGround + 1)
         {
-            _vidCount = (int)HardwareGroundId + 1;
+            _vidCount = (int)KnownObject.HardwareGround + 1;
         }
 
-        _vids[(int)HardwareGroundId]?.Destruct();
-        var vid = new VidHardware(this, HardwareGroundId, System.Drawing.Size.Truncate(Size), _weapons!);
-        _vids[(int)HardwareGroundId] = vid;
+        _vids[(int)KnownObject.HardwareGround]?.Destruct();
+        var vid = new VidHardware(this, KnownObject.HardwareGround, System.Drawing.Size.Truncate(Size), _weapons!);
+        _vids[(int)KnownObject.HardwareGround] = vid;
         CreateSprite(vid, new Vector3(Size.ToVector2() * HalfShare, 0), default);
         Session.Error.Log("Create Empty Hardware Ground"u8);
     }

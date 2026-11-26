@@ -14,7 +14,6 @@ public sealed class Man : Unit
     private const int PlayerIdLimit = 20;
     private const uint ReloadTimerLimit = 5000;
     private const float RescueEffectHeight = 22;
-    private const int WornArmorItemBase = 204;
     private const int WornArmorShareCount = 3;
     private const float AimRise = 70;
     private const float AimRiseCap = 50;
@@ -136,15 +135,15 @@ public sealed class Man : Unit
                     return 0;
                 }
 
-                int armorItem = GetItemNumber(WornArmorItemBase) >= 0 ? WornArmorItemBase
-                    : GetItemNumber(WornArmorItemBase + 1) >= 0 ? WornArmorItemBase + 1
-                    : GetItemNumber(WornArmorItemBase + 2) >= 0 ? WornArmorItemBase + 2
+                var armorItem = GetItemNumber((int)KnownObject.GreenArmor) >= 0 ? KnownObject.GreenArmor
+                    : GetItemNumber((int)KnownObject.YellowArmor) >= 0 ? KnownObject.YellowArmor
+                    : GetItemNumber((int)KnownObject.RedArmor) >= 0 ? KnownObject.RedArmor
                     : 0;
 
                 if (armorItem != 0)
                 {
                     var position = new Vector3(Position.X, Position.Y, Position.Z + Vid.LinkOffset.Z);
-                    var armor = Map.CreateSprite(Map.FindVid((KnownObject)(armorItem - WornArmorItemBase + (int)KnownObject.WornGreenArmor))!, position, Direction);
+                    var armor = Map.CreateSprite(Map.FindVid(KnownObject.WornGreenArmor + (armorItem - KnownObject.GreenArmor))!, position, Direction);
                     Link!.AddLink(armor);
                 }
 
@@ -207,16 +206,20 @@ public sealed class Man : Unit
                 return 0;
             case ActionCode.GetAmmo:
                 if (var1 != 0 && var1 != WeaponSlot)
-                    return var1 >= 0 && var1 < SlotAmmo.Length ? SlotAmmo[var1] : 0;
+                    return ReadSlot(var1);
 
                 return base.Action(act, 0, 0, 0);
             case ActionCode.AddAmmo:
-                // TODO: Port AS1's write before the slot array for a negative slot; the port returns 0
-                if (var2 < 0 || var2 >= SlotAmmo.Length)
+                if (var2 > MaxWeaponSlot)
                     return 0;
 
                 if (var2 != 0 && var2 != WeaponSlot)
-                    return SlotAmmo[var2] += var1;
+                {
+                    int added = ReadSlot(var2) + var1;
+                    WriteSlot(var2, added);
+
+                    return added;
+                }
 
                 return base.Action(act, var1, 0, 0);
             case ActionCode.NextCommand:
@@ -253,10 +256,62 @@ public sealed class Man : Unit
             return false;
 
         SlotAmmo[WeaponSlot] = GetAmmo();
-        Map.Action(Link, ActionCode.ChangeVid, slot + WeaponIdBase);
-        Vid.LinkVid = Map.FindVid((KnownObject)(slot + WeaponIdBase)) ?? Map.EmptyVid;
+        Map.Action(Link, ActionCode.ChangeVid, (int)(KnownObject.SecretWeaponTorso + slot));
+        Vid.LinkVid = Map.FindVid(KnownObject.SecretWeaponTorso + slot) ?? Map.EmptyVid;
         AddAmmo(SlotAmmo[slot] - GetAmmo());
 
         return true;
+    }
+
+    private int ReadSlot(int slot) => slot switch
+    {
+        >= 0 and <= MaxWeaponSlot => _slotAmmo[slot],
+        -1 => (int)Behavior,
+        -2 => TurnTicks,
+        -3 => _playerSlot,
+        -4 => Ammo,
+        -5 => _itemList,
+        -6 => _itemCount,
+        -7 => ShouldRefillAmmo ? 1 : 0,
+        -8 => _unused,
+        _ => throw new NotSupportedException($"The ammo slot {slot} lies outside the fields of the unit.")
+    };
+
+    private void WriteSlot(int slot, int value)
+    {
+        switch (slot)
+        {
+            case >= 0 and <= MaxWeaponSlot:
+                _slotAmmo[slot] = value;
+                break;
+            case -1:
+                Behavior = (WeaponBehavior)value;
+                break;
+            case -2:
+                TurnTicks = value;
+                break;
+            case -3:
+                _playerSlot = value;
+                break;
+            case -4:
+                Ammo = value;
+                break;
+            case -5:
+                _itemList = value;
+                break;
+            case -6:
+                _itemCount = value;
+                break;
+            case -7 when value is 0 or 1:
+                ShouldRefillAmmo = value != 0;
+                break;
+            case -7:
+                throw new NotSupportedException($"The refill flag can't hold the value {value}.");
+            case -8:
+                _unused = value;
+                break;
+            default:
+                throw new NotSupportedException($"The ammo slot {slot} lies outside the fields of the unit.");
+        }
     }
 }

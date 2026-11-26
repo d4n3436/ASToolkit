@@ -84,7 +84,7 @@ public class ObjectTableTests
     {
         string game = TestGameFolder.RequireFolder();
         var table = ObjectTable.Load(Path.Combine(game, "objects.res"));
-        Assert.True(table.TryFind(table.IsAlienShooter2 ? KnownObject.SequelPlayer : KnownObject.PlayerStart, out var legs));
+        Assert.True(table.TryFind(table.IsAlienShooter2 ? KnownObject.SequelPlayer : KnownObject.PlayerLegs, out var legs));
         Assert.True(table.TryFind(legs.Link, out var torso));
         Assert.Equal(SpriteType.Sprite, torso.SpriteType);
         Assert.Equal(table.IsAlienShooter2 ? 0 : 33, legs.LinkOffset.Z);

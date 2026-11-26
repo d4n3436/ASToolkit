@@ -32,7 +32,7 @@ public sealed class RoomAtlas
     ];
 
     private static readonly HashSet<KnownObject> NotPieces =
-        [KnownObject.Generator, KnownObject.GeneratorDead, KnownObject.Breaker, KnownObject.KeypadOn, KnownObject.KeypadOff, KnownObject.BrokenKeypad, KnownObject.WoodenDoor];
+        [KnownObject.Generator, KnownObject.GeneratorDead, KnownObject.BreakerOff, KnownObject.KeypadOn, KnownObject.KeypadOff, KnownObject.BrokenKeypad, KnownObject.WoodenDoor];
 
     private static readonly (string Map, int X, int Y, RoomType Type, RoomType? Side)[] Corrections =
     [

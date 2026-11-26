@@ -188,7 +188,7 @@ public partial class Sprite
                 Timer = pause;
                 SetCommand(pause != 0 ? Command.Pause : Command.None);
                 break;
-            case ActionCode.Turn:
+            case ActionCode.Rotate:
                 RotateTact(new Angle(unchecked((byte)var1)), Vid.GetVisualFrameDuration(Animation));
                 break;
             case ActionCode.ClearCommand:
@@ -338,7 +338,7 @@ public partial class Sprite
                 }
 
                 break;
-            case ActionCode.ScriptVar:
+            case ActionCode.ScriptRun:
                 Map.ScriptRun(var1, this);
                 break;
             case ActionCode.UndoRemove:
@@ -357,7 +357,7 @@ public partial class Sprite
                 if (var1 <= -1 || Map.FindVid((KnownObject)var1) is null)
                     break;
 
-                var destroyed = Map.GetSpriteScr(SpriteSearch.Id + var1, destroyPoint);
+                var destroyed = Map.GetSpriteScr(SpriteSearch.Vid + var1, destroyPoint);
 
                 if (destroyed is not null)
                 {
@@ -502,7 +502,7 @@ public partial class Sprite
                 Lifetime = var1;
                 break;
             case (ActionCode)Act.ForgottenOrder or ActionCode.SetQuest or ActionCode.WhileNotQuest or ActionCode.SetText or ActionCode.SetTextCount or
-                ActionCode.SetFile or ActionCode.Select or ActionCode.ChangeCoorZ:
+                ActionCode.SetFile or ActionCode.Select or ActionCode.ChangeZ:
                 break;
             default:
                 Map.Session.Error.Error($"SPRITE {(int)Vid.Id}", LogError.Text, 10);

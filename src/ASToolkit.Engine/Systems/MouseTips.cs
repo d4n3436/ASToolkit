@@ -5,7 +5,6 @@ namespace ASToolkit.Engine;
 
 internal sealed class MouseTips
 {
-    private const KnownObject Font = (KnownObject)6;
     private const int Recheck = 500;
     private const int FrameLength = 2;
     private const float OffsetX = 5;
@@ -59,7 +58,7 @@ internal sealed class MouseTips
             return;
         }
 
-        var font = _map.FindVid(Font) ?? _map.EmptyVid;
+        var font = _map.FindVid(KnownObject.MouseTipsFont) ?? _map.EmptyVid;
         _map.Session.MouseTipText = _map.GetMouseTipsString();
 
         if (font == _map.EmptyVid || _map.Session.MouseTipText.IsEmpty)

@@ -7,7 +7,6 @@ internal static class MyLib
 {
     public const string DateFormat = "yyyy-MM-dd";
     public const string TimeFormat = "HH:mm:ss";
-
     private const uint ChecksumPolynomial = 0xEDB88320;
     private const int Base64ChunkSize = 0x39;
 
@@ -65,6 +64,23 @@ internal static class MyLib
     [EngineRoutine(0x00406850)]
     public static string GetDateString(TimeProvider time) => time.GetLocalNow().ToString(DateFormat, CultureInfo.InvariantCulture);
 
+    private static uint[] CreateChecksumTable()
+    {
+        uint[] table = new uint[byte.MaxValue + 1];
+        for (int i = 0; i < table.Length; i++)
+        {
+            uint value = (uint)i;
+            for (int bit = 0; bit < 8; bit++)
+            {
+                value = (value & 1) != 0 ? value >> 1 ^ ChecksumPolynomial : value >> 1;
+            }
+
+            table[i] = value;
+        }
+
+        return table;
+    }
+
     extension(string text)
     {
         [EngineRoutine(0x00406c90)]
@@ -85,6 +101,15 @@ internal static class MyLib
 
     extension(ReadOnlyMemory<byte> text)
     {
+        [EngineRoutine(0x00406dd0)]
+        public ReadOnlyMemory<byte> Before(ReadOnlySpan<byte> delimiter)
+        {
+            var source = CRuntime.GetString(text);
+            int index = source.Span.IndexOf(delimiter);
+
+            return index < 0 ? source : source[..index];
+        }
+
         [EngineRoutine(0x00406e50)]
         public ReadOnlyMemory<byte> After(ReadOnlySpan<byte> delimiter)
         {
@@ -92,6 +117,13 @@ internal static class MyLib
             int index = source.Span.IndexOf(delimiter);
 
             return index < 0 ? default : source[(index + delimiter.Length)..];
+        }
+
+        [EngineRoutine(0x00439b90)]
+        public void Write(Stream stream)
+        {
+            stream.Write(CRuntime.GetString(text).Span);
+            stream.WriteByte(0);
         }
     }
 
@@ -146,22 +178,5 @@ internal static class MyLib
         [EngineRoutine(0x004242e0)]
         public int ParseNumber() =>
             text.Length > 1 && text[1] == 'x' ? CRuntime.ScanInteger(text) : CRuntime.ParseInteger(text);
-    }
-
-    private static uint[] CreateChecksumTable()
-    {
-        uint[] table = new uint[byte.MaxValue + 1];
-        for (int i = 0; i < table.Length; i++)
-        {
-            uint value = (uint)i;
-            for (int bit = 0; bit < 8; bit++)
-            {
-                value = (value & 1) != 0 ? value >> 1 ^ ChecksumPolynomial : value >> 1;
-            }
-
-            table[i] = value;
-        }
-
-        return table;
     }
 }

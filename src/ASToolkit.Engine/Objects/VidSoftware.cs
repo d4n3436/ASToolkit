@@ -229,9 +229,7 @@ public partial class VidSoftware : Vid
 
             if (length == AliasBody)
             {
-                int target = position >= 0 && position <= _buffer.Length - sizeof(short) ? MemoryMarshal.Read<short>(_buffer.AsSpan(position)) : 0;
-                // TODO: Port the unchecked alias read
-                FrameOffsets[frame] = target >= 0 && target < FileFrameCount ? FrameOffsets[target] : 0;
+                FrameOffsets[frame] = FrameOffsets[MemoryMarshal.Read<short>(_buffer.AsSpan(position))];
             }
             else
             {
