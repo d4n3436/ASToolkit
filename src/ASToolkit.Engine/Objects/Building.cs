@@ -28,6 +28,15 @@ public sealed class Building : Unit
 
     internal Point PendingOffset { get; set; }
 
+    [EngineRoutine(0x0044ca50)]
+    internal override void MoveTact()
+    {
+        if (Vid.Id == KnownObject.PistolMuzzleFlash)
+        {
+            AddHpPerSecond(Map.Constant.HpPerSecond);
+        }
+    }
+
     [EngineRoutine(0x0044ca70)]
     internal override int Action(ActionCode act, int var1, int var2, int var3)
     {
@@ -96,10 +105,5 @@ public sealed class Building : Unit
         }
 
         return base.Action(act, var1, var2, var3);
-    }
-
-    internal override void MoveTact()
-    {
-        // TODO: Port the call of 0x44be50 that 0x44ca50 makes for object 104
     }
 }

@@ -259,6 +259,18 @@ public partial class Sprite
             case ActionCode.ChangeAnimation:
                 ChangeAnimation((SpriteAnimation)var1);
                 break;
+            case ActionCode.ChangeAction:
+                ChangeAnimation((SpriteAnimation)var1);
+                ChangeDirection(new Angle(unchecked((byte)var2)));
+                break;
+            case ActionCode.GetAction:
+                return (int)Animation;
+            case ActionCode.ChangePosition:
+                ChangeCoor(new Vector3(var1, var2, Position.Z));
+                break;
+            case ActionCode.ChangeHeight:
+                ChangeCoor(Position with { Z = var1 });
+                break;
             case ActionCode.GotoStack:
                 ActionStack.Count = var1 + 1;
                 ActionStack.Expand(var1 + 1);
@@ -305,10 +317,16 @@ public partial class Sprite
                 Map.Action(this, ActionCode.NextCommand);
                 break;
             case ActionCode.NextCommand:
-                var state = Animation;
-
-                if (state >= SpriteAnimation.Death)
+                if (Animation >= SpriteAnimation.Death)
                     break;
+
+                var graphics = Map.Session.Graphics;
+                if ((Owner is not null || MaxSpeed.IsExactlyZero()) && Vid.Properties.HasFlag(ObjectProperties.Wind) && !graphics.WindSpeed.IsExactlyZero())
+                {
+                    RotateTact(graphics.WindDirection, (int)Math.Max((uint)Map.FrameTime, (uint)Vid.GetVisualFrameDuration(Animation)));
+                }
+
+                var state = Animation;
 
                 if (Speed.IsExactlyZero() && state > SpriteAnimation.RRotate && state != SpriteAnimation.StandOpen)
                 {
@@ -319,6 +337,9 @@ public partial class Sprite
                     ChangeAnimation(SpriteAnimation.Go);
                 }
 
+                break;
+            case ActionCode.ScriptVar:
+                Map.ScriptRun(var1, this);
                 break;
             case ActionCode.UndoRemove:
                 SetFlag(SpriteFlags.Removed, true);

@@ -511,15 +511,15 @@ public sealed partial class Script
             {
                 if (initializeAtRunTime)
                 {
-                    _stack.Insert(new ScriptStack(ScriptStackFlags.Number | flags | ScriptStackFlags.NotInitialized, 0));
+                    _stack.Push(new ScriptStack(ScriptStackFlags.Number | flags | ScriptStackFlags.NotInitialized, 0));
                     EmitInitializer(_stack.Count - 1);
                     count++;
                     continue;
                 }
 
-                _stack.Insert(new ScriptStack(ScriptStackFlags.Number | flags, 0));
+                _stack.Push(new ScriptStack(ScriptStackFlags.Number | flags, 0));
                 int value = GetInt();
-                ref var element = ref _stack[_stack.Count - 1];
+                ref var element = ref _stack[^1];
                 element.Value = value;
                 element.Flags |= ScriptStackFlags.Initialized;
                 count++;
@@ -539,7 +539,7 @@ public sealed partial class Script
 
         for (int element = 0; element < size; element++)
         {
-            _stack.Insert(new ScriptStack(ScriptStackFlags.Number | flags | ScriptStackFlags.NotInitialized, 0));
+            _stack.Push(new ScriptStack(ScriptStackFlags.Number | flags | ScriptStackFlags.NotInitialized, 0));
         }
 
         bool isInitialized = TryWord("="u8);
@@ -625,7 +625,7 @@ public sealed partial class Script
 
             for (; !IsAlienShooter2 && count < size - 1; count++)
             {
-                _stack.Insert(new ScriptStack(ScriptStackFlags.Text | flags, 0));
+                _stack.Push(new ScriptStack(ScriptStackFlags.Text | flags, 0));
             }
 
             do
@@ -635,7 +635,7 @@ public sealed partial class Script
 
                 if (initializeAtRunTime)
                 {
-                    _stack.Insert(new ScriptStack(ScriptStackFlags.Text | flags | ScriptStackFlags.NotInitialized, 0));
+                    _stack.Push(new ScriptStack(ScriptStackFlags.Text | flags | ScriptStackFlags.NotInitialized, 0));
                     EmitInitializer(_stack.Count - 1);
                     count++;
                     continue;
@@ -652,7 +652,7 @@ public sealed partial class Script
                     text = length > 0 ? literal[..(length - 1)].ToArray() : [];
                 }
 
-                _stack.Insert(new ScriptStack(ScriptStackFlags.Text | flags | ScriptStackFlags.Initialized, 0, text));
+                _stack.Push(new ScriptStack(ScriptStackFlags.Text | flags | ScriptStackFlags.Initialized, 0, text));
                 count++;
             }
             while (braced && TryWord(","u8));
@@ -672,7 +672,7 @@ public sealed partial class Script
 
         for (; count < size; count++)
         {
-            _stack.Insert(new ScriptStack(ScriptStackFlags.Text | flags, 0));
+            _stack.Push(new ScriptStack(ScriptStackFlags.Text | flags, 0));
         }
 
         SetNoElement(size);

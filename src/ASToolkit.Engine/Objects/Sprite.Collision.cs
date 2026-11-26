@@ -178,6 +178,20 @@ public partial class Sprite
     [EngineRoutine(0x00444620)]
     internal bool DirectRouteIntersection(ref Vector3 target) => Map.Sprites.CheckLine(Vid, Position, ref target);
 
+    [EngineRoutine(0x0044bdb0)]
+    internal Sprite? FindBlockerAt(Vector2 point)
+    {
+        var size = Map.Size;
+        if (point.X < 0 || point.X >= size.Width || point.Y < 0 || point.Y >= size.Height)
+            return this;
+
+        var position = Position;
+        if (Map.GetGroundZForMoveTo(Vid, position.AsVector2()) >= position.Z)
+            return this;
+
+        return CanPlace(new Vector3(point, position.Z));
+    }
+
     [EngineRoutine(0x004433f0)]
     private Sprite? CanPlace(Vector3 position)
     {

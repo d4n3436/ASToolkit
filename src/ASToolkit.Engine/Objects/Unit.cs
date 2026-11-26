@@ -12,6 +12,7 @@ public class Unit : Terrain
 {
     private const int AmmoScale = 64;
     private const int IdleScanOdds = 11;
+    private const int SecondMask = -1024;
     private const int IntItemsVersion = 11;
     private const int LinkScanOdds = 4;
     private const float WanderReach = 64;
@@ -199,6 +200,7 @@ public class Unit : Terrain
                 if (link is not null || TurnTicks == 0)
                 {
                     result = AttackTact((int)Math.Max((uint)Map.FrameTime, (uint)Vid.GetVisualFrameDuration(Animation)));
+                    AttackResult = result;
 
                     if (result is AttackResult.NoAmmo or AttackResult.GiveUp)
                     {
@@ -229,9 +231,20 @@ public class Unit : Terrain
                     StartMove();
                 }
 
-                if (result == AttackResult.NoOrder && this is { IsAggressive: true, IsActive: true } ||
-                    result is AttackResult.Pursue or AttackResult.NoTarget && this is { IsAggressive: true, Command: Command.None or Command.Move or Command.OneAttack } &&
-                    (LastFrame > FirstFrame || Timer != 0 || Map.Random.Next(IdleScanOdds) == 0))
+                if (result == AttackResult.NoOrder && IsAggressive)
+                {
+                    var armed = ArmedLink;
+                    if (IsActive)
+                    {
+                        AttackSeenEnemy(this);
+                    }
+                    else if (armed is not null)
+                    {
+                        AttackSeenEnemy(armed);
+                    }
+                }
+                else if (result is AttackResult.Pursue or AttackResult.NoTarget && this is { IsAggressive: true, Command: Command.None or Command.Move or Command.OneAttack } &&
+                    (LastFrame > FirstFrame || (ArmedLink?.Timer ?? Timer) != 0 || Map.Random.Next(IdleScanOdds) == 0))
                 {
                     AttackSeenEnemy(this);
                 }
@@ -239,6 +252,16 @@ public class Unit : Terrain
                 if (this is { Command: Command.None, HasGoal: false, Timer: 0 })
                 {
                     Stop();
+                }
+
+                return 0;
+            case ActionCode.SetArmy:
+                var previousArmy = Army;
+                ChangeArmy(var1);
+
+                if (Army != previousArmy && Vid.Id == KnownObject.PistolMuzzleFlash)
+                {
+                    Map.ScriptRun(Map.GetEventFunction(MapEvent.BuildingCapture), this);
                 }
 
                 return 0;
@@ -314,6 +337,17 @@ public class Unit : Terrain
             default:
                 return base.Action(act, ref stream, version);
         }
+    }
+
+    [EngineRoutine(0x0044be50)]
+    internal void AddHpPerSecond(int amount)
+    {
+        if ((uint)(Map.CurrentTime & SecondMask) <= (uint)Map.Session.PreviousCurrentTime || Hp <= 0)
+            return;
+
+        int hp = Hp + amount;
+        int maxHp = Vid.ArmyMaxHp[(int)Army & Vid.ArmyMask];
+        ChangeHp(hp > maxHp ? maxHp : hp);
     }
 
     private protected void AttackSeenEnemy(Sprite attacker)

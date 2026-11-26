@@ -22,6 +22,7 @@ public sealed class Constant
         ScrollSpeed = record.ScrollSpeed * Vid.PerMillisecond;
         Gravitation = record.Gravitation * Vid.PerMillisecondSquared;
         Gravitation2 = record.Gravitation2 * Vid.PerMillisecondSquared;
+        HpPerSecond = record.HpPerSecond;
         HoverDelay = record.HoverDelay;
         SelectedGamma = record.SelectedGamma;
         HoveredEnemyGamma = record.HoveredEnemyGamma;
@@ -47,6 +48,11 @@ public sealed class Constant
     /// Gets the time in milliseconds the cursor must rest before a mouse tip shows.
     /// </summary>
     public int HoverDelay { get; }
+
+    /// <summary>
+    /// Gets the hit points that sprites of object ID 104 heal each second.
+    /// </summary>
+    public int HpPerSecond { get; }
 
     /// <summary>
     /// Gets the packed gamma applied to the player's sprite, or zero if there isn't one.

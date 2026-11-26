@@ -33,6 +33,11 @@ internal sealed class OggMusic
         _format = format;
         HasBuffer = format.BytesPerSecond > 0;
         _buffer = new SoundBuffer(HasBuffer ? (float)RingSize * MillisecondsPerSecond / format.BytesPerSecond : 0, 1, NoSample, NoSample);
+
+        if (!HasBuffer)
+        {
+            session.Error.Error($"MUSIC '{MyError.Decode(name.Span)}'", LogError.Create, 0, "SoundBuffer"u8);
+        }
     }
 
     public ReadOnlyMemory<byte> Name { get; }

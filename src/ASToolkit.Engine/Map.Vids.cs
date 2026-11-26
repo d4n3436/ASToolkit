@@ -33,7 +33,6 @@ public partial class Map
     private const string FontExtension = ".fon";
     private const string TrueTypeExtension = ".ttf";
     private const string AnimationExtension = ".flc";
-    private const string HardwareGroundName = "Self Created Hardware Prerendered Ground ";
 
 
     /// <summary>
@@ -185,7 +184,7 @@ public partial class Map
     /// </summary>
     /// <param name="vid">The shared data of the object ID.</param>
     /// <returns>The name.</returns>
-    public string GetVidName(Vid vid) => vid.RecordId == HardwareGroundId ? HardwareGroundName : _objects.GetName(vid.RecordId);
+    public string GetVidName(Vid vid) => vid.RecordId == HardwareGroundId ? VidHardware.GroundName : _objects.GetName(vid.RecordId);
 
     [EngineRoutine(0x00413a60)]
     internal void SetChildAndLink(Vid vid)

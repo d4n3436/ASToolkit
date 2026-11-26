@@ -196,8 +196,8 @@ public sealed partial class Script
         }
 
         int savedCount = _stack.Count;
-        PushInt(savedCount);
-        PushInt(_code.Length);
+        _stack.Push(ScriptStack.FromNumber(savedCount));
+        _stack.Push(ScriptStack.FromNumber(_code.Length));
         if (entry.Count > 0)
         {
             _stack[entry.FirstVariable] = new ScriptStack(first != 0 ? ScriptStackFlags.Number | ScriptStackFlags.Sprite : ScriptStackFlags.Number, first);
@@ -290,7 +290,7 @@ public sealed partial class Script
                     case ScriptOpcode.Load:
                         if (!indexPending && _stack[target].Flags.HasFlag(ScriptStackFlags.ArrayElement))
                         {
-                            PushInt(BinaryPrimitives.ReadInt32LittleEndian(code.AsSpan(programCounter)));
+                            _stack.Push(ScriptStack.FromNumber(BinaryPrimitives.ReadInt32LittleEndian(code.AsSpan(programCounter))));
                         }
                         else
                         {
@@ -299,7 +299,7 @@ public sealed partial class Script
 
                         break;
                     case ScriptOpcode.LoadTextAddress:
-                        PushInt(_stack[target].Flags.HasFlag(ScriptStackFlags.Text) ? target + 1 : 0);
+                        _stack.Push(ScriptStack.FromNumber(_stack[target].Flags.HasFlag(ScriptStackFlags.Text) ? target + 1 : 0));
                         break;
                     case ScriptOpcode.Assign:
                         if (!_stack[operand].Flags.HasFlag(ScriptStackFlags.Text))
@@ -343,12 +343,12 @@ public sealed partial class Script
             switch (opcode)
             {
                 case ScriptOpcode.PushNumber:
-                    PushInt(BinaryPrimitives.ReadInt32LittleEndian(code.AsSpan(programCounter)));
+                    _stack.Push(ScriptStack.FromNumber(BinaryPrimitives.ReadInt32LittleEndian(code.AsSpan(programCounter))));
                     programCounter += 4;
                     break;
                 case ScriptOpcode.PushText:
                     int length = code.AsSpan(programCounter).IndexOf((byte)0);
-                    _stack.Insert(ScriptStack.FromText(code.AsMemory(programCounter, length)));
+                    _stack.Push(ScriptStack.FromText(code.AsMemory(programCounter, length)));
                     programCounter += length + 1;
                     break;
                 case ScriptOpcode.Negate:
@@ -412,8 +412,8 @@ public sealed partial class Script
                     statement = programCounter;
                     break;
                 case ScriptOpcode.Call:
-                    PushInt(frame);
-                    PushInt(programCounter + 4);
+                    _stack.Push(ScriptStack.FromNumber(frame));
+                    _stack.Push(ScriptStack.FromNumber(programCounter + 4));
                     programCounter = BinaryPrimitives.ReadInt32LittleEndian(code.AsSpan(programCounter));
                     frame = _stack.Count;
                     statement = programCounter;

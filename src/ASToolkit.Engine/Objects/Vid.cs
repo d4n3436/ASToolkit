@@ -1018,8 +1018,6 @@ public class Vid
         {
             var size = Size;
             var half = new Vector2(size.X, size.Y) * 0.5f;
-            HeightPoints.Clear();
-            _heightFrameStarts = default;
             int row = 0;
             float y = 0;
 

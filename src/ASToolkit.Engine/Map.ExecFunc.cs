@@ -142,7 +142,7 @@ public partial class Map : IScriptFunctionHost
 
                 break;
             case ScriptFunction.GetGroundZ:
-                PushInt((int)GetGroundZ(PopPoint()));
+                Script.Stack.Push(ScriptStack.FromNumber((int)GetGroundZ(PopPoint())));
                 break;
             case ScriptFunction.CanPlace:
                 var placePosition = PopPosition();
@@ -152,7 +152,7 @@ public partial class Map : IScriptFunctionHost
                     LogInvalidVid("for CanPlace"u8, placeId);
                 }
 
-                PushSprite(Sprites.CanPlace(Vid(placeId), placePosition));
+                Script.Stack.Push(ScriptStack.FromHandle(GetSpriteHandle(Sprites.CanPlace(Vid(placeId), placePosition))));
                 break;
             case ScriptFunction.MapSizeX:
                 PushInt((int)Size.Width);
@@ -215,6 +215,11 @@ public partial class Map : IScriptFunctionHost
                 {
                     case ActionCode.GetGoal or ActionCode.GetLink or ActionCode.GetUplink:
                         PushSprite(Action(actionSprite, actionCode, actionFirst, actionSecond, actionThird));
+                        return;
+
+                    case ActionCode.Attack or ActionCode.Move or ActionCode.MoveTo or ActionCode.Patrol or ActionCode.LinkEngine or ActionCode.ClashEngine
+                        when actionSprite.Vid.Class == SpriteClass.Engine && actionSprite.Command == Command.EngineLink:
+                        PushInt(0);
                         return;
 
                     case ActionCode.GetTextDesc when actionSprite is SText text:

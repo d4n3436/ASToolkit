@@ -257,7 +257,7 @@ public sealed partial class Graphics
         Buffers.Light = CreateBufferTexture(VidPixelFormat.P8);
         if (Buffers.Light.IsEmpty)
         {
-            Error?.Error(GraphicsLogTag, LogError.Create, 0, "Light at RelodPalette"u8);
+            Error?.Error(GraphicsLogTag, LogError.Create, 0, "Light at RelodPalette()"u8);
         }
 
         Error?.Log("ReloadPalettes"u8);

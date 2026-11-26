@@ -46,6 +46,7 @@ public sealed partial class Graphics
     private const int FogEdgeReach = 10;
     private const int FogDepthSpan = 3;
     private const int FogCellMask = 3;
+    private const int FogCellSize = 4;
     private const int FogBufferSize = 256;
     private const int FogDepthOffset = 0x3fe;
     private const float FogDepthScale = 1.5258789e-05f;
@@ -103,6 +104,7 @@ public sealed partial class Graphics
         int nearLevel = level + (near - far) * FogDepthPerLevel;
         int columns = width + FogCellMask >> 2;
         int rows = height + FogCellMask >> 2;
+        var source = new Rectangle(0, 0, width / FogCellSize, height / FogCellSize);
         var light = LightTexture;
         var buffer = light.Lock(null, out _);
         if (buffer.IsEmpty)
@@ -146,7 +148,7 @@ public sealed partial class Graphics
         }
 
         SetAlphaBlend(isLight ? BlendFactor.Zero : BlendFactor.One, BlendFactor.InverseSourceColor);
-        light.DrawQuad(screen, new Rectangle(left, top, width, height), new Rectangle(0, 0, columns, rows), new Gamma(~color, Gamma.OpaqueAlpha), topDepth: (level + FogDepthOffset) * FogDepthScale, bottomDepth: (level + FogDepthOffset) * FogDepthScale);
+        light.DrawQuad(screen, new Rectangle(left, top, width, height), source, new Gamma(~color, Gamma.OpaqueAlpha), topDepth: (level + FogDepthOffset) * FogDepthScale, bottomDepth: (level + FogDepthOffset) * FogDepthScale);
     }
 
     [EngineRoutine(0x004322a0)]
@@ -297,10 +299,7 @@ public sealed partial class Graphics
             }
         }
 
-        if (_raindropCount > 0)
-        {
-            SetAlphaBlend(BlendFactor.SourceAlpha, BlendFactor.InverseSourceAlpha);
-        }
+        SetAlphaBlend(BlendFactor.SourceAlpha, BlendFactor.InverseSourceAlpha);
 
         if (Screen is not null)
         {
@@ -412,10 +411,7 @@ public sealed partial class Graphics
             slot++;
         }
 
-        if (_snowflakeCount > 0)
-        {
-            SetAlphaBlend(BlendFactor.SourceAlpha, BlendFactor.InverseSourceAlpha);
-        }
+        SetAlphaBlend(BlendFactor.SourceAlpha, BlendFactor.InverseSourceAlpha);
 
         if (Screen is not null)
         {

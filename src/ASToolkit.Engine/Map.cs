@@ -63,6 +63,7 @@ public partial class Map : IDisposable
     private const int ReleaseWindDirection = 200;
 
     private static readonly SizeF StartMapSize = new(640, 480);
+    private static readonly Vector2 StartShift = new(0, 1);
     private readonly Group _groupHead = new(null, null);
     private readonly Vid?[] _vids = new Vid?[VidTableSize];
     private readonly Dictionary<int, ScriptFile> _scriptFiles = [];
@@ -138,6 +139,7 @@ public partial class Map : IDisposable
         }
         _speed = NormalSpeed;
         Size = StartMapSize;
+        Shift = StartShift;
         ResetGroundZ();
         var objectsFile = new Resource(Session.Error, fileSystem);
         if (OpenObjects(fileSystem, ref objectsFile) != 0)
@@ -573,31 +575,31 @@ public partial class Map : IDisposable
             var functionName = objects.Name(i).Span;
             int eventFunction = Encoding.ASCII.GetString(functionName) switch
             {
-                "main" => 0,
-                "TrainNotAmmo" => 1,
-                "TrainNotPower" => 2,
-                "TrainDamage" => 3,
-                "TrainCreated" => 4,
-                "TrainSplit" => 5,
-                "TrainDestroy" => 6,
-                "TrainDestroyPower" => 7,
-                "TrainArrive" => 8,
-                "???TrainNotArrive" => 9,
-                "TrainAttacked" => 10,
-                "DepoDestroy" => 11,
-                "DepoBirth" => 12,
-                "DepoAttacked" => 13,
-                "DepoFree" => 14,
-                "BuildingCapture" => 15,
-                "MasterDestroy" => 16,
-                "???" => 17,
-                "???SuperWeaponWounded" => 18,
-                "MineBlast" => 19,
-                "MineRemove" => 20,
-                "EnemyLinked" => 21,
-                "TrainClash" => 22,
-                "UnitCreated" => 23,
-                "UnitDestroy" => 24,
+                "main" => (int)MapEvent.Main,
+                "TrainNotAmmo" => (int)MapEvent.TrainNotAmmo,
+                "TrainNotPower" => (int)MapEvent.TrainNotPower,
+                "TrainDamage" => (int)MapEvent.TrainDamage,
+                "TrainCreated" => (int)MapEvent.TrainCreated,
+                "TrainSplit" => (int)MapEvent.TrainSplit,
+                "TrainDestroy" => (int)MapEvent.TrainDestroy,
+                "TrainDestroyPower" => (int)MapEvent.TrainDestroyPower,
+                "TrainArrive" => (int)MapEvent.TrainArrive,
+                "???TrainNotArrive" => (int)MapEvent.TrainNotArrive,
+                "TrainAttacked" => (int)MapEvent.TrainAttacked,
+                "DepoDestroy" => (int)MapEvent.DepoDestroy,
+                "DepoBirth" => (int)MapEvent.DepoBirth,
+                "DepoAttacked" => (int)MapEvent.DepoAttacked,
+                "DepoFree" => (int)MapEvent.DepoFree,
+                "BuildingCapture" => (int)MapEvent.BuildingCapture,
+                "MasterDestroy" => (int)MapEvent.MasterDestroy,
+                "???" => (int)MapEvent.Unnamed,
+                "???SuperWeaponWounded" => (int)MapEvent.SuperWeaponWounded,
+                "MineBlast" => (int)MapEvent.MineBlast,
+                "MineRemove" => (int)MapEvent.MineRemove,
+                "EnemyLinked" => (int)MapEvent.EnemyLinked,
+                "TrainClash" => (int)MapEvent.TrainClash,
+                "UnitCreated" => (int)MapEvent.UnitCreated,
+                "UnitDestroy" => (int)MapEvent.UnitDestroy,
                 _ => -1
             };
 
@@ -1094,6 +1096,8 @@ public partial class Map : IDisposable
             _eventFunctionNumbers[i] = i + NoEventFunctionBase;
         }
     }
+
+    internal int GetEventFunction(MapEvent mapEvent) => _eventFunctionNumbers[(int)mapEvent];
 
     internal void SetMonstersAttackNeutralTrains(bool attack) => SetFlag(MapFlags.MonstersAttackNeutralTrains, attack);
 

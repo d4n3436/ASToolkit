@@ -87,10 +87,16 @@ public class MyList<T> : IReadOnlyList<T>
     }
 
     /// <summary>
+    /// Adds a copy of an entry after the last one.
+    /// </summary>
+    /// <param name="item">The entry to copy.</param>
+    [EngineRoutine(0x00424990)]
+    public void Push(T item) => Insert(item);
+
+    /// <summary>
     /// Adds an entry after the last one.
     /// </summary>
     /// <param name="item">The entry.</param>
-    [EngineRoutine(0x00424990)]
     [EngineRoutine(0x00424e60)]
     [EngineRoutine(0x00446930)]
     public void Insert(T item)

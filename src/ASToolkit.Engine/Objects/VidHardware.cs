@@ -13,6 +13,11 @@ namespace ASToolkit.Engine;
 public sealed class VidHardware : Vid
 {
     /// <summary>
+    /// Represents the name of the built hardware ground's object ID.
+    /// </summary>
+    public const string GroundName = "Self Created Hardware Prerendered Ground ";
+
+    /// <summary>
     /// Represents the sprite file flags of the built hardware ground.
     /// </summary>
     public const VidType GroundType = VidType.Runs8Bit | VidType.ZBuffer | VidType.Hardware | VidType.FrameVector;
@@ -56,8 +61,9 @@ public sealed class VidHardware : Vid
 
     [EngineRoutine(0x00419750)]
     internal VidHardware(Map map, KnownObject id, Size size, AlienShooterWeaponRecord[] weapons)
-        : base(map, id, new GameObject(SpriteClass.Primitive, GroundObjectSize), weapons, Map.DefaultSpriteSpeed)
+        : base(map, id, new GameObject(SpriteClass.Primitive, GroundObjectSize), weapons, Map.DefaultSpriteSpeed, 0, ObjectLayer.Ground, null)
     {
+        Name = GroundName;
         FileType = GroundType;
         FrameSize = size;
         _format = HighColorFormat.Rgb565;

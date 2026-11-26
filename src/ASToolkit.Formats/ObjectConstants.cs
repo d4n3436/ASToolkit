@@ -64,6 +64,12 @@ public readonly struct ObjectConstants
     public readonly int HoverDelay;
 
     /// <summary>
+    /// The hit points that sprites of object ID 104 heal each second.
+    /// </summary>
+    [FieldOffset(60)]
+    public readonly int HpPerSecond;
+
+    /// <summary>
     /// The script gamma of the selected unit.
     /// </summary>
     [FieldOffset(80)]
