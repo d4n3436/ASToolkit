@@ -55,6 +55,22 @@ internal class Player
     {
     }
 
+    [EngineRoutine(0x004131e0)]
+    public virtual void Destruct()
+    {
+        Reset();
+
+        if (Hovered is not null)
+        {
+            Session.Error.Error($"SPRITE {(int)Hovered.Vid.Id}", LogError.Text, 0, "PTR_SPRITE with this sprite not clear"u8);
+        }
+
+        if (Flagman is not null)
+        {
+            Session.Error.Error($"SPRITE {(int)Flagman.Vid.Id}", LogError.Text, 0, "PTR_SPRITE with this sprite not clear"u8);
+        }
+    }
+
     [EngineRoutine(0x00413280)]
     public virtual void Forget(Sprite removed)
     {

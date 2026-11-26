@@ -185,6 +185,13 @@ public sealed class Mouse : Sprite
         SetAnimationValue(type);
     }
 
+    [EngineRoutine(0x00446d60)]
+    internal override void Destruct()
+    {
+        Map.Session.Error.Log("Mouse  release"u8);
+        base.Destruct();
+    }
+
     [EngineRoutine(0x00447030)]
     internal override int Action(ActionCode act, int var1, int var2, int var3)
     {

@@ -5,14 +5,11 @@ namespace ASToolkit.Engine;
 
 public sealed partial class Graphics
 {
-    private const uint TrueColorMask = 0xffffff;
-    private const int TrueColorPixelSize = 3;
 
     [EngineRoutine(0x00430fc0)]
     internal void SaveScreen(string path, Rectangle area)
     {
-        var picture = new PictureImage(_session.Map!.FileSystem, Error);
-        picture.Resize(area.Size, TrueColorPixelSize);
+        var channel = new PictureChannel(_session.Map!.FileSystem, Error, area.Size, PictureFormat.Tga);
         for (int y = 0; y < area.Height; y++)
         {
             for (int x = 0; x < area.Width; x++)
@@ -33,10 +30,11 @@ public sealed partial class Graphics
                     color = Screen!.TrueColorPixels[Screen.Pitch * (y + area.Y) + x + area.X];
                 }
 
-                picture.SetPixel(new Point(x, y), color & TrueColorMask);
+                channel.SetColor(new Point(x, y), color);
             }
         }
 
-        picture.SaveTga(path, new Rectangle(0, 0, -1, -1));
+        channel.Image.SaveTga(path, new Rectangle(0, 0, -1, -1));
+        channel.Dispose();
     }
 }

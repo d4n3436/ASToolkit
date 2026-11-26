@@ -33,6 +33,7 @@ public sealed class MapSteam : Map
     /// <param name="fileSystem">The file system that holds the game's files.</param>
     /// <param name="session">The session the map belongs to, or null to start one.</param>
     /// <param name="commandLine">The game's command line.</param>
+    [EngineRoutine(0x00405060)]
     public MapSteam(ObjectTable objects, IGameFileSystem fileSystem, GameSession? session = null, string commandLine = "")
         : base(objects, fileSystem, session, commandLine)
     {

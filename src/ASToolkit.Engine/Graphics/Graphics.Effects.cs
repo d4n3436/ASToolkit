@@ -37,7 +37,6 @@ public sealed partial class Graphics
     [EngineRoutine(0x00402690)]
     internal void Effect(int effect, int first, int second, int duration)
     {
-        var map = _session.Map!;
         if (effect is < 0 or >= EffectCount)
             return;
 
@@ -59,7 +58,7 @@ public sealed partial class Graphics
             };
         }
 
-        EffectStartTimes[effect] = map.RealCurrentTime;
+        EffectStartTimes[effect] = _session.RealCurrentTime;
         EffectDurations[effect] = duration;
         EffectFirst[effect] = first;
         EffectSecond[effect] = second;
@@ -82,7 +81,7 @@ public sealed partial class Graphics
         }
         else if (screenEffect == ScreenEffect.Scroll)
         {
-            ScrollFrom = new Vector2(map.Shift.Y);
+            ScrollFrom = new Vector2(_session.Map!.Shift.Y);
         }
         else if (screenEffect == ScreenEffect.ShiftGamma)
         {

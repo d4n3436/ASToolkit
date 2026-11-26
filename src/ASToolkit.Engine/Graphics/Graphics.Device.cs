@@ -147,30 +147,6 @@ public sealed partial class Graphics
         _ => 0
     };
 
-    internal void SetUpSettings(bool hasAppMenu, bool isVSync, bool isColor32, bool isFullScreen)
-    {
-        Flags &= ~(GraphicsFlags.MenuLoop | GraphicsFlags.VSync | GraphicsFlags.WindowViewport | GraphicsFlags.PreTact | GraphicsFlags.Color32 | GraphicsFlags.FullScreen);
-        if (hasAppMenu)
-        {
-            Flags |= GraphicsFlags.WindowViewport;
-        }
-
-        if (isVSync)
-        {
-            Flags |= GraphicsFlags.VSync;
-        }
-
-        if (isColor32)
-        {
-            Flags |= GraphicsFlags.Color32;
-        }
-
-        if (isFullScreen)
-        {
-            Flags |= GraphicsFlags.FullScreen;
-        }
-    }
-
     internal void SetTextureStageState(int stage, TextureStageState state, int value)
     {
         if (stage != 0)

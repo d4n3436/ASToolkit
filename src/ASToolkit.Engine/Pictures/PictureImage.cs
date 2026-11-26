@@ -48,6 +48,13 @@ public class PictureImage : IDisposable
         Speed = DefaultSpeed;
     }
 
+    [EngineRoutine(0x00426e50)]
+    internal PictureImage(IGameFileSystem fileSystem, MyError? error, Size size, int bytesPerPixel)
+        : this(fileSystem, error)
+    {
+        Resize(size, bytesPerPixel);
+    }
+
     /// <summary>
     /// Gets the path of the first picture file, in lower case.
     /// </summary>
@@ -268,6 +275,37 @@ public class PictureImage : IDisposable
                 break;
             case 4:
                 MemoryMarshal.Write(Pixels[offset..], value);
+                break;
+        }
+    }
+
+    /// <summary>
+    /// Sets a pixel from a color, converted to the picture's pixel format.
+    /// </summary>
+    /// <param name="point">The point of the pixel.</param>
+    /// <param name="color">The color packed as alpha, red, green and blue.</param>
+    [EngineRoutine(0x00427330)]
+    public void SetColor(Point point, uint color)
+    {
+        if (!HasPixels || !Contains(point))
+            return;
+
+        int offset = (point.Y * Size.Width + point.X) * BytesPerPixel;
+        switch (BytesPerPixel)
+        {
+            case 1:
+                Pixels[offset] = (byte)color;
+                break;
+            case 2:
+                MemoryMarshal.Write(Pixels[offset..], (ushort)(color >> 9 & 0x7c00 | color >> 6 & 0x3e0 | color >> 3 & 0x1f));
+                break;
+            case 3:
+                Pixels[offset] = (byte)color;
+                Pixels[offset + 1] = (byte)(color >> 8);
+                Pixels[offset + 2] = (byte)(color >> 16);
+                break;
+            case 4:
+                MemoryMarshal.Write(Pixels[offset..], color);
                 break;
         }
     }

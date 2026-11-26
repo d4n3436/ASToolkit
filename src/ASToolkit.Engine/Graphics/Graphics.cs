@@ -2,6 +2,7 @@ using System.Drawing;
 using System.Numerics;
 using ASToolkit.Core;
 using ASToolkit.Engine.IO;
+using ASToolkit.Engine.Scripts;
 using ASToolkit.Formats;
 
 namespace ASToolkit.Engine;
@@ -40,10 +41,32 @@ public sealed partial class Graphics
     private readonly GameSession _session;
     private bool _areBuffersCreated;
 
-    internal Graphics(GameSession session)
+    [EngineRoutine(0x004018f0)]
+    internal Graphics(GameSession session, SizeF screenSize, bool hasAppMenu, bool isVSync, bool isColor32, bool isFullScreen)
     {
         _session = session;
         Movie = new Movie(session);
+        if (hasAppMenu)
+        {
+            Flags |= GraphicsFlags.WindowViewport;
+        }
+
+        if (isVSync)
+        {
+            Flags |= GraphicsFlags.VSync;
+        }
+
+        Effect((int)ScreenEffect.None, 0, 0, 0);
+        ScreenSize = screenSize;
+        if (isColor32)
+        {
+            Flags |= GraphicsFlags.Color32;
+        }
+
+        if (isFullScreen)
+        {
+            Flags |= GraphicsFlags.FullScreen;
+        }
     }
 
     /// <summary>

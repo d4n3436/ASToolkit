@@ -87,11 +87,7 @@ public sealed class GameSession : IDisposable
         var screenSize = new SizeF(Registry.GetInt(ScreenWidthValue, Graphics.DefaultScreenWidth), Registry.GetInt(ScreenHeightValue, Graphics.DefaultScreenHeight));
         bool isColor32 = Registry.GetInt(BitsPerPixelValue, DefaultBitsPerPixel) == 32;
         bool isFullScreen = Registry.GetInt(FullScreenValue, DefaultFullScreen) != 0;
-        Graphics = new Graphics(this)
-        {
-            ScreenSize = screenSize,
-        };
-        Graphics.SetUpSettings(HasAppMenu, isVSync, isColor32, isFullScreen);
+        Graphics = new Graphics(this, screenSize, HasAppMenu, isVSync, isColor32, isFullScreen);
         var screen = Size.Ceiling(Graphics.ScreenSize);
         Graphics.Init(desktop ?? screen, windowRect ?? new Rectangle(Point.Empty, screen), clientRect ?? new Rectangle(Point.Empty, screen));
     }

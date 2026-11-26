@@ -1,3 +1,4 @@
+using System.Drawing;
 using ASToolkit.Engine.IO;
 
 namespace ASToolkit.Engine;
@@ -7,6 +8,9 @@ namespace ASToolkit.Engine;
 /// </summary>
 public sealed class PictureChannel : IDisposable
 {
+    private const int TrueColorBytesPerPixel = 3;
+    private const int HighColorBytesPerPixel = 2;
+
     private readonly IGameFileSystem _fileSystem;
     private readonly MyError? _error;
 
@@ -17,6 +21,20 @@ public sealed class PictureChannel : IDisposable
     public PictureChannel(IGameFileSystem fileSystem)
         : this(fileSystem, null)
     {
+    }
+
+    [EngineRoutine(0x004289f0)]
+    internal PictureChannel(IGameFileSystem fileSystem, MyError? error, Size size, PictureFormat format)
+    {
+        _fileSystem = fileSystem;
+        _error = error;
+        Format = format;
+        Image = format switch
+        {
+            PictureFormat.Tga or PictureFormat.Bmp => new PictureImage(fileSystem, error, size, TrueColorBytesPerPixel),
+            PictureFormat.Z => new PictureImage(fileSystem, error, size, HighColorBytesPerPixel),
+            _ => throw new NotSupportedException($"There is no sized picture for the {format} format.")
+        };
     }
 
     [EngineRoutine(0x00428a80)]
@@ -97,6 +115,14 @@ public sealed class PictureChannel : IDisposable
 
         return Format != PictureFormat.None && Image.Load(path);
     }
+
+    /// <summary>
+    /// Sets a pixel of the channel's picture from a color.
+    /// </summary>
+    /// <param name="point">The point of the pixel.</param>
+    /// <param name="color">The color packed as alpha, red, green and blue.</param>
+    [EngineRoutine(0x00430fa0)]
+    public void SetColor(Point point, uint color) => Image.SetColor(point, color);
 
     private static bool HasExtension(string path, string extension) => path.Contains(extension, StringComparison.Ordinal) || path.Contains(extension.ToUpperInvariant(), StringComparison.Ordinal);
 }

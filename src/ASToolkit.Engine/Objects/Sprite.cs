@@ -924,7 +924,7 @@ public partial class Sprite
 
         if (isEmpty && ReferenceCount != 0)
         {
-            Map.Session.Error.Error("SPRITE 0"u8, LogError.Invalid, 0);
+            Map.Session.Error.Error($"SPRITE {(int)Vid.Id}", LogError.Invalid, ReferenceCount, "noRef for SPRITE with EmptyVid"u8);
         }
 
         if (ReferenceCount > 1)
@@ -961,7 +961,7 @@ public partial class Sprite
 
         if (ReferenceCount != 0)
         {
-            Map.Session.Error.Error("SPRITE 0"u8, LogError.Text, 0);
+            Map.Session.Error.Error($"SPRITE {(int)Vid.Id}", LogError.Text, ReferenceCount, "Reference count non zero after delete"u8);
         }
 
         if (Handle == 0)

@@ -39,6 +39,13 @@ internal sealed class PlayerArcade : Player
     [EngineRoutine(0x0043e930)]
     public override void PutMessage(ReadOnlyMemory<byte> text, Vector2 target) => Messages.Put(text, target);
 
+    [EngineRoutine(0x0043e950)]
+    public override void Destruct()
+    {
+        Messages.Clear();
+        base.Destruct();
+    }
+
     [EngineRoutine(0x0043e9f0)]
     public override void Forget(Sprite removed)
     {

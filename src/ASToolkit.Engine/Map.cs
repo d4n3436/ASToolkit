@@ -1157,6 +1157,12 @@ public partial class Map : IDisposable
     [EngineRoutine(0x0040b180)]
     private protected virtual void Destruct()
     {
+        Mouse.Destruct();
+        foreach (var player in _players)
+        {
+            player.Destruct();
+        }
+
         Session.Strings = null;
         for (int i = _vidCount - 1; i >= 0; i--)
         {
