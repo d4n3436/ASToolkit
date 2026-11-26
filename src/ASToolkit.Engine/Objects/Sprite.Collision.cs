@@ -55,22 +55,20 @@ public partial class Sprite
         if (Vid.MoveMask == 0)
             return null;
 
-        var start = Position;
-
         if (FindCollision(next, out var other))
         {
             bool isGround = other == Map.Mouse;
 
             if (Map.RunCollisionHandler(this, isGround ? null : other) != 0)
             {
-                next = start;
+                next = Position;
 
                 return null;
             }
 
             if (!isGround && other.Vid.CanBePushed && depth < MaxPushDepth)
             {
-                var pushed = new Vector3(other.Position.X + next.X - start.X, other.Position.Y + next.Y - start.Y, other.Position.Z);
+                var pushed = new Vector3(other.Position.X + next.X - Position.X, other.Position.Y + next.Y - Position.Y, other.Position.Z);
 
                 if (other.CanPlaceWithCrushAndGlide(ref pushed, depth + 1) is null)
                 {
@@ -83,19 +81,19 @@ public partial class Sprite
                 }
             }
 
-            if (!FindCollision(next with { X = start.X }, out _))
+            if (!FindCollision(next with { X = Position.X }, out _))
             {
-                next.X = start.X;
+                next.X = Position.X;
             }
-            else if (!FindCollision(next with { Y = start.Y }, out _))
+            else if (!FindCollision(next with { Y = Position.Y }, out _))
             {
-                next.Y = start.Y;
+                next.Y = Position.Y;
             }
-            else if (isGround || !(other.Animation < SpriteAnimation.Death && Math.Abs(other.Position.X - start.X) < other.Vid.Half.X + Vid.Half.X &&
-                Math.Abs(other.Position.Y - start.Y) < other.Vid.Half.Y + Vid.Half.Y &&
-                start.Z <= other.Vid.Size.Z + other.Position.Z && other.Position.Z <= start.Z + Vid.Size.Z))
+            else if (isGround || !(other.Animation < SpriteAnimation.Death && Math.Abs(other.Position.X - Position.X) < other.Vid.Half.X + Vid.Half.X &&
+                Math.Abs(other.Position.Y - Position.Y) < other.Vid.Half.Y + Vid.Half.Y &&
+                Position.Z <= other.Vid.Size.Z + other.Position.Z && other.Position.Z <= Position.Z + Vid.Size.Z))
             {
-                next = start;
+                next = Position;
 
                 return other;
             }
