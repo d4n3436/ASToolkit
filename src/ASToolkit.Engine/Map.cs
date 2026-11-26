@@ -41,7 +41,6 @@ public partial class Map : IDisposable
     private protected readonly Player[] _players = new Player[ASToolkit.Engine.Vid.ArmyCount];
     private protected readonly MouseTips _mouseTips;
 
-    private protected readonly GameRandom _rng;
     private protected MapFlags _flags;
     private protected int _stepCount;
     private const string DefaultFont = "Arial";
@@ -68,7 +67,6 @@ public partial class Map : IDisposable
     private readonly Group _groupHead = new(null, null);
     private readonly Vid?[] _vids = new Vid?[VidTableSize];
     private readonly Dictionary<int, ScriptFile> _scriptFiles = [];
-    private readonly ControlSettings _controls;
     private readonly LivingSet _livingFences = new();
     private readonly LivingSet _livingSites = new();
     private readonly LivingSet _livingCharges = new();
@@ -115,6 +113,8 @@ public partial class Map : IDisposable
         _mouseTips = new MouseTips(this);
         Menu = new Menu(this);
         Session = session ?? new GameSession();
+        Session.Map = this;
+        EmptyVid = ASToolkit.Engine.Vid.CreateDefault(this);
         Session.RealCurrentTime = Session.TimeGetTime();
         Session.PreviousRealCurrentTime = Session.RealCurrentTime - StartPreviousRealTimeOffset;
         _levelStartTime = (int)Session.RealCurrentTime;
@@ -131,8 +131,9 @@ public partial class Map : IDisposable
         _gameFolder = gameFolder;
         _objects = objects;
         Parts = new SpritePartReader(gameFolder, objects);
-        _rng = new GameRandom(StartRandomState);
+        Session.Random.Seed(StartRandomState);
         Script.Error = Session.Error;
+        Script.Host = this;
         for (int layer = 0; layer < LayerCount; layer++)
         {
             _layers[layer] = new MyList<Sprite?>();
@@ -140,13 +141,13 @@ public partial class Map : IDisposable
         _speed = NormalSpeed;
         Size = StartMapSize;
         ResetGroundZ();
-        var objectsFile = new Resource();
-        if (OpenObjects(fileSystem, Session.Error, ref objectsFile) != 0)
+        var objectsFile = new Resource(Session.Error);
+        if (OpenObjects(fileSystem, ref objectsFile) != 0)
         {
             Session.Error.Error(MapLogTag, LogError.Open, 0, "resource file"u8);
         }
 
-        Session.Sound ??= new Sound(ref objectsFile, fileSystem, Session.Error, isHighQuality: Session.Registry.GetInt("SoundHighQuality", 0) != 0, time: Session.Time);
+        Session.Sound ??= new Sound(ref objectsFile, fileSystem, Session, isHighQuality: Session.Registry.GetInt("SoundHighQuality", 0) != 0);
         Session.Constant ??= new Constant(ref objectsFile, Session.Error);
         Constant.IsDebugMode = config.GetInt(GameSection, "DebugMode"u8, 0) != 0;
         SetFlag(MapFlags.DrawFps, config.GetInt(GameSection, "DrawFPS"u8, 0) != 0);
@@ -160,11 +161,11 @@ public partial class Map : IDisposable
         Sprites = new SpriteCollector(Size, Vids, this);
         Mouse = new Mouse(EmptyVid, new Vector3(Session.Graphics.ScreenSize.ToVector2() * HalfShare, 0), default, null, this);
         Mouse.Enable(fileSystem);
-        _controls = ControlSettings.Read(fileSystem);
-        Input = new Input(_controls);
+        Session.Controls = ControlSettings.Read(fileSystem);
+        Input = new Input(Session.Controls, this);
         for (int slot = 0; slot < ASToolkit.Engine.Vid.ArmyCount; slot++)
         {
-            _players[slot] = new Player(this, _controls);
+            _players[slot] = new Player(Session, slot);
         }
 
         _flags |= MapFlags.Initialized;
@@ -202,7 +203,7 @@ public partial class Map : IDisposable
     /// <summary>
     /// Gets the state of the random number generator.
     /// </summary>
-    public int RandomState => _rng.State;
+    public int RandomState => Session.Random.State;
 
     /// <summary>
     /// Gets the length of the current frame in milliseconds.
@@ -265,9 +266,9 @@ public partial class Map : IDisposable
     public SizeF Size { get; private set; }
 
     /// <summary>
-    /// Gets the top-left corner of the screen on the map.
+    /// Gets or sets the top-left corner of the screen on the map.
     /// </summary>
-    public Vector2 Shift { get; private set; }
+    public Vector2 Shift { get; set; }
 
     /// <summary>
     /// Gets the level script.
@@ -296,7 +297,7 @@ public partial class Map : IDisposable
 
     internal IGameFileSystem FileSystem { get; }
 
-    internal GameRandom Random => _rng;
+    internal GameRandom Random => Session.Random;
 
     internal bool CanMonstersAttackNeutralTrains => _flags.HasFlag(MapFlags.MonstersAttackNeutralTrains);
 
@@ -314,10 +315,9 @@ public partial class Map : IDisposable
     /// <param name="var1">The first argument.</param>
     /// <param name="var2">The second argument.</param>
     /// <param name="var3">The third argument.</param>
-    /// <param name="target">The sprite argument.</param>
     /// <returns>The action's result.</returns>
-    public static int Action(Sprite sprite, ActionCode code, int var1 = 0, int var2 = 0, int var3 = 0, Sprite? target = null) =>
-        sprite.Action(code, var1, var2, var3, target);
+    public static int Action(Sprite sprite, ActionCode code, int var1 = 0, int var2 = 0, int var3 = 0) =>
+        sprite.Action(code, var1, var2, var3);
 
     /// <summary>
     /// Sets a map file, or a demo file, to load at the start of the next step, before that step's frame runs.
@@ -377,8 +377,8 @@ public partial class Map : IDisposable
         _livingCharges.Clear();
         if (_demoFile is null)
         {
-            var demo = new Resource();
-            if (demo.Open(FileSystem, Session.Error, name, "DEMO"u8) == 0)
+            var demo = new Resource(Session.Error);
+            if (demo.Open(FileSystem, name, "DEMO"u8) == 0)
             {
                 FileSystem.TryRead(Encoding.ASCII.GetString(name), out var data);
                 name = demo.ReadText();
@@ -387,8 +387,8 @@ public partial class Map : IDisposable
             }
         }
 
-        var reader = new Resource();
-        if (reader.Open(FileSystem, Session.Error, name, "MAP "u8) != 0)
+        var reader = new Resource(Session.Error);
+        if (reader.Open(FileSystem, name, "MAP "u8) != 0)
         {
             Session.Error.Window($"!!!ERROR!!!LOAD: Invalid map file {MyError.Decode(name)}");
             return;
@@ -398,7 +398,7 @@ public partial class Map : IDisposable
         _previousMapName = _mapName;
         _mapName = name.ToArray();
         int seed = IsPlayingDemo ? _playedDemo!.Value.Seed : (int)Session.TimeGetTime();
-        _rng.Seed(seed);
+        Session.Random.Seed(seed);
         ShowLoadingStep("Load extra vid"u8);
         LoadVid(ref reader);
         if (reader.GoBegin("GRPH"u8) != Resource.Found)
@@ -425,7 +425,7 @@ public partial class Map : IDisposable
             Session.CurrentTime = time;
             int version = 0;
             reader.ReadInto(ref version);
-            Session.Graphics.OldLoadParameters(ref reader, this);
+            Session.Graphics.OldLoadParameters(ref reader);
             Sprites = new SpriteCollector(Size, Vids, this);
             ResetGroundZ();
             LoadGridZ(ref reader, (int)(Size.Height + OldGridRounding) / GridZCellSize * ((int)(Size.Width + OldGridRounding) / GridZCellSize) * sizeof(short));
@@ -449,7 +449,7 @@ public partial class Map : IDisposable
         else
         {
             ShowLoadingStep("Load graph parameters"u8);
-            Session.Graphics.Load(ref reader, this);
+            Session.Graphics.Load(ref reader);
             if (!FindSection(ref reader, HeadTag))
                 return;
 
@@ -516,7 +516,7 @@ public partial class Map : IDisposable
                     });
                 }
 
-                Session.Graphics.DrawLoadBar(this, _vids[0]);
+                Session.Graphics.DrawLoadBar(_vids[0]);
             }
             // TODO: Port the trains; the loader builds the rail map (0x43c510) after the terrain and the sprite records, and the Engine links (0x454530) after the sprites
             ShowLoadingStep("Load data for sprite"u8);
@@ -525,7 +525,7 @@ public partial class Map : IDisposable
 
             while (TryReadPointer(ref reader, out var dataSprite))
             {
-                Session.Graphics.DrawLoadBar(this, _vids[0]);
+                Session.Graphics.DrawLoadBar(_vids[0]);
                 dataSprite?.Action(ActionCode.Restore, ref reader, version);
 
                 reader.GoNextSub(SpriteDataTag);
@@ -961,9 +961,9 @@ public partial class Map : IDisposable
     /// <param name="sprite">The sprite.</param>
     public void DeleteSprite(Sprite sprite) => sprite.Destruct();
 
-    internal static int OpenObjects(IGameFileSystem fileSystem, MyError? error, ref Resource resource)
+    internal static int OpenObjects(IGameFileSystem fileSystem, ref Resource resource)
     {
-        return resource.Open(fileSystem, error, GetObjectsFileName(fileSystem).Span, "DATA"u8);
+        return resource.Open(fileSystem, GetObjectsFileName(fileSystem).Span, "DATA"u8);
     }
 
     internal static ReadOnlyMemory<byte> GetObjectsFileName(IGameFileSystem fileSystem)
@@ -1159,7 +1159,7 @@ public partial class Map : IDisposable
         {
             if (_vids[i] is not null)
             {
-                _vids[i]!.Destruct(Session);
+                _vids[i]!.Destruct();
                 _vids[i] = null;
             }
         }
@@ -1213,7 +1213,7 @@ public partial class Map : IDisposable
     {
         if (reader.GoNext("GRID"u8) == Resource.Found)
         {
-            int count = reader.SubLoad(Session.Error, out byte[] grid);
+            int count = reader.SubLoad(out byte[] grid);
             _sceneryHeights = MemoryMarshal.Cast<byte, short>(grid).ToArray();
             if (count != expectedSize)
             {
@@ -1311,7 +1311,7 @@ public partial class Map : IDisposable
         {
             if (_vids[i] is not null && _vids[i]!.FileType.HasFlag(VidType.FrameVector))
             {
-                _vids[i]!.Destruct(Session);
+                _vids[i]!.Destruct();
                 _vids[i] = null;
             }
         }

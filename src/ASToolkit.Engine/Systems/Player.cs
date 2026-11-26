@@ -25,24 +25,27 @@ internal sealed class Player
     private static readonly Angle HeadingUpLeft = new(0xE0 - 8);
     private static readonly Angle HeadingDownRight = new(0x60 - 8);
     private static readonly Angle HeadingDownLeft = new(0xA0 + 8);
+    private readonly GameSession _session;
     private readonly Map _map;
-    private readonly ControlSettings _settings;
     private readonly SpriteList _sprites = new();
     private bool _isTurningLegs;
 
     [EngineRoutine(0x00413060)]
-    public Player(Map map, ControlSettings settings)
+    public Player(GameSession session, int index)
     {
-        _map = map;
-        _settings = settings;
+        _session = session;
+        _map = session.Map!;
+        Index = index;
         Money = StartMoney;
-        var screen = map.Session.Graphics.ScreenSize;
-        Messages = new Message(map, MessageLineId, NoMarkerId, MessageDefaultOrigin, MessageLines, MessageLifetime)
+        var screen = session.Graphics.ScreenSize;
+        Messages = new Message(_map, MessageLineId, NoMarkerId, MessageDefaultOrigin, MessageLines, MessageLifetime)
         {
             Origin = new Vector2(screen.Width - MessageRightMargin, screen.Height - MessageBottomMargin),
             LineStep = MessageLineStep
         };
     }
+
+    public int Index { get; }
 
     public Sprite? Flagman { get; private set; }
 
@@ -192,11 +195,11 @@ internal sealed class Player
 
         if (notches == 0)
         {
-            if (input.VirtualKey == _settings.Next)
+            if (input.VirtualKey == _session.Controls!.Next)
             {
                 notches = 1;
             }
-            else if (input.VirtualKey == _settings.Prev)
+            else if (input.VirtualKey == _session.Controls!.Prev)
             {
                 notches = -1;
             }
@@ -230,7 +233,7 @@ internal sealed class Player
         }
         player = Flagman!;
         var cursorDirection = Angle.FromOffset(new Vector2(input.Cursor.X - player.Position.X, player.Position.Z + input.Cursor.Y - player.Position.Y));
-        var origin = _settings.IsMovementRelativeToCursor ? cursorDirection : default;
+        var origin = _session.Controls!.IsMovementRelativeToCursor ? cursorDirection : default;
         bool up = flags.HasFlag(InputFlags.Up);
         bool down = flags.HasFlag(InputFlags.Down);
         bool left = flags.HasFlag(InputFlags.Left);

@@ -132,35 +132,33 @@ public partial class VidSoftware
     /// Draws a sprite with 32-bit pixels from its runs.
     /// </summary>
     /// <param name="screen">The screen to draw to.</param>
-    /// <param name="map">The map.</param>
     /// <param name="sprite">The sprite.</param>
-    /// <param name="shift">The top left corner of the view, in map pixels.</param>
     [EngineRoutine(0x00416860)]
-    public override void Draw(Screen screen, Map map, Sprite sprite, Vector2 shift)
+    public override void Draw(Screen screen, Sprite sprite)
     {
         if (IsHidden)
             return;
 
-        var origin = GetScreenOrigin(sprite, shift);
-        if (!TryLocateFrame(map, sprite, screen.Viewport, ref origin, out int depth, out var rows))
+        var origin = GetScreenOrigin(sprite);
+        if (!TryLocateFrame(sprite, screen.Viewport, ref origin, out int depth, out var rows))
             return;
 
-        map.Session.Graphics.LockDepth();
+        _map.Session.Graphics.LockDepth();
         Span<byte> scratch = stackalloc byte[PaletteScratchSize];
         var target = new RunTarget<uint>(screen.TrueColorPixels, screen.Pitch, screen.Depth, screen.DepthWidth, screen.Viewport, screen.Format);
-        DrawRuns(target, SelectPalette(map, sprite, scratch), origin, depth, rows);
+        DrawRuns(target, SelectPalette(sprite, scratch), origin, depth, rows);
     }
 
     /// <inheritdoc/>
     [EngineRoutine(0x00418640)]
-    public override void DrawOutline(Screen screen, Map map, Sprite sprite, Vector2 shift)
+    public override void DrawOutline(Screen screen, Sprite sprite)
     {
         if (Frames.IsEmpty || FrameOffsets.Length == 0 || IsHidden)
             return;
 
         int halfWidth = FrameSize.Width / 2;
         int halfHeight = FrameSize.Height / 2;
-        var origin = new Vector2(sprite.Position.X - shift.X - halfWidth, sprite.Position.Y - sprite.Position.Z - shift.Y - halfHeight);
+        var origin = new Vector2(sprite.Position.X - _map.Shift.X - halfWidth, sprite.Position.Y - sprite.Position.Z - _map.Shift.Y - halfHeight);
         var viewport = screen.Viewport;
         if ((int)origin.X + FrameSize.Width + OutlineMargin.Width < viewport.Left || (int)origin.X >= viewport.Right)
             return;
@@ -172,7 +170,7 @@ public partial class VidSoftware
         float z = sprite.Position.Z;
         if (Properties.HasFlag(ObjectProperties.Wave))
         {
-            z = new Angle((byte)(map.CurrentTime >> WaveTimeShift & WaveTableMask)).Sine * TopZ + z;
+            z = new Angle((byte)(_map.CurrentTime >> WaveTimeShift & WaveTableMask)).Sine * TopZ + z;
         }
 
         int record = FrameOffsets[sprite.Frame];
@@ -194,7 +192,7 @@ public partial class VidSoftware
 
         vertices[count * 2] = vertices[0];
         vertices[count * 2 + 1] = vertices[1];
-        var graphics = map.Session.Graphics;
+        var graphics = _map.Session.Graphics;
         graphics.SetRenderState(RenderState.SpecularEnable, 0);
         graphics.SetAlphaBlend(BlendFactor.Zero, BlendFactor.SourceColor);
         ScreenPrimitives.FillTriangleStrip(screen, vertices, OutlineShadeColor, graphics.Blend.Source, graphics.Blend.Destination, CullMode.CounterClockwise);
@@ -202,10 +200,10 @@ public partial class VidSoftware
         ScreenPrimitives.FillTriangleStrip(screen, vertices, OutlineLightColor, graphics.Blend.Source, graphics.Blend.Destination, CullMode.Clockwise);
     }
 
-    private protected Point GetScreenOrigin(Sprite sprite, Vector2 shift) =>
-        new((int)sprite.Position.X - (int)shift.X - FrameSize.Center.X, (int)(sprite.Position.Y - sprite.Position.Z) - (int)shift.Y - FrameSize.Center.Y);
+    private protected Point GetScreenOrigin(Sprite sprite) =>
+        new((int)sprite.Position.X - (int)_map.Shift.X - FrameSize.Center.X, (int)(sprite.Position.Y - sprite.Position.Z) - (int)_map.Shift.Y - FrameSize.Center.Y);
 
-    private protected bool TryLocateFrame(Map map, Sprite sprite, Rectangle viewport, ref Point origin, out int depth, out FrameRows rows)
+    private protected bool TryLocateFrame(Sprite sprite, Rectangle viewport, ref Point origin, out int depth, out FrameRows rows)
     {
         depth = 0;
         rows = default;
@@ -219,7 +217,7 @@ public partial class VidSoftware
         }
         else if (Properties.HasFlag(ObjectProperties.Wave))
         {
-            int bob = (int)(new Angle((byte)(map.CurrentTime >> WaveTimeShift & WaveTableMask)).Sine * TopZ * HeightScale);
+            int bob = (int)(new Angle((byte)(_map.CurrentTime >> WaveTimeShift & WaveTableMask)).Sine * TopZ * HeightScale);
             depth += bob;
             origin.Y -= bob + (bob >> 31 & 7) >> 3;
         }
@@ -235,7 +233,7 @@ public partial class VidSoftware
 
     private protected int GetPaletteOffset(Sprite sprite) => FileType.HasFlag(VidType.PaletteVariants) ? GetPaletteSize() * ((int)sprite.Army & ArmyMask) : 0;
 
-    private protected ReadOnlySpan<byte> SelectPalette(Map map, Sprite sprite, Span<byte> scratch)
+    private protected ReadOnlySpan<byte> SelectPalette(Sprite sprite, Span<byte> scratch)
     {
         if (!sprite.HasExtraData || sprite.GammaOverride is { Negative: 0, Positive: 0 })
             return Palettes[GetPaletteOffset(sprite)..];
@@ -244,7 +242,7 @@ public partial class VidSoftware
         int variant = FileType.HasFlag(VidType.PaletteVariants) ? paletteSize * 4 : 0;
         Palettes.Slice(variant, paletteSize).CopyTo(scratch);
         var gamma = sprite.GetGamma();
-        ApplyGamma(scratch[..paletteSize], Properties.HasFlag(ObjectProperties.Gamma) ? gamma : gamma.Add(map.Session.Graphics.Gamma));
+        ApplyGamma(scratch[..paletteSize], Properties.HasFlag(ObjectProperties.Gamma) ? gamma : gamma.Add(_map.Session.Graphics.Gamma));
         return scratch;
     }
 

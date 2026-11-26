@@ -29,7 +29,7 @@ public sealed class Building : Unit
     internal Point PendingOffset { get; set; }
 
     [EngineRoutine(0x0044ca70)]
-    internal override int Action(ActionCode act, int var1, int var2, int var3, Sprite? target)
+    internal override int Action(ActionCode act, int var1, int var2, int var3)
     {
         switch (act)
         {
@@ -95,7 +95,7 @@ public sealed class Building : Unit
                 return 0;
         }
 
-        return base.Action(act, var1, var2, var3, target);
+        return base.Action(act, var1, var2, var3);
     }
 
     internal override void MoveTact()

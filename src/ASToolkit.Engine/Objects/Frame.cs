@@ -39,10 +39,10 @@ public class Frame : Sprite
     }
 
     [EngineRoutine(0x00448b30)]
-    internal override int Action(ActionCode act, int var1, int var2, int var3, Sprite? target)
+    internal override int Action(ActionCode act, int var1, int var2, int var3)
     {
         if ((int)act < 0 || (int)act >= FirstButtonAction && act != ActionCode.NextCommand)
-            return base.Action(act, var1, var2, var3, target);
+            return base.Action(act, var1, var2, var3);
 
         if ((int)act < FirstButtonAction || Animation > SpriteAnimation.Birth)
             return 0;

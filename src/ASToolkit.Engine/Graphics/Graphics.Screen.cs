@@ -256,11 +256,16 @@ public sealed partial class Graphics
             Flags = value != 0 ? Flags | GraphicsFlags.AlphaBlendEnabled : Flags & ~GraphicsFlags.AlphaBlendEnabled;
             _isBlendEnabled = value != 0;
         }
+        else if (state == RenderState.TextureFactor)
+        {
+            TextureFactor = value;
+        }
     }
 
     [EngineRoutine(0x00430870)]
-    internal void Tact(Map map, bool drawFrame)
+    internal void Tact(bool drawFrame)
     {
+        var map = _session.Map!;
         var screen = ScreenSize;
         var saved = map.Shift;
 
@@ -286,42 +291,42 @@ public sealed partial class Graphics
             SetRenderState(RenderState.DepthWrite, 1);
             Screen?.IsLinearFiltered = false;
             IsDepthLocked = false;
-            map.DrawLayer(Screen, map.Shift, ObjectLayer.Ground);
+            map.DrawLayer(Screen, ObjectLayer.Ground);
             LockDepth();
-            map.DrawLayer(Screen, map.Shift, ObjectLayer.Built);
-            map.DrawLayer(Screen, map.Shift, ObjectLayer.BuiltAlpha);
-            map.DrawLayer(Screen, map.Shift, ObjectLayer.SoftwareGround);
+            map.DrawLayer(Screen, ObjectLayer.Built);
+            map.DrawLayer(Screen, ObjectLayer.BuiltAlpha);
+            map.DrawLayer(Screen, ObjectLayer.SoftwareGround);
             IsDepthLocked = false;
-            map.DrawLayer(Screen, map.Shift, ObjectLayer.Ground2);
+            map.DrawLayer(Screen, ObjectLayer.Ground2);
             LockDepth();
-            map.DrawLayer(Screen, map.Shift, ObjectLayer.SoftwareGrid);
-            map.DrawLayer(Screen, map.Shift, ObjectLayer.Software);
-            map.DrawLayer(Screen, map.Shift, ObjectLayer.SoftwareAlpha);
+            map.DrawLayer(Screen, ObjectLayer.SoftwareGrid);
+            map.DrawLayer(Screen, ObjectLayer.Software);
+            map.DrawLayer(Screen, ObjectLayer.SoftwareAlpha);
             IsDepthLocked = false;
             SetRenderState(RenderState.DepthFunction, 7);
-            map.DrawLayer(Screen, map.Shift, ObjectLayer.Hardware);
+            map.DrawLayer(Screen, ObjectLayer.Hardware);
             SetRenderState(RenderState.DepthWrite, 0);
             SetRenderState(RenderState.AlphaBlendEnable, 1);
             Screen?.IsLinearFiltered = false;
-            map.DrawLayer(Screen, map.Shift, ObjectLayer.AlphaGround);
-            map.DrawLayer(Screen, map.Shift, ObjectLayer.Region);
+            map.DrawLayer(Screen, ObjectLayer.AlphaGround);
+            map.DrawLayer(Screen, ObjectLayer.Region);
             Screen?.IsLinearFiltered = true;
-            map.DrawLayer(Screen, map.Shift, ObjectLayer.Light);
-            UpdateGroundSnow(map);
-            DrawSnow(map);
+            map.DrawLayer(Screen, ObjectLayer.Light);
+            UpdateGroundSnow();
+            DrawSnow();
             Screen?.IsLinearFiltered = false;
-            map.DrawLayer(Screen, map.Shift, ObjectLayer.Alpha);
-            DrawRain(map);
+            map.DrawLayer(Screen, ObjectLayer.Alpha);
+            DrawRain();
             SetRenderState(RenderState.DepthWrite, 1);
             Screen?.IsLinearFiltered = false;
             LockDepth();
-            map.DrawLayer(Screen, map.Shift, ObjectLayer.SoftwareTop);
+            map.DrawLayer(Screen, ObjectLayer.SoftwareTop);
             IsDepthLocked = false;
-            map.DrawLayer(Screen, map.Shift, ObjectLayer.Cursor);
+            map.DrawLayer(Screen, ObjectLayer.Cursor);
 
             if (Screen is not null && !map.Mouse.IsHardwareCursor && map.Mouse.Vid.Properties.HasFlag(ObjectProperties.AlwaysTop))
             {
-                map.DrawCursorChain(Screen, map.Shift, null);
+                map.DrawCursorChain(Screen, null);
             }
         }
 
@@ -339,7 +344,7 @@ public sealed partial class Graphics
         }
 
         SetRenderState(RenderState.SpecularEnable, 0);
-        UpdateEffects(map, drawFrame);
+        UpdateEffects(drawFrame);
         IsDepthLocked = false;
     }
 
@@ -353,8 +358,9 @@ public sealed partial class Graphics
     }
 
     [EngineRoutine(0x00430dd0)]
-    internal void DrawLoadBar(Map map, Vid? vid)
+    internal void DrawLoadBar(Vid? vid)
     {
+        var map = _session.Map!;
         uint realTime = map.Session.TimeGetTime();
         map.Session.RealCurrentTime = realTime;
         if (vid is null || (uint)vid.SpriteSpeed >= realTime - _loadingDrawnAt)
@@ -367,8 +373,8 @@ public sealed partial class Graphics
         }
 
         var screen = ScreenSize;
-        DrawVid(map, vid, _loadingFrame, new Vector3(screen.Width * Map.HalfShare, screen.Height * Map.HalfShare + 1, LoadingDepth));
-        UpdateEffects(map, true);
+        DrawVid(vid, _loadingFrame, new Vector3(screen.Width * Map.HalfShare, screen.Height * Map.HalfShare + 1, LoadingDepth));
+        UpdateEffects(true);
         DrawText(new Vector2(LoadingTextLeft, Viewport.Top + LoadingTextTop), LoadingText, TextColor);
         PostTact(true);
         _loadingDrawnAt = realTime;
@@ -393,8 +399,9 @@ public sealed partial class Graphics
     }
 
     [EngineRoutine(0x004333d0)]
-    internal void DrawVid(Map map, Vid vid, int frame, Vector3 position)
+    internal void DrawVid(Vid vid, int frame, Vector3 position)
     {
+        var map = _session.Map!;
         if (vid == map.EmptyVid)
             return;
 
@@ -409,7 +416,7 @@ public sealed partial class Graphics
         sprite.Frame = frame;
         if (Screen is not null)
         {
-            vid.Draw(Screen, map, sprite, map.Shift);
+            vid.Draw(Screen, sprite);
         }
 
         sprite.Destruct();

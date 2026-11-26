@@ -56,7 +56,7 @@ public sealed class Sound
 
     private readonly IGameFileSystem _fileSystem;
     private readonly ISoundDevice? _device;
-    private readonly TimeProvider _time;
+    private readonly GameSession _session;
     private readonly SoundBuffer[] _duplicates = new SoundBuffer[VoiceCount];
     private readonly SfxRequest[] _requests = new SfxRequest[RequestCount];
     private readonly SfxBuffer[] _voices = new SfxBuffer[VoiceCount];
@@ -73,14 +73,14 @@ public sealed class Sound
     private int _deviceState = DeviceReleased;
 
     [EngineRoutine(0x0041cba0)]
-    internal Sound(ref Resource resource, IGameFileSystem fileSystem, MyError? error, ISoundDevice? device = null, bool isDisabled = false, bool isHighQuality = false, nint window = 0, TimeProvider? time = null)
+    internal Sound(ref Resource resource, IGameFileSystem fileSystem, GameSession session, ISoundDevice? device = null, bool isDisabled = false, bool isHighQuality = false, nint window = 0)
     {
         _window = window;
-        Error = error;
+        Error = session.Error;
         IsHighQuality = isHighQuality;
         _fileSystem = fileSystem;
         _device = device;
-        _time = time ?? TimeProvider.System;
+        _session = session;
         for (int i = 0; i < RequestCount; i++)
         {
             _requests[i].Id = NoSound;
@@ -88,7 +88,7 @@ public sealed class Sound
 
         for (int i = 0; i < VoiceCount; i++)
         {
-            _voices[i] = new SfxBuffer(NoSound, NoBuffer);
+            _voices[i] = new SfxBuffer(i, NoSound, NoBuffer);
         }
 
         if (!isDisabled)
@@ -109,6 +109,12 @@ public sealed class Sound
     public int BufferCount => SoundBufferCount + VoiceCount;
 
     internal MyError? Error { get; set; }
+
+    internal int Time => _session.CurrentTime;
+
+    internal uint RealTime => _session.RealCurrentTime;
+
+    internal GameRandom Random => _session.Random;
 
     internal ISoundDevice? Device => _device;
 
@@ -151,25 +157,25 @@ public sealed class Sound
     /// Creates the sound system with the sounds of the game's object resource and loads the samples of every sound.
     /// </summary>
     /// <param name="fileSystem">The file system that holds the samples and tracks.</param>
+    /// <param name="session">The session that holds the game's clock and log.</param>
     /// <param name="device">The sound device, or <see langword="null"/> to time voices and music from their lengths.</param>
     /// <param name="isDisabled"><see langword="true"/> to load nothing and ignore every request; otherwise, <see langword="false"/>.</param>
     /// <param name="isHighQuality"><see langword="true"/> for high-quality sound; otherwise, <see langword="false"/>.</param>
     /// <param name="window">The window handle to notify when a track ends.</param>
     /// <returns>The sound system.</returns>
-    public static Sound Create(IGameFileSystem fileSystem, ISoundDevice? device = null, bool isDisabled = false, bool isHighQuality = false, nint window = 0)
+    public static Sound Create(IGameFileSystem fileSystem, GameSession session, ISoundDevice? device = null, bool isDisabled = false, bool isHighQuality = false, nint window = 0)
     {
         var resource = new Resource();
-        Map.OpenObjects(fileSystem, null, ref resource);
+        Map.OpenObjects(fileSystem, ref resource);
 
-        return new Sound(ref resource, fileSystem, null, device, isDisabled, isHighQuality, window);
+        return new Sound(ref resource, fileSystem, session, device, isDisabled, isHighQuality, window);
     }
 
     /// <summary>
     /// Determines whether a music track is playing or looping.
     /// </summary>
-    /// <param name="realTime">The real time in milliseconds.</param>
     /// <returns><see langword="true"/> while music plays; otherwise, <see langword="false"/>.</returns>
-    public bool IsPlayMusic(uint realTime) => _music is not null && (_music.IsPlaying(realTime) || _loop != 0);
+    public bool IsPlayMusic() => _music is not null && (_music.IsPlaying() || _loop != 0);
 
     /// <summary>
     /// Attempts to get the state of a sound buffer that is playing.
@@ -239,16 +245,15 @@ public sealed class Sound
     /// Stops the voices of a sound, or every voice.
     /// </summary>
     /// <param name="id">The sound, or -1 to stop every voice.</param>
-    /// <param name="realTime">The real time in milliseconds.</param>
     [EngineRoutine(0x0041d560)]
-    public void StopSfx(int id, uint realTime)
+    public void StopSfx(int id)
     {
         if (_deviceState != DeviceReady)
             return;
 
         if (id == NoSound)
         {
-            StopSound(realTime);
+            StopSound();
 
             return;
         }
@@ -338,27 +343,24 @@ public sealed class Sound
     /// <summary>
     /// Advances the music and starts the sounds requested during the frame.
     /// </summary>
-    /// <param name="random">The random number generator.</param>
-    /// <param name="time">The game time in milliseconds.</param>
-    /// <param name="realTime">The real time in milliseconds.</param>
     [EngineRoutine(0x0041d770)]
-    public void Tact(GameRandom random, int time, uint realTime)
+    public void Tact()
     {
         var music = _music;
         if (music is not null)
         {
-            music.Update(realTime);
+            music.Update();
             bool isNextTrack;
 
             if (_fade < 0)
             {
-                if (_fadeStartedAt == 0 || realTime - _fadeStartedAt > FadeWindow)
+                if (_fadeStartedAt == 0 || RealTime - _fadeStartedAt > FadeWindow)
                 {
-                    _fadeStartedAt = realTime;
+                    _fadeStartedAt = RealTime;
                 }
 
                 music.SetVolume(_fade + (_musicVolume >= 0 ? (_musicVolume - FullVolume) * VolumeScale : 0));
-                _fade -= (int)((realTime - _fadeStartedAt) / 2);
+                _fade -= (int)((RealTime - _fadeStartedAt) / 2);
                 isNextTrack = _fade < QuietestVolume;
 
                 if (isNextTrack)
@@ -369,18 +371,18 @@ public sealed class Sound
             }
             else
             {
-                isNextTrack = (random.Next() & TrackCheckMask) == 0 && !music.IsPlaying(realTime);
+                isNextTrack = (_session.Random.Next() & TrackCheckMask) == 0 && !music.IsPlaying();
             }
 
             if (isNextTrack)
             {
                 if (_trackName.Length == 0)
                 {
-                    StopMusic(realTime);
+                    StopMusic();
                 }
                 else
                 {
-                    PlayFile(_trackName, _loop, realTime);
+                    PlayFile(_trackName, _loop);
                 }
             }
         }
@@ -411,7 +413,7 @@ public sealed class Sound
                 if (IsLooped(id) && Math.Abs(voice.Volume - request.Volume) < MergeReach && Math.Abs(voice.Pan - request.Pan) < MergeReach)
                 {
                     request.Id = NoSound;
-                    voice.Play(this, v, request.Pan, request.Volume, time, realTime);
+                    voice.Play(this, request.Pan, request.Volume);
 
                     break;
                 }
@@ -437,7 +439,7 @@ public sealed class Sound
         int free = 0;
         for (int v = 0; v < voices.Length; v++)
         {
-            if (!voices[v].CheckPlay(this, v, time, realTime))
+            if (!voices[v].CheckPlay(this))
             {
                 free++;
             }
@@ -473,7 +475,7 @@ public sealed class Sound
 
             if (voice.IsPlaying && _sfx[voice.Id].Record.VoiceLimit != GlobalLimit)
             {
-                StopVoice(ref voice, realTime);
+                StopVoice(ref voice);
                 free++;
             }
         }
@@ -485,11 +487,11 @@ public sealed class Sound
             if (request.Id < 0)
                 continue;
 
-            int picked = LoadBuffer(request.Id, random, time);
+            int picked = LoadBuffer(request.Id);
 
             if (picked >= 0)
             {
-                voices[picked].Play(this, picked, request.Pan, request.Volume, time, realTime);
+                voices[picked].Play(this, request.Pan, request.Volume);
             }
 
             request.Id = NoSound;
@@ -506,12 +508,11 @@ public sealed class Sound
     /// <summary>
     /// Stops the music and clears the remembered track to play again.
     /// </summary>
-    /// <param name="realTime">The real time in milliseconds.</param>
     /// <returns><see langword="true"/> if closing the music device failed; otherwise, <see langword="false"/>.</returns>
     [EngineRoutine(0x0041dc70)]
-    public bool StopMusic(uint realTime)
+    public bool StopMusic()
     {
-        _music?.Stop(realTime);
+        _music?.Stop();
         _trackName = default;
         _loop = 0;
         PlayToState = NoSound;
@@ -523,23 +524,21 @@ public sealed class Sound
     /// <summary>
     /// Pauses the music and every voice that plays.
     /// </summary>
-    /// <param name="realTime">The real time in milliseconds.</param>
     [EngineRoutine(0x0041dd80)]
-    public void Pause(uint realTime)
+    public void Pause()
     {
-        PauseMusic(realTime);
-        PauseSound(realTime);
+        PauseMusic();
+        PauseSound();
     }
 
     /// <summary>
     /// Resumes the music and every voice that was playing.
     /// </summary>
-    /// <param name="realTime">The real time in milliseconds.</param>
     [EngineRoutine(0x0041dda0)]
-    public void Resume(uint realTime)
+    public void Resume()
     {
-        ResumeMusic(realTime);
-        ResumeSound(realTime);
+        ResumeMusic();
+        ResumeSound();
     }
 
     /// <summary>
@@ -553,9 +552,8 @@ public sealed class Sound
     /// Sets the volume of the music, removing the track at 0 and starting the remembered one when the volume is above 0.
     /// </summary>
     /// <param name="volume">The volume from 0 to 100.</param>
-    /// <param name="realTime">The real time in milliseconds.</param>
     [EngineRoutine(0x0041ddf0)]
-    public void VolumeMusic(int volume, uint realTime)
+    public void VolumeMusic(int volume)
     {
         if (volume <= 0)
         {
@@ -578,7 +576,7 @@ public sealed class Sound
 
         if (_music is null && volume != 0)
         {
-            PlayFile(_trackName, _loop, realTime);
+            PlayFile(_trackName, _loop);
         }
 
         _music?.SetVolume((volume - FullVolume) * VolumeScale);
@@ -589,13 +587,12 @@ public sealed class Sound
     /// </summary>
     /// <param name="name">The path of the track.</param>
     /// <param name="loop">Any nonzero value to play the track again when it ends.</param>
-    /// <param name="realTime">The real time in milliseconds.</param>
     [EngineRoutine(0x0041dec0)]
-    public void FadeAndPlayFile(ReadOnlySpan<byte> name, int loop, uint realTime)
+    public void FadeAndPlayFile(ReadOnlySpan<byte> name, int loop)
     {
         if (_music is null)
         {
-            PlayFile(name.ToArray(), loop, realTime);
+            PlayFile(name.ToArray(), loop);
 
             return;
         }
@@ -693,7 +690,8 @@ public sealed class Sound
         if (_deviceState != DeviceReady)
             return default;
 
-        if (resource.Open(_fileSystem, Error, path, Resource.AnyTag) != 0)
+        resource = new Resource(Error);
+        if (resource.Open(_fileSystem, path, Resource.AnyTag) != 0)
             return default;
 
         if (resource.GoBegin("fmt "u8) != 0)
@@ -758,7 +756,7 @@ public sealed class Sound
             _trackFormats[path] = format;
         }
 
-        return new OggMusic(name, path, format, _device, Error);
+        return new OggMusic(name, path, format, _device, _session);
     }
 
     [EngineRoutine(0x0041cd30)]
@@ -883,7 +881,7 @@ public sealed class Sound
     [EngineRoutine(0x0041d110)]
     private void LoadSfx(ref Resource resource)
     {
-        uint start = GameSession.TimeGetTime(_time);
+        uint start = _session.TimeGetTime();
         if (_deviceState != DeviceReady)
             return;
 
@@ -913,11 +911,11 @@ public sealed class Sound
         }
         while (resource.GoNextSub(SfxTag) == Resource.Found);
 
-        Error?.Log($"LoadSFX::No   ={count,-15}   sizeof(SFX)   ={SfxRecordSize,-5}    load time     ={GameSession.TimeGetTime(_time) - start}ms Quality={(IsHighQuality ? 1 : 0)}");
+        Error?.Log($"LoadSFX::No   ={count,-15}   sizeof(SFX)   ={SfxRecordSize,-5}    load time     ={_session.TimeGetTime() - start}ms Quality={(IsHighQuality ? 1 : 0)}");
     }
 
     [EngineRoutine(0x0041d430)]
-    private int LoadBuffer(int id, GameRandom random, int time)
+    private int LoadBuffer(int id)
     {
         if (_deviceState != DeviceReady || IsInvalid(id))
             return -1;
@@ -928,7 +926,7 @@ public sealed class Sound
             if (voices[v].Id != id)
                 continue;
 
-            if ((uint)(time - voices[v].Start) <= RepeatWindow)
+            if ((uint)(Time - voices[v].Start) <= RepeatWindow)
                 return -1;
 
             if (_sfx[id].Count == 1 && !voices[v].IsPlaying)
@@ -955,7 +953,7 @@ public sealed class Sound
             voices[picked].Destroy(this);
         }
 
-        int buffer = _sfx[id].Duplicate(this, id, picked, random);
+        int buffer = _sfx[id].Duplicate(this, picked);
         voices[picked].Load(this, id, buffer);
 
         return picked;
@@ -975,17 +973,17 @@ public sealed class Sound
     }
 
     [EngineRoutine(0x0041db80)]
-    private bool PauseMusic(uint realTime)
+    private bool PauseMusic()
     {
-        _music?.Pause(realTime);
+        _music?.Pause();
 
         return (_device?.SendMusicCommand("stop FWMUSIC"u8, _window) ?? 0) != 0;
     }
 
     [EngineRoutine(0x0041dbd0)]
-    private bool ResumeMusic(uint realTime)
+    private bool ResumeMusic()
     {
-        _music?.Resume(realTime);
+        _music?.Resume();
 
         string command = PlayToState < 0 ? "play FWMUSIC notify" : $"play FWMUSIC to {PlayToPosition + 1} notify";
 
@@ -993,17 +991,17 @@ public sealed class Sound
     }
 
     [EngineRoutine(0x0041dcd0)]
-    private void StopSound(uint realTime)
+    private void StopSound()
     {
         var voices = _voices.AsSpan();
         for (int v = 0; v < voices.Length; v++)
         {
-            StopVoice(ref voices[v], realTime);
+            StopVoice(ref voices[v]);
         }
     }
 
     [EngineRoutine(0x0041dd10)]
-    private void PauseSound(uint realTime)
+    private void PauseSound()
     {
         if (_deviceState != DeviceReady)
             return;
@@ -1015,24 +1013,24 @@ public sealed class Sound
 
             if (voice.IsPlaying && voice.Buffer != NoBuffer)
             {
-                GetBuffer(voice.Buffer).Stop(realTime);
+                GetBuffer(voice.Buffer).Stop(RealTime);
                 _device?.StopVoice(v);
             }
         }
     }
 
-    private void StopVoice(ref SfxBuffer voice, uint realTime)
+    private void StopVoice(ref SfxBuffer voice)
     {
         voice.IsPlaying = false;
 
         if (voice.Buffer != NoBuffer)
         {
-            GetBuffer(voice.Buffer).Stop(realTime);
+            GetBuffer(voice.Buffer).Stop(RealTime);
         }
     }
 
     [EngineRoutine(0x0041dd50)]
-    private void ResumeSound(uint realTime)
+    private void ResumeSound()
     {
         if (_deviceState != DeviceReady)
             return;
@@ -1040,12 +1038,12 @@ public sealed class Sound
         var voices = _voices.AsSpan();
         for (int v = 0; v < voices.Length; v++)
         {
-            voices[v].Resume(this, v, realTime);
+            voices[v].Resume(this);
         }
     }
 
     [EngineRoutine(0x0041df20)]
-    private int PlayFile(ReadOnlyMemory<byte> name, int loop, uint realTime)
+    private int PlayFile(ReadOnlyMemory<byte> name, int loop)
     {
         if (name.Length == 0)
             return 1;
@@ -1069,7 +1067,7 @@ public sealed class Sound
             _music.SetVolume((_musicVolume - FullVolume) * VolumeScale);
         }
 
-        _music.Play(realTime);
+        _music.Play();
 
         return 0;
     }

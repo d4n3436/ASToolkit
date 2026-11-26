@@ -6,5 +6,6 @@ internal enum TextureOperation
     SelectFirst = 2,
     SelectSecond = 3,
     Modulate = 4,
+    Modulate2X = 5,
     BlendTextureAlpha = 13
 }

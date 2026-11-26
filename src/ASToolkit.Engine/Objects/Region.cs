@@ -102,26 +102,24 @@ public sealed class Region : Sprite
     /// Draws the region's picture tiled over its area, then its fog, and advances the fog's level.
     /// </summary>
     /// <param name="screen">The screen to draw to.</param>
-    /// <param name="map">The map.</param>
-    /// <param name="shift">The top left corner of the view, in map pixels.</param>
     [EngineRoutine(0x00449810)]
-    public override void Draw(Screen screen, Map map, Vector2 shift)
+    public override void Draw(Screen screen)
     {
         var position = Position;
         int frame = Frame;
         var half = Size * Half;
 
-        bool isShown = Vid != map.EmptyVid;
+        bool isShown = Vid != Map.EmptyVid;
         var savedViewport = screen.Viewport;
 
         if (isShown && !Flags.HasFlag(RegionFlags.CoversMap))
         {
             float groundY = position.Y - position.Z;
             screen.Viewport = Rectangle.FromLTRB(
-                (int)(position.X - half.X - shift.X),
-                (int)(groundY - half.Y - shift.Y),
-                (int)(half.X + position.X - shift.X),
-                (int)(half.Y + groundY - shift.Y));
+                (int)(position.X - half.X - Map.Shift.X),
+                (int)(groundY - half.Y - Map.Shift.Y),
+                (int)(half.X + position.X - Map.Shift.X),
+                (int)(half.Y + groundY - Map.Shift.Y));
         }
 
         int tile = 0;
@@ -143,7 +141,7 @@ public sealed class Region : Sprite
                     }
 
                     Position = position with { X = frameSize.Center.X + left, Y = frameSize.Center.Y + top };
-                    Vid.Draw(screen, map, this, shift);
+                    Vid.Draw(screen, this);
                 }
             }
         }
@@ -169,7 +167,7 @@ public sealed class Region : Sprite
         }
         else
         {
-            int phase = map.CurrentTime & FogPhaseMask;
+            int phase = Map.CurrentTime & FogPhaseMask;
 
             if ((uint)phase < (uint)FogPhase)
             {
@@ -190,11 +188,11 @@ public sealed class Region : Sprite
 
         if (Flags.HasFlag(RegionFlags.CoversMap))
         {
-            map.Session.Graphics.DrawFog(screen, new Vector2(screen.Viewport.Left, screen.Viewport.Top), new Vector2(screen.Viewport.Right, screen.Viewport.Bottom), FogNear, FogFar, FogColor, FogTable.Span, FogLevel, Flags.HasFlag(RegionFlags.LightFog));
+            Map.Session.Graphics.DrawFog(screen, new Vector2(screen.Viewport.Left, screen.Viewport.Top), new Vector2(screen.Viewport.Right, screen.Viewport.Bottom), FogNear, FogFar, FogColor, FogTable.Span, FogLevel, Flags.HasFlag(RegionFlags.LightFog));
             return;
         }
 
-        map.Session.Graphics.DrawFog(screen, new Vector2(ScreenLeft(), ScreenTop()), new Vector2(ScreenRight(), ScreenBottom()), FogNear, FogFar, FogColor, FogTable.Span, FogLevel, Flags.HasFlag(RegionFlags.LightFog));
+        Map.Session.Graphics.DrawFog(screen, new Vector2(ScreenLeft(), ScreenTop()), new Vector2(ScreenRight(), ScreenBottom()), FogNear, FogFar, FogColor, FogTable.Span, FogLevel, Flags.HasFlag(RegionFlags.LightFog));
     }
 
     [EngineRoutine(0x00449be0)]
@@ -236,7 +234,7 @@ public sealed class Region : Sprite
     [EngineRoutine(0x00449730)]
     internal override void DrawSecondaryInfo()
     {
-        Map.Session.Graphics.Box(Map, new Vector2(ScreenLeft() - RegionBoxMargin, ScreenTop() - RegionBoxMargin), new Vector2(ScreenRight() + RegionBoxMargin, ScreenBottom() + RegionBoxMargin), Map.White);
+        Map.Session.Graphics.Box(new Vector2(ScreenLeft() - RegionBoxMargin, ScreenTop() - RegionBoxMargin), new Vector2(ScreenRight() + RegionBoxMargin, ScreenBottom() + RegionBoxMargin), Map.White);
     }
 
     [EngineRoutine(0x00449e20)]
@@ -249,7 +247,7 @@ public sealed class Region : Sprite
         var fog = default(RegionFog);
         stream.ReadInto(ref fog);
         Flags = fog.Flags;
-        SetFogParameters(fog.Near, fog.Far, fog.Color, Map.Session.Graphics.ColorTable, (Map.Session.Graphics.Screen is not null ? Map.Session.Graphics.LightTexture : Map.Session.Graphics.Buffers.Light)?.Format == VidPixelFormat.P8);
+        SetFogParameters(fog.Near, fog.Far, fog.Color);
         if (version < FloatRegionSizeVersion)
         {
             var size = default(Size);
@@ -279,8 +277,11 @@ public sealed class Region : Sprite
     }
 
     [EngineRoutine(0x00449d00)]
-    private void SetFogParameters(int near, int far, uint color, ReadOnlySpan<ushort> ramp, bool isPalettized)
+    private void SetFogParameters(int near, int far, uint color)
     {
+        var graphics = Map.Session.Graphics;
+        var ramp = graphics.ColorTable;
+        bool isPalettized = (graphics.Screen is not null ? graphics.LightTexture : graphics.Buffers.Light)?.Format == VidPixelFormat.P8;
         FogFar = far;
         FogNear = near;
         FogColor = color;

@@ -28,9 +28,11 @@ public sealed class GameSession : IDisposable
     internal uint DemoPacedAt;
     internal int DemoPacedTime;
     internal Profile? Strings;
+    internal Map? Map;
     internal uint FrameRateStartedAt;
     internal int VidMemoryInUse;
-    private const string ProgramName = "AlienShooter.exe";
+    internal ControlSettings? Controls;
+    internal GameRandom Random = new(0);
     private const long MillisecondsPerSecond = 1000;
     private const string ScreenWidthValue = "ScreenX";
     private const string ScreenHeightValue = "ScreenY";
@@ -53,7 +55,7 @@ public sealed class GameSession : IDisposable
     public GameSession(Registry? registry = null, IGameFileSystem? fileSystem = null, TimeProvider? time = null, Size? desktop = null, Rectangle? windowRect = null, Rectangle? clientRect = null, bool hasAppMenu = false)
     {
         Time = time ?? TimeProvider.System;
-        Error = new MyError(fileSystem, Time, ProgramName);
+        Error = new MyError(fileSystem, Time);
         HasAppMenu = hasAppMenu;
         int vSync = DefaultVSync;
         if (fileSystem is not null)

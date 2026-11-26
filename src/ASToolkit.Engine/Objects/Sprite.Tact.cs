@@ -167,7 +167,7 @@ public partial class Sprite
         if (Animation >= SpriteAnimation.Death && (Frame > LastFrame || Vid.GetFrameCount(Animation) == 0))
         {
             Frame = LastFrame;
-            Action(ActionCode.Death, 0, 0, 0, null);
+            Action(ActionCode.Death, 0, 0, 0);
             Map.DeleteSprite(this);
             return;
         }
@@ -195,7 +195,7 @@ public partial class Sprite
         {
             if (ActionStack.Count == 0 || Command != Command.None)
             {
-                Action(ActionCode.NextCommand, 0, 0, 0, null);
+                Action(ActionCode.NextCommand, 0, 0, 0);
             }
             else
             {
@@ -218,7 +218,7 @@ public partial class Sprite
                     }
                     else
                     {
-                        Action((ActionCode)order.Value, order.Var1, order.Var2, order.Var3, order.Target);
+                        Action((ActionCode)order.Value, order.Var1, order.Var2, order.Var3);
                     }
                 }
             }

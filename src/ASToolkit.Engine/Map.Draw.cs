@@ -1,5 +1,4 @@
 using System.Drawing;
-using System.Numerics;
 using ASToolkit.Formats;
 
 namespace ASToolkit.Engine;
@@ -15,10 +14,9 @@ public partial class Map
     /// Draws the sprites of one layer, with the sprites of the cursor's link chain that belong to the layer drawn last.
     /// </summary>
     /// <param name="screen">The screen, or <see langword="null"/> to draw nothing.</param>
-    /// <param name="shift">The top-left corner of the view on the map.</param>
     /// <param name="layer">The layer, from ground to cursor.</param>
     [EngineRoutine(0x0040f7f0)]
-    public void DrawLayer(Screen? screen, Vector2 shift, ObjectLayer layer)
+    public void DrawLayer(Screen? screen, ObjectLayer layer)
     {
         if (screen is null)
             return;
@@ -29,13 +27,13 @@ public partial class Map
             {
                 if (!sprite.IsInvisible)
                 {
-                    DrawSprite(screen, sprite, shift);
+                    DrawSprite(screen, sprite);
                 }
             }
         }
         else
         {
-            var center = new Point((int)(screen.Size.Width * LayerHalf + shift.X), (int)(screen.Size.Height * LayerHalf + shift.Y));
+            var center = new Point((int)(screen.Size.Width * LayerHalf + Shift.X), (int)(screen.Size.Height * LayerHalf + Shift.Y));
 
             for (var sprite = FirstDrawingSprite((int)layer, out int index); sprite is not null; sprite = NextDrawingSprite((int)layer, ref index))
             {
@@ -47,14 +45,14 @@ public partial class Map
 
                 if (isNear || (int)sprite.Position.Y - center.Y >= CullHalfSize.Height)
                 {
-                    DrawSprite(screen, sprite, shift);
+                    DrawSprite(screen, sprite);
                 }
             }
         }
 
         if (!Mouse.IsHardwareCursor && !Mouse.Vid.Properties.HasFlag(ObjectProperties.AlwaysTop))
         {
-            DrawCursorChain(screen, shift, layer);
+            DrawCursorChain(screen, layer);
         }
     }
 
@@ -62,25 +60,24 @@ public partial class Map
     /// Draws the cursor and the sprites of its link chain, all of them or those of one layer.
     /// </summary>
     /// <param name="screen">The screen.</param>
-    /// <param name="shift">The top-left corner of the view on the map.</param>
     /// <param name="layer">The layer whose chain sprites are drawn, or null to draw the whole chain.</param>
-    public void DrawCursorChain(Screen screen, Vector2 shift, ObjectLayer? layer)
+    public void DrawCursorChain(Screen screen, ObjectLayer? layer)
     {
-        DrawChainSprite(screen, shift, Mouse, layer);
+        DrawChainSprite(screen, Mouse, layer);
 
         foreach (var link in Mouse.EnumerateLinks())
         {
-            DrawChainSprite(screen, shift, link, layer);
+            DrawChainSprite(screen, link, layer);
         }
     }
 
-    private void DrawChainSprite(Screen screen, Vector2 shift, Sprite sprite, ObjectLayer? layer)
+    private void DrawChainSprite(Screen screen, Sprite sprite, ObjectLayer? layer)
     {
         if ((layer is null || sprite.Vid.Layer == layer) && !sprite.IsInvisible)
         {
-            DrawSprite(screen, sprite, shift);
+            DrawSprite(screen, sprite);
         }
     }
 
-    private void DrawSprite(Screen screen, Sprite sprite, Vector2 shift) => sprite.Draw(screen, this, shift);
+    private void DrawSprite(Screen screen, Sprite sprite) => sprite.Draw(screen);
 }

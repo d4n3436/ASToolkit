@@ -42,6 +42,7 @@ public sealed partial class Graphics
     internal Graphics(GameSession session)
     {
         _session = session;
+        Movie = new Movie(session.Error);
     }
 
     /// <summary>
@@ -137,7 +138,7 @@ public sealed partial class Graphics
 
     internal GraphicsFlags Flags { get; set; }
 
-    internal Movie Movie { get; } = new();
+    internal Movie Movie { get; }
 
     /// <summary>
     /// Creates the view transform that moves the shift to the top left of the viewport and raises points by their height.
@@ -186,17 +187,16 @@ public sealed partial class Graphics
     /// Sets the ambient gamma and when it changes, applies it to the palettes of every sprite file.
     /// </summary>
     /// <param name="gamma">The ambient gamma.</param>
-    /// <param name="map">The map whose object IDs take the gamma.</param>
     [EngineRoutine(0x00431c50)]
-    public void SetGamma(Gamma gamma, Map map)
+    public void SetGamma(Gamma gamma)
     {
         if (Gamma == gamma)
             return;
 
         Gamma = gamma;
-        foreach (var vid in map.Vids)
+        foreach (var vid in _session.Map!.Vids)
         {
-            vid?.SetGamma(gamma, Vid.AllArmies, gamma, map.Session);
+            vid?.SetGamma(gamma, Vid.AllArmies);
         }
     }
 
@@ -276,14 +276,14 @@ public sealed partial class Graphics
     }
 
     [EngineRoutine(0x00433bb0)]
-    internal void OldLoadParameters(ref Resource reader, Map map)
+    internal void OldLoadParameters(ref Resource reader)
     {
         var environment = Environment;
         reader.ReadInto(ref environment);
         Environment = environment;
         uint gamma = 0;
         reader.ReadInto(ref gamma);
-        SetGamma(Gamma.FromScript(gamma), map);
+        SetGamma(Gamma.FromScript(gamma));
         byte direction = 0;
         reader.ReadInto(ref direction);
         short speed = 0;
@@ -292,14 +292,14 @@ public sealed partial class Graphics
     }
 
     [EngineRoutine(0x00433cd0)]
-    internal void Load(ref Resource reader, Map map)
+    internal void Load(ref Resource reader)
     {
         var environment = Environment;
         reader.ReadInto(ref environment);
         Environment = environment;
         var gamma = default(Gamma);
         reader.ReadInto(ref gamma);
-        SetGamma(gamma, map);
+        SetGamma(gamma);
         int direction = 0;
         reader.ReadInto(ref direction);
         WindDirection = new Angle((byte)direction);
@@ -309,7 +309,7 @@ public sealed partial class Graphics
     }
 
     [EngineRoutine(0x004343e0)]
-    internal void PlayMovie(IGameFileSystem fileSystem, ReadOnlySpan<byte> path, MyError error) => Movie.Open(fileSystem, path, error);
+    internal void PlayMovie(IGameFileSystem fileSystem, ReadOnlySpan<byte> path) => Movie.Open(fileSystem, path);
 
     private static Rectangle ToViewportRectangle(RectangleF viewport) => Rectangle.FromLTRB((int)viewport.Left, (int)viewport.Top, (int)viewport.Right, (int)viewport.Bottom);
 }

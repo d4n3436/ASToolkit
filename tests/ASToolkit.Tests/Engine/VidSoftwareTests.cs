@@ -16,6 +16,7 @@ public sealed class VidSoftwareTests
     public void Load_RangeCodedFrames_MatchTheUncodedFrames()
     {
         using var session = new GameSession();
+        var map = CreateMap(session);
         string folder = Path.Combine(TestGameFolder.RequireFolder(), "Vid");
         int checkedFiles = 0;
         foreach (string path in Directory.EnumerateFiles(folder, "*.vid"))
@@ -25,9 +26,9 @@ public sealed class VidSoftwareTests
             if (file.Type.HasFlag(VidType.Hardware) || file.Type.HasFlag(VidType.RangeCoded) || !file.Type.HasFlag(VidType.Palette) || file.FrameRecords.Length < 2)
                 continue;
 
-            var plain = LoadSoftware(file, data, session);
+            var plain = LoadSoftware(file, data, map);
             byte[] codedData = RangeCode(data, true);
-            var coded = LoadSoftware(new VidResource(codedData), codedData, session);
+            var coded = LoadSoftware(new VidResource(codedData), codedData, map);
 
             Assert.True(coded.FileType.HasFlag(VidType.RangeCoded));
             Assert.Equal(plain.FrameOffsets, coded.FrameOffsets);
@@ -47,20 +48,29 @@ public sealed class VidSoftwareTests
         var file = new VidResource(data);
         var fileSystem = new MemoryWriteOverlay();
         using var session = new GameSession(fileSystem: fileSystem, time: new FakeTimeProvider(StartTime));
-        var vid = LoadSoftware(file, data, session);
+        var map = CreateMap(session);
+        int logged = ReadLog(fileSystem).Length;
+        var vid = LoadSoftware(file, data, map);
 
-        Assert.True(fileSystem.TryRead(LogPath, out var log));
-        string[] lines = GameTextEncoding.Cyrillic.GetString(log.Span).Split("\r\n", StringSplitOptions.RemoveEmptyEntries);
-        string error = Assert.Single(lines, line => line.StartsWith("!!!ERROR", StringComparison.Ordinal));
+        string error = Assert.Single(ReadLog(fileSystem)[logged..], line => line.StartsWith("!!!ERROR", StringComparison.Ordinal));
         Assert.EndsWith(": 0x0 Load DATA", error);
         Assert.Equal(59668, vid.Frames.Length);
         Assert.Equal(new int[file.FrameCount], vid.FrameOffsets);
     }
 
-    private static VidSoftware LoadSoftware(VidResource file, byte[] data, GameSession session)
+    private static Map CreateMap(GameSession session) => new MapSteam(TestGameFolder.RequireFolder(), TestGameFolder.Objects, new GameFolder(TestGameFolder.RequireFolder()), session);
+
+    private static string[] ReadLog(MemoryWriteOverlay fileSystem)
     {
-        var vid = new VidSoftware(KnownObject.None, new GameObject(SpriteClass.Primitive, new Vector3(24, 16, 20)), [default], file, file.FrameCount, HighColorFormat.Rgb565);
-        vid.Load(file, data, session);
+        Assert.True(fileSystem.TryRead(LogPath, out var log));
+
+        return GameTextEncoding.Cyrillic.GetString(log.Span).Split("\r\n", StringSplitOptions.RemoveEmptyEntries);
+    }
+
+    private static VidSoftware LoadSoftware(VidResource file, byte[] data, Map map)
+    {
+        var vid = new VidSoftware(map, KnownObject.None, new GameObject(SpriteClass.Primitive, new Vector3(24, 16, 20)), [default], file, file.FrameCount, HighColorFormat.Rgb565);
+        vid.Load(file, data);
 
         return vid;
     }
@@ -69,6 +79,7 @@ public sealed class VidSoftwareTests
     public void Load_RangeCodedFramesPastTheDataChunk_Throw()
     {
         using var session = new GameSession();
+        var map = CreateMap(session);
         string folder = Path.Combine(TestGameFolder.RequireFolder(), "Vid");
         foreach (string path in Directory.EnumerateFiles(folder, "*.vid"))
         {
@@ -78,7 +89,7 @@ public sealed class VidSoftwareTests
                 continue;
 
             byte[] codedData = RangeCode(data, false);
-            Assert.Throws<InvalidDataException>(() => LoadSoftware(new VidResource(codedData), codedData, session));
+            Assert.Throws<InvalidDataException>(() => LoadSoftware(new VidResource(codedData), codedData, map));
             return;
         }
 

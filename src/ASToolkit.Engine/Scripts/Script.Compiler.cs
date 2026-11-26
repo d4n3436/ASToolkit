@@ -1730,7 +1730,6 @@ public sealed partial class Script
         }
     }
 
-    [EngineRoutine(0x00424f70)]
     private InvalidDataException ReportError(int code, string text, int extra = 0)
     {
         LogScriptError(code, text, extra);

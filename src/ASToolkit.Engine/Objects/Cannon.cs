@@ -232,10 +232,10 @@ public sealed class Cannon : Sprite
     }
 
     [EngineRoutine(0x00448950)]
-    internal override int Action(ActionCode act, int var1, int var2, int var3, Sprite? target)
+    internal override int Action(ActionCode act, int var1, int var2, int var3)
     {
         if (act != ActionCode.NextCommand)
-            return base.Action(act, var1, var2, var3, target);
+            return base.Action(act, var1, var2, var3);
 
         var state = Animation;
 

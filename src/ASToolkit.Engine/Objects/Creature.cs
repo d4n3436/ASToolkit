@@ -153,7 +153,7 @@ public class Creature : Unit
     }
 
     [EngineRoutine(0x0044d880)]
-    internal override int Action(ActionCode act, int var1, int var2, int var3, Sprite? target)
+    internal override int Action(ActionCode act, int var1, int var2, int var3)
     {
         if (act == ActionCode.Damage && var1 > 0)
         {
@@ -169,7 +169,7 @@ public class Creature : Unit
         }
 
         if (act != ActionCode.NextCommand)
-            return base.Action(act, var1, var2, var3, target);
+            return base.Action(act, var1, var2, var3);
 
         if (Animation >= SpriteAnimation.Death)
             return 0;

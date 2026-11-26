@@ -9,8 +9,7 @@ namespace ASToolkit.Engine;
 /// <param name="Var1">The first argument.</param>
 /// <param name="Var2">The second argument.</param>
 /// <param name="Var3">The third argument.</param>
-/// <param name="Target">The sprite the entry names.</param>
-public readonly record struct Act(int Value, int Var1, int Var2, int Var3, Sprite? Target = null)
+public readonly record struct Act(int Value, int Var1, int Var2, int Var3)
 {
     /// <summary>
     /// Represents the highest act that sets a state.

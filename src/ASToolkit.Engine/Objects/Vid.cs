@@ -52,6 +52,8 @@ public class Vid
     /// </summary>
     public const int AllArmies = 4;
 
+    private protected readonly Map _map;
+
     private const float BallisticRise = 1.1f;
     private const float BallisticDrop = 0.9f;
     private const int CoefficientScale = 16;
@@ -83,6 +85,7 @@ public class Vid
     /// <summary>
     /// Initializes a new instance of the <see cref="Vid"/> class from an object record and loads its parameters.
     /// </summary>
+    /// <param name="map">The map.</param>
     /// <param name="id">The object ID.</param>
     /// <param name="gameObject">The object record.</param>
     /// <param name="weapons">The weapon table.</param>
@@ -90,28 +93,30 @@ public class Vid
     /// <param name="totalFrames">The frame count of the sprite file.</param>
     /// <param name="layer">The update list of sprites of the object ID.</param>
     /// <exception cref="InvalidDataException">The record doesn't have any directions.</exception>
-    public Vid(KnownObject id, in GameObject gameObject, AlienShooterWeaponRecord[] weapons, int spriteSpeed, int totalFrames = 0, ObjectLayer layer = ObjectLayer.Ground)
-        : this(id, gameObject, weapons, spriteSpeed, totalFrames, layer, null)
+    public Vid(Map map, KnownObject id, in GameObject gameObject, AlienShooterWeaponRecord[] weapons, int spriteSpeed, int totalFrames = 0, ObjectLayer layer = ObjectLayer.Ground)
+        : this(map, id, gameObject, weapons, spriteSpeed, totalFrames, layer, null)
     {
-        LoadParameters(gameObject, null, null, false);
+        LoadParameters(gameObject);
     }
 
     /// <summary>
     /// Initializes a new instance of the <see cref="Vid"/> class from an object record and the header of its sprite file, without loading its parameters.
     /// </summary>
+    /// <param name="map">The map.</param>
     /// <param name="id">The object ID.</param>
     /// <param name="gameObject">The object record.</param>
     /// <param name="weapons">The weapon table.</param>
     /// <param name="file">The sprite file.</param>
     /// <param name="totalFrames">The frame count of the sprite file.</param>
-    protected Vid(KnownObject id, in GameObject gameObject, AlienShooterWeaponRecord[] weapons, in VidResource file, int totalFrames)
-        : this(id, gameObject, weapons, file.Speed, totalFrames, ObjectLayer.Ground, file)
+    protected Vid(Map map, KnownObject id, in GameObject gameObject, AlienShooterWeaponRecord[] weapons, in VidResource file, int totalFrames)
+        : this(map, id, gameObject, weapons, file.Speed, totalFrames, ObjectLayer.Ground, file)
     {
     }
 
     /// <summary>
     /// Initializes a new instance of the <see cref="Vid"/> class from an object record without loading its parameters.
     /// </summary>
+    /// <param name="map">The map.</param>
     /// <param name="id">The object ID.</param>
     /// <param name="gameObject">The object record.</param>
     /// <param name="weapons">The weapon table.</param>
@@ -120,8 +125,9 @@ public class Vid
     /// <param name="layer">The update list of sprites of the object ID.</param>
     /// <param name="file">The sprite file, or <see langword="null"/> without one.</param>
     [EngineRoutine(0x00413710)]
-    protected Vid(KnownObject id, in GameObject gameObject, AlienShooterWeaponRecord[] weapons, int spriteSpeed, int totalFrames, ObjectLayer layer, VidResource? file)
+    protected Vid(Map map, KnownObject id, in GameObject gameObject, AlienShooterWeaponRecord[] weapons, int spriteSpeed, int totalFrames, ObjectLayer layer, VidResource? file)
     {
+        _map = map;
         Id = id;
         RecordId = id;
         Identity = this;
@@ -143,7 +149,7 @@ public class Vid
     }
 
     private protected Vid(Vid source)
-        : this(KnownObject.None, new GameObject(SpriteClass.Primitive, DefaultSize), source._weapons, Map.DefaultSpriteSpeed, source.TotalFrames, ObjectLayer.Menu, null)
+        : this(source._map, KnownObject.None, new GameObject(SpriteClass.Primitive, DefaultSize), source._weapons, Map.DefaultSpriteSpeed, source.TotalFrames, ObjectLayer.Menu, null)
     {
         NextMirror = source.NextMirror;
         source.NextMirror = this;
@@ -614,10 +620,8 @@ public class Vid
     /// Draws a sprite with the frames of this object ID.
     /// </summary>
     /// <param name="screen">The screen to draw to.</param>
-    /// <param name="map">The map.</param>
     /// <param name="sprite">The sprite that gives the position, frame and gamma; it may be of another object ID.</param>
-    /// <param name="shift">The top left corner of the view, in map pixels.</param>
-    public virtual void Draw(Screen screen, Map map, Sprite sprite, Vector2 shift)
+    public virtual void Draw(Screen screen, Sprite sprite)
     {
     }
 
@@ -625,33 +629,28 @@ public class Vid
     /// Draws the outline of the frame of a sprite, stored as points in the frame.
     /// </summary>
     /// <param name="screen">The screen to draw to.</param>
-    /// <param name="map">The map.</param>
     /// <param name="sprite">The sprite that gives the position and frame.</param>
-    /// <param name="shift">The top left corner of the view, in map pixels.</param>
-    public virtual void DrawOutline(Screen screen, Map map, Sprite sprite, Vector2 shift)
+    public virtual void DrawOutline(Screen screen, Sprite sprite)
     {
     }
 
     /// <summary>
     /// Draws a sprite of this object ID into the textures of a tile of the hardware ground.
     /// </summary>
-    /// <param name="map">The map.</param>
     /// <param name="sprite">The sprite.</param>
     /// <param name="tile">The tile of the hardware ground.</param>
     /// <param name="colorTexture">The color texture of <paramref name="tile"/>.</param>
     /// <param name="depthTexture">The depth texture of <paramref name="tile"/>.</param>
-    /// <param name="tileViewport">The area of the textures that is drawn to, in texels.</param>
     [EngineRoutine(0x004127d0)]
-    public virtual void DrawToVid(Map map, Sprite sprite, HardwareTile tile, Texture colorTexture, Texture depthTexture, Rectangle tileViewport)
+    public virtual void DrawToVid(Sprite sprite, HardwareTile tile, Texture colorTexture, Texture depthTexture)
     {
     }
 
     /// <summary>
     /// Draws a built terrain sprite into the textures of this object ID.
     /// </summary>
-    /// <param name="map">The map.</param>
     /// <param name="sprite">The sprite.</param>
-    public virtual void AddVidToTextures(Map map, Sprite sprite)
+    public virtual void AddVidToTextures(Sprite sprite)
     {
     }
 
@@ -736,12 +735,11 @@ public class Vid
     /// <summary>
     /// Returns the vertical speed that carries a launched sprite of this object ID up or down a rise over a distance, within its vertical speed limit.
     /// </summary>
-    /// <param name="map">The map.</param>
     /// <param name="rise">The height to climb, negative to drop.</param>
     /// <param name="distance">The horizontal distance to the goal.</param>
     /// <returns>The vertical speed in pixels per millisecond.</returns>
     [EngineRoutine(0x00414a80)]
-    public float CalculateZSpeed(Map map, float rise, float distance)
+    public float CalculateZSpeed(float rise, float distance)
     {
         bool hasGravity = Properties.HasFlag(ObjectProperties.Gravity);
         bool hasGravity2 = !hasGravity && Properties.HasFlag(ObjectProperties.Gravity2);
@@ -749,7 +747,7 @@ public class Vid
 
         if (hasGravity || hasGravity2)
         {
-            float gravity = hasGravity ? map.Constant.Gravitation : map.Constant.Gravitation2;
+            float gravity = hasGravity ? _map.Constant.Gravitation : _map.Constant.Gravitation2;
             speed = rise * Speed / distance + distance * gravity / Speed * 0.5f;
             speed *= speed > 0 ? BallisticRise : BallisticDrop;
         }
@@ -839,9 +837,9 @@ public class Vid
     [EngineRoutine(0x00442e00)]
     public Angle GetFrameDirection(Angle direction) => Directions != 0 ? direction.GetFrameDirection(Directions) : direction;
 
-    internal static Vid CreateEmpty(KnownObject id, in GameObject gameObject, int spriteSpeed, ObjectLayer layer)
+    internal static Vid CreateEmpty(Map map, KnownObject id, in GameObject gameObject, int spriteSpeed, ObjectLayer layer)
     {
-        var vid = new Vid(id, gameObject, [default], spriteSpeed, 0, layer, null);
+        var vid = new Vid(map, id, gameObject, [default], spriteSpeed, 0, layer, null);
         vid.Half = new Vector2(gameObject.Size.X * 0.5f, gameObject.Size.Y * 0.5f);
         vid.Scale = Vector3.One;
         Array.Fill(vid._durations, spriteSpeed);
@@ -849,24 +847,24 @@ public class Vid
         return vid;
     }
 
-    internal static Vid CreateDefault() => CreateEmpty(KnownObject.None, new GameObject(SpriteClass.Primitive, DefaultSize), Map.DefaultSpriteSpeed, ObjectLayer.Menu);
+    internal static Vid CreateDefault(Map map) => CreateEmpty(map, KnownObject.None, new GameObject(SpriteClass.Primitive, DefaultSize), Map.DefaultSpriteSpeed, ObjectLayer.Menu);
 
     [EngineRoutine(0x00413860)]
     internal virtual Vid CreateMirror()
     {
-        var mirror = CreateDefault();
+        var mirror = CreateDefault(_map);
         mirror._weapons = _weapons;
 
         return mirror;
     }
 
     [EngineRoutine(0x004138b0)]
-    internal virtual void Destruct(GameSession session)
+    internal virtual void Destruct()
     {
         int count = _counts[3] + _counts[2] + _counts[1] + _counts[0];
         if (count != 0)
         {
-            Report(session.Error, LogError.Text, count, "Not all sprites with this VID deleted"u8);
+            Report(LogError.Text, count, "Not all sprites with this VID deleted"u8);
         }
 
         var next = NextMirror;
@@ -883,12 +881,13 @@ public class Vid
     }
 
     [EngineRoutine(0x00413a30)]
-    internal void Report(MyError? error, LogError code, int value, ReadOnlySpan<byte> text) =>
-        error?.Error($"VID [{(int)Id}-{Name}]", code, value, text);
+    internal void Report(LogError code, int value, ReadOnlySpan<byte> text) =>
+        _map.Session.Error.Error($"VID [{(int)Id}-{Name}]", code, value, text);
 
     [EngineRoutine(0x00413c30)]
-    internal void LoadParameters(in GameObject record, MyError? error, Sound? sound, bool resetBuiltTerrain)
+    internal void LoadParameters(in GameObject record)
     {
+        var sound = _map.Session.Sound;
         CopyRecord(record);
         ObjectGamma = record.Gamma.Pack();
         if (FileType.HasFlag(VidType.ZBuffer) && FileType.HasFlag(VidType.Hardware))
@@ -905,7 +904,7 @@ public class Vid
         CanMove = !Speed.IsExactlyZero() || !ZSpeed.IsExactlyZero() || Properties.HasFlag(ObjectProperties.Gravity) || Properties.HasFlag(ObjectProperties.Gravity2) || Properties.HasFlag(ObjectProperties.Wind);
         if (Directions == 0)
         {
-            Report(error, LogError.Invalid, 0, "NoDir==0"u8);
+            Report(LogError.Invalid, 0, "NoDir==0"u8);
             throw new InvalidDataException($"The record of object {(int)Id} doesn't have any directions.");
         }
 
@@ -922,11 +921,11 @@ public class Vid
         int frames = (short)TotalFrames;
         if (frames == 0)
         {
-            Report(error, LogError.Invalid, 0, "noCadr==0"u8);
+            Report(LogError.Invalid, 0, "noCadr==0"u8);
         }
         else if (frames < Directions)
         {
-            Report(error, LogError.Invalid, 0, "noCadr < noDir"u8);
+            Report(LogError.Invalid, 0, "noCadr < noDir"u8);
             Directions = frames;
         }
 
@@ -938,7 +937,7 @@ public class Vid
 
         if (frames < end)
         {
-            Report(error, LogError.Missing, 0, "noCadr for noAnimCadr and noDir"u8);
+            Report(LogError.Missing, 0, "noCadr for noAnimCadr and noDir"u8);
             for (int state = StateCount - 1; state >= 0; state--)
             {
                 int before = end - Directions * _frameCounts[state];
@@ -959,7 +958,7 @@ public class Vid
         {
             if (sound is not null && sound.HasSfx && !sound.IsValid(_sounds[state]) && Id != KnownObject.None)
             {
-                Report(error, LogError.Invalid, _sounds[state], "sfx"u8);
+                Report(LogError.Invalid, _sounds[state], "sfx"u8);
                 _sounds[state] = 0;
             }
 
@@ -1000,7 +999,7 @@ public class Vid
 
             if (frames < start)
             {
-                Report(error, LogError.Text, state, "noCadr and noAnimCadr and noDir"u8);
+                Report(LogError.Text, state, "noCadr and noAnimCadr and noDir"u8);
                 _firstFrames[state] = 0;
                 _framesPerDirection[state] = firstPopulated < 0 ? _firstFrames[StateCount - 1] : _framesPerDirection[firstPopulated];
             }
@@ -1009,7 +1008,7 @@ public class Vid
         {
             IsBuiltTerrainClass = true;
 
-            if (resetBuiltTerrain)
+            if (_map.Session.HasAppMenu)
             {
                 Class = SpriteClass.Terrain;
             }
@@ -1098,7 +1097,7 @@ public class Vid
     }
 
     [EngineRoutine(0x00414890)]
-    internal void SetHpCoeff(Map map, int army, int percent)
+    internal void SetHpCoeff(int army, int percent)
     {
         army &= 3;
         for (var vid = this; vid is not null; vid = vid.LinkVid)
@@ -1112,7 +1111,7 @@ public class Vid
             if (vid.MaxHp == 0)
                 continue;
 
-            var list = map.GetLayer((int)vid.Layer);
+            var list = _map.GetLayer((int)vid.Layer);
             for (int i = list.Count - 1; i >= 0; i--)
             {
                 var sprite = list[i];
@@ -1125,7 +1124,7 @@ public class Vid
     }
 
     [EngineRoutine(0x00414990)]
-    internal void SetMaxHp(Map map, int army, int maxHp)
+    internal void SetMaxHp(int army, int maxHp)
     {
         army &= 3;
         for (var vid = this; vid is not null; vid = vid.LinkVid)
@@ -1139,7 +1138,7 @@ public class Vid
             if (vid.MaxHp == 0)
                 continue;
 
-            var list = map.GetLayer((int)vid.Layer);
+            var list = _map.GetLayer((int)vid.Layer);
             for (int i = list.Count - 1; i >= 0; i--)
             {
                 var sprite = list[i];
@@ -1162,11 +1161,11 @@ public class Vid
 
     internal int GetFramesPerDirection(SpriteAnimation state) => _framesPerDirection[(int)state];
 
-    internal virtual void Load(in VidResource file, ReadOnlyMemory<byte> data, GameSession session)
+    internal virtual void Load(in VidResource file, ReadOnlyMemory<byte> data)
     {
     }
 
-    internal virtual void SetGamma(Gamma gamma, int army, Gamma ambient, GameSession session) => StoreGamma(gamma, army, session.Error);
+    internal virtual void SetGamma(Gamma gamma, int army) => StoreGamma(gamma, army);
 
     internal ReadOnlySpan<Vector3> GetHeightPoints(int frame)
     {
@@ -1187,7 +1186,7 @@ public class Vid
     }
 
     [EngineRoutine(0x00414570)]
-    private protected void StoreGamma(Gamma gamma, int army, MyError? error)
+    private protected void StoreGamma(Gamma gamma, int army)
     {
         if ((uint)army < ArmyCount)
         {
@@ -1197,7 +1196,7 @@ public class Vid
 
         if (army != AllArmies)
         {
-            Report(error, LogError.Invalid, army, "n_gamma in VID::SetGamma"u8);
+            Report(LogError.Invalid, army, "n_gamma in VID::SetGamma"u8);
         }
     }
 
@@ -1207,10 +1206,10 @@ public class Vid
         _heightFrameStarts = source._heightFrameStarts;
     }
 
-    private protected Gamma GetGamma(Map map, Sprite sprite)
+    private protected Gamma GetGamma(Sprite sprite)
     {
         var gamma = ObjectGamma.Add(sprite.GetGamma());
-        return Properties.HasFlag(ObjectProperties.Gamma) ? gamma : gamma.Add(map.Session.Graphics.Gamma);
+        return Properties.HasFlag(ObjectProperties.Gamma) ? gamma : gamma.Add(_map.Session.Graphics.Gamma);
     }
 
     private static float ScaleRate(float rate, float scale) => rate.IsExactly(Unlimited) ? rate : rate * scale;

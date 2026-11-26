@@ -109,7 +109,7 @@ public sealed class MapSteam : Map
         }
 
         SetGammaOverrides(false);
-        Session.Graphics.Tact(this, draw);
+        Session.Graphics.Tact(draw);
         SetGammaOverrides(true);
 
         bool isPaused = _flags.HasFlag(MapFlags.Paused);
@@ -165,7 +165,7 @@ public sealed class MapSteam : Map
             Session.Graphics.PostTact(true);
         }
 
-        Sound.Tact(_rng, CurrentTime, Session.RealCurrentTime);
+        Sound.Tact();
 
         return false;
     }

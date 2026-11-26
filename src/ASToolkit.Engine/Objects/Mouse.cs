@@ -76,14 +76,12 @@ public sealed class Mouse : Sprite
     /// Draws the cursor if it's loaded and isn't a system cursor.
     /// </summary>
     /// <param name="screen">The screen to draw to.</param>
-    /// <param name="map">The map.</param>
-    /// <param name="shift">The top left corner of the view, in map pixels.</param>
     [EngineRoutine(0x00446d20)]
-    public override void Draw(Screen screen, Map map, Vector2 shift)
+    public override void Draw(Screen screen)
     {
         if (!IsHardwareCursor && IsCursorLoaded)
         {
-            base.Draw(screen, map, shift);
+            base.Draw(screen);
         }
     }
 
@@ -131,38 +129,34 @@ public sealed class Mouse : Sprite
     /// <summary>
     /// Switches to the system cursor.
     /// </summary>
-    /// <param name="empty">The shared data, without frames, that the sprite takes.</param>
-    /// <param name="fileSystem">The file system that holds the cursor files.</param>
     [EngineRoutine(0x00446f40)]
-    public void HardwareOn(Vid empty, IGameFileSystem fileSystem)
+    public void HardwareOn()
     {
         if (IsHardwareCursor)
             return;
 
         Disable();
-        ReplaceVid(empty);
+        ReplaceVid(Map.EmptyVid);
         IsHardwareCursor = true;
-        Enable(fileSystem);
+        Enable(Map.FileSystem);
     }
 
     /// <summary>
     /// Switches to drawing the cursor as this sprite.
     /// </summary>
-    /// <param name="vid">The shared data and frames of the software cursor's object ID.</param>
-    /// <param name="fileSystem">The file system that holds the cursor files.</param>
     [EngineRoutine(0x00446f70)]
-    public void HardwareOff(Vid vid, IGameFileSystem fileSystem)
+    public void HardwareOff()
     {
         if (!IsHardwareCursor)
             return;
 
         Disable();
         var state = Animation;
-        ReplaceVid(vid);
+        ReplaceVid(Map.FindVid(KnownObject.Cursor) ?? Map.EmptyVid);
         base.ChangeAnimation(state == SpriteAnimation.Stand ? SpriteAnimation.StopMove : SpriteAnimation.Stand);
         base.ChangeAnimation(state);
         IsHardwareCursor = false;
-        Enable(fileSystem);
+        Enable(Map.FileSystem);
     }
 
     /// <summary>
@@ -193,7 +187,7 @@ public sealed class Mouse : Sprite
     }
 
     [EngineRoutine(0x00447030)]
-    internal override int Action(ActionCode act, int var1, int var2, int var3, Sprite? target)
+    internal override int Action(ActionCode act, int var1, int var2, int var3)
     {
         switch (act)
         {
@@ -205,7 +199,7 @@ public sealed class Mouse : Sprite
                     return 0;
 
                 AddToUpdates();
-                base.Action(act, var1, var2, var3, target);
+                base.Action(act, var1, var2, var3);
                 Map.Sprites.DeleteFromHash(this);
                 foreach (var link in EnumerateLinks())
                 {
@@ -220,7 +214,7 @@ public sealed class Mouse : Sprite
                 Map.Input.PostMessage(WindowMessageId.HitTest, 0, (screen.Y & 0xFFFF) << 16 | (screen.X & 0xFFFF));
                 return 0;
             default:
-                return base.Action(act, var1, var2, var3, target);
+                return base.Action(act, var1, var2, var3);
         }
     }
 }

@@ -146,12 +146,13 @@ public sealed partial class Graphics
         }
 
         SetAlphaBlend(isLight ? BlendFactor.Zero : BlendFactor.One, BlendFactor.InverseSourceColor);
-        light.DrawQuad(screen, new Rectangle(left, top, width, height), new Rectangle(0, 0, columns, rows), new Gamma(~color, Gamma.OpaqueAlpha), Blend, topDepth: (level + FogDepthOffset) * FogDepthScale, bottomDepth: (level + FogDepthOffset) * FogDepthScale);
+        light.DrawQuad(screen, new Rectangle(left, top, width, height), new Rectangle(0, 0, columns, rows), new Gamma(~color, Gamma.OpaqueAlpha), topDepth: (level + FogDepthOffset) * FogDepthScale, bottomDepth: (level + FogDepthOffset) * FogDepthScale);
     }
 
     [EngineRoutine(0x004322a0)]
-    private void UpdateGroundSnow(Map map)
+    private void UpdateGroundSnow()
     {
+        var map = _session.Map!;
         if (map.IsPaused || Flags.HasFlag(GraphicsFlags.Software))
             return;
 
@@ -214,12 +215,13 @@ public sealed partial class Graphics
         SetRenderState(RenderState.SpecularEnable, 0);
         SetAlphaBlend(BlendFactor.One, BlendFactor.InverseSourceColor);
         light.DrawFlatQuad(Screen, new Rectangle(Point.Empty, Screen.Size),
-            new Rectangle(0, 0, size.Width / SnowCell, size.Height / SnowCell), default, Blend);
+            new Rectangle(0, 0, size.Width / SnowCell, size.Height / SnowCell), default);
     }
 
     [EngineRoutine(0x00432770)]
-    private void DrawRain(Map map)
+    private void DrawRain()
     {
+        var map = _session.Map!;
         if (!Environment.HasFlag(MapEnvironment.StopRain) && !Environment.HasFlag(MapEnvironment.BornRain))
         {
             _raindropCount = 0;
@@ -307,8 +309,9 @@ public sealed partial class Graphics
     }
 
     [EngineRoutine(0x00432c10)]
-    private void DrawSnow(Map map)
+    private void DrawSnow()
     {
+        var map = _session.Map!;
         if (!Environment.HasFlag(MapEnvironment.StopSnow) && !Environment.HasFlag(MapEnvironment.BornSnow))
         {
             _snowflakeCount = 0;

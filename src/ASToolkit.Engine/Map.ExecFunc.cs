@@ -1,5 +1,4 @@
 using System.Drawing;
-using System.Globalization;
 using System.Numerics;
 using System.Text;
 using ASToolkit.Engine.IO;
@@ -295,13 +294,13 @@ public partial class Map : IScriptFunctionHost
                 int effectDuration = PopInt();
                 int effectSecond = PopInt();
                 int effectFirst = PopInt();
-                Session.Graphics.Effect(this, PopInt(), effectFirst, effectSecond, effectDuration);
+                Session.Graphics.Effect(PopInt(), effectFirst, effectSecond, effectDuration);
                 break;
             case ScriptFunction.SetEnvironment:
                 Session.Graphics.SetEnvironment((MapEnvironment)PopInt());
                 break;
             case ScriptFunction.GetEffectState:
-                PushInt(Session.Graphics.GetEffectState(this, PopInt()));
+                PushInt(Session.Graphics.GetEffectState(PopInt()));
                 break;
             case ScriptFunction.Charat:
                 int charIndex = PopInt();
@@ -310,7 +309,7 @@ public partial class Map : IScriptFunctionHost
                 break;
             case ScriptFunction.Random:
                 int randomMax = PopInt();
-                PushInt(_rng.Next() % (randomMax + 1));
+                PushInt(Session.Random.Next() % (randomMax + 1));
                 break;
             case ScriptFunction.GetTime:
                 PushInt(CurrentTime);
@@ -428,7 +427,7 @@ public partial class Map : IScriptFunctionHost
                     case >= VidDataType.Gamma and < VidDataType.Properties:
                         var gamma = Gamma.FromScript((uint)setValue);
                         setVid.Gammas[setType - (int)VidDataType.Gamma] = gamma;
-                        setVid.SetGamma(gamma, setType - (int)VidDataType.Gamma, Session.Graphics.Gamma, Session);
+                        setVid.SetGamma(gamma, setType - (int)VidDataType.Gamma);
                         break;
                     case VidDataType.Ammo:
                         GetAmmoOwner(setVid).Weapon.Ammo = setValue;
@@ -440,10 +439,10 @@ public partial class Map : IScriptFunctionHost
                         setVid.Killed[setType - (int)VidDataType.KilledUnit0] = setValue;
                         break;
                     case >= VidDataType.MaxHp0 and <= VidDataType.MaxHp3:
-                        setVid.SetMaxHp(this, setType - (int)VidDataType.MaxHp0, setValue);
+                        setVid.SetMaxHp(setType - (int)VidDataType.MaxHp0, setValue);
                         break;
                     case >= VidDataType.HpCoefficient0 and <= VidDataType.HpCoefficient3:
-                        setVid.SetHpCoeff(this, setType - (int)VidDataType.HpCoefficient0, setValue);
+                        setVid.SetHpCoeff(setType - (int)VidDataType.HpCoefficient0, setValue);
                         break;
                     case VidDataType.Speed:
                         setVid.Speed = setValue == ASToolkit.Engine.Vid.Unlimited ? ASToolkit.Engine.Vid.Unlimited : setValue * ASToolkit.Engine.Vid.PerMillisecond;
@@ -673,13 +672,13 @@ public partial class Map : IScriptFunctionHost
 
                 if (cursorType == HardwareCursor)
                 {
-                    Mouse.HardwareOn(EmptyVid, FileSystem);
+                    Mouse.HardwareOn();
                     break;
                 }
 
                 if (cursorType == SoftwareCursor)
                 {
-                    Mouse.HardwareOff(FindVid(KnownObject.Cursor) ?? EmptyVid, FileSystem);
+                    Mouse.HardwareOff();
                     break;
                 }
 
@@ -708,11 +707,11 @@ public partial class Map : IScriptFunctionHost
                 int clickButton = PopInt();
                 if (clickButton == FirstMouseClick)
                 {
-                    _controls.First = new ControlBinding((VirtualKey)clickKey, (VirtualKey)clickKey);
+                    Session.Controls!.First = new ControlBinding((VirtualKey)clickKey, (VirtualKey)clickKey);
                 }
                 else if (clickButton == SecondMouseClick)
                 {
-                    _controls.Second = new ControlBinding((VirtualKey)clickKey, (VirtualKey)clickKey);
+                    Session.Controls!.Second = new ControlBinding((VirtualKey)clickKey, (VirtualKey)clickKey);
                 }
 
                 break;
@@ -744,16 +743,16 @@ public partial class Map : IScriptFunctionHost
                 Sound.VolumeSound(PopInt());
                 break;
             case ScriptFunction.SetMusicVolume:
-                Sound.VolumeMusic(PopInt(), Session.RealCurrentTime);
+                Sound.VolumeMusic(PopInt());
                 break;
             case ScriptFunction.PlaySfx:
                 Sound.PlaySfx(PopInt(), 0, Sound.FullLoudness);
                 break;
             case ScriptFunction.StopSfx:
-                Sound.StopSfx(PopInt(), Session.RealCurrentTime);
+                Sound.StopSfx(PopInt());
                 break;
             case ScriptFunction.StopMusic:
-                Sound.StopMusic(Session.RealCurrentTime);
+                Sound.StopMusic();
                 break;
             case ScriptFunction.PlaySfxFromCoor:
                 var sfxPoint = PopPoint();
@@ -761,14 +760,14 @@ public partial class Map : IScriptFunctionHost
                 break;
             case ScriptFunction.PlayMusicFile:
                 int musicLoop = PopInt();
-                Sound.FadeAndPlayFile(PopText().Span, musicLoop, Session.RealCurrentTime);
+                Sound.FadeAndPlayFile(PopText().Span, musicLoop);
                 break;
             case ScriptFunction.IsPlayMusic:
-                PushInt(Sound.IsPlayMusic(Session.RealCurrentTime) ? 1 : 0);
+                PushInt(Sound.IsPlayMusic() ? 1 : 0);
                 break;
 
             case ScriptFunction.PlayMovie:
-                Session.Graphics.PlayMovie(FileSystem, PopText().Span, Session.Error);
+                Session.Graphics.PlayMovie(FileSystem, PopText().Span);
                 break;
             case ScriptFunction.IsPlayMovie:
                 PushInt(Session.Graphics.Movie.IsOpen ? 1 : 0);
@@ -778,7 +777,7 @@ public partial class Map : IScriptFunctionHost
                 break;
 
             case ScriptFunction.SetGamma:
-                Session.Graphics.SetGamma(Gamma.FromScript((uint)PopInt()), this);
+                Session.Graphics.SetGamma(Gamma.FromScript((uint)PopInt()));
                 break;
             case ScriptFunction.CountGamma:
                 int gammaShare = PopInt();
@@ -936,16 +935,16 @@ public partial class Map : IScriptFunctionHost
             case ScriptFunction.GetReg:
                 string regDefault = ReadText(PopText());
                 string regName = ReadText(PopText());
-                PushText(GameTextEncoding.Cyrillic.GetBytes(Registry.Get(ReadText(PopText()), regName, regDefault)));
+                PushText(GameTextEncoding.Cyrillic.GetBytes(new Registry(ReadText(PopText()), Registry).Get(regName, regDefault)));
                 break;
             case ScriptFunction.SetReg:
                 string regValue = ReadText(PopText());
                 string setRegName = ReadText(PopText());
-                Registry.Set(ReadText(PopText()), setRegName, regValue);
+                new Registry(ReadText(PopText()), Registry).Set(setRegName, regValue);
                 break;
             case ScriptFunction.DelReg:
                 string delRegName = ReadText(PopText());
-                Registry.DeleteKey(ReadText(PopText()), delRegName);
+                new Registry(ReadText(PopText()), Registry).DeleteKey(delRegName);
                 break;
             case ScriptFunction.GetDefaultRegPath:
                 PushText(GameTextEncoding.Cyrillic.GetBytes(Registry.DefaultPath));

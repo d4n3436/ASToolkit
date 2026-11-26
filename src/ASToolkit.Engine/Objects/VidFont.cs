@@ -14,12 +14,13 @@ public sealed class VidFont : Vid
     /// <summary>
     /// Initializes a new instance of the <see cref="VidFont"/> class.
     /// </summary>
+    /// <param name="map">The map.</param>
     /// <param name="id">The object ID.</param>
     /// <param name="gameObject">The object record.</param>
     /// <param name="weapons">The weapon table.</param>
     /// <param name="maxTextureSize">The largest texture width and height the device accepts.</param>
-    public VidFont(KnownObject id, in GameObject gameObject, AlienShooterWeaponRecord[] weapons, int maxTextureSize)
-        : base(id, gameObject, weapons, Map.DefaultSpriteSpeed, GlyphCount, ObjectLayer.Ground, null)
+    public VidFont(Map map, KnownObject id, in GameObject gameObject, AlienShooterWeaponRecord[] weapons, int maxTextureSize)
+        : base(map, id, gameObject, weapons, Map.DefaultSpriteSpeed, GlyphCount, ObjectLayer.Ground, null)
     {
         MaxTextureSize = maxTextureSize;
     }
@@ -62,11 +63,9 @@ public sealed class VidFont : Vid
     /// Draws the text of a sprite with the glyphs of the font.
     /// </summary>
     /// <param name="screen">The screen to draw to.</param>
-    /// <param name="map">The map.</param>
     /// <param name="sprite">The sprite.</param>
-    /// <param name="shift">The top left corner of the view, in map pixels.</param>
     [EngineRoutine(0x00415200)]
-    public override void Draw(Screen screen, Map map, Sprite sprite, Vector2 shift)
+    public override void Draw(Screen screen, Sprite sprite)
     {
         if (Font is null)
             return;
@@ -74,25 +73,25 @@ public sealed class VidFont : Vid
         var position = sprite.Position;
 
         var gamma = sprite.GetGamma();
-        Font.Draw(screen, new Vector2(position.X - shift.X, position.Y - position.Z - shift.Y), ~gamma.Negative, ""u8);
+        Font.Draw(screen, new Vector2(position.X - _map.Shift.X, position.Y - position.Z - _map.Shift.Y), ~gamma.Negative, ""u8);
     }
 
     [EngineRoutine(0x00412850)]
     internal override Vid CreateMirror() => new VidFont(this);
 
     [EngineRoutine(0x00415100)]
-    internal override void Destruct(GameSession session)
+    internal override void Destruct()
     {
         if (NextMirror == this)
         {
             Font = null;
         }
 
-        base.Destruct(session);
+        base.Destruct();
     }
 
     [EngineRoutine(0x00415140)]
-    internal override void Load(in VidResource file, ReadOnlyMemory<byte> data, GameSession session)
+    internal override void Load(in VidResource file, ReadOnlyMemory<byte> data)
     {
         FileFrameCount = GlyphCount;
         FrameSize = new Size((short)(int)Size.X, (short)(int)Size.Y);

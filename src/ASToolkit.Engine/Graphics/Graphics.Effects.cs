@@ -40,8 +40,9 @@ public sealed partial class Graphics
         (uint)((((Math.Clamp(alpha, 0, byte.MaxValue) << 8 | Math.Clamp(red, 0, byte.MaxValue)) << 8 | Math.Clamp(green, 0, byte.MaxValue)) << 8) | Math.Clamp(blue, 0, byte.MaxValue));
 
     [EngineRoutine(0x00402690)]
-    internal void Effect(Map map, int effect, int first, int second, int duration)
+    internal void Effect(int effect, int first, int second, int duration)
     {
+        var map = _session.Map!;
         if (effect is < 0 or >= EffectCount)
             return;
 
@@ -95,12 +96,12 @@ public sealed partial class Graphics
     }
 
     [EngineRoutine(0x00431c00)]
-    internal int GetEffectState(Map map, int effect)
+    internal int GetEffectState(int effect)
     {
         if (effect is <= (int)ScreenEffect.None or >= EffectCount || EffectStartTimes[effect] == 0)
             return -1;
 
-        return (int)(unchecked(map.RealCurrentTime * 100 - EffectStartTimes[effect] * 100) / (uint)EffectDurations[effect]);
+        return (int)(unchecked(_session.RealCurrentTime * 100 - EffectStartTimes[effect] * 100) / (uint)EffectDurations[effect]);
     }
 
     private void ClearFades()
@@ -111,8 +112,9 @@ public sealed partial class Graphics
     }
 
     [EngineRoutine(0x004311a0)]
-    private void UpdateEffects(Map map, bool draw)
+    private void UpdateEffects(bool draw)
     {
+        var map = _session.Map!;
         uint realTime = map.RealCurrentTime;
         bool isShown = draw && Screen is not null;
 
@@ -129,9 +131,9 @@ public sealed partial class Graphics
                     float width = left + CaptureTileSize < viewport.Right ? CaptureTileSize : viewport.Right - left;
                     float height = top + CaptureTileSize < viewport.Bottom ? CaptureTileSize : viewport.Bottom - top;
                     var area = Rectangle.FromLTRB((int)(left - viewport.Left), (int)(top - viewport.Top), (int)(left + width - viewport.Left), (int)(height + top - viewport.Top));
-                    if (texture.CopyFromSurface(Capture, area, Point.Empty, _session.Error) == 0)
+                    if (texture.CopyFromSurface(Capture, area, Point.Empty) == 0)
                     {
-                        texture.DrawFlatQuad(Screen, area, new Rectangle(0, 0, (int)width, (int)height), gamma, Blend, true);
+                        texture.DrawFlatQuad(Screen, area, new Rectangle(0, 0, (int)width, (int)height), gamma);
                     }
                 }
             }
@@ -208,7 +210,7 @@ public sealed partial class Graphics
             var target = Gamma.FromScript((uint)EffectFirst[(int)ScreenEffect.ShiftGamma]);
             if (shifted >= (uint)EffectDurations[(int)ScreenEffect.ShiftGamma])
             {
-                SetGamma(target, map);
+                SetGamma(target);
                 EffectStartTimes[(int)ScreenEffect.ShiftGamma] = 0;
                 return;
             }
@@ -232,7 +234,7 @@ public sealed partial class Graphics
                 }
             }
 
-            SetGamma(new Gamma(negative, positive), map);
+            SetGamma(new Gamma(negative, positive));
         }
     }
 

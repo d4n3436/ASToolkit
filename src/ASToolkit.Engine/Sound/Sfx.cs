@@ -10,6 +10,8 @@ internal sealed class Sfx
 
     public int Count { get; set; }
 
+    public int Id { get; private set; }
+
     public SfxRecord Record { get; private set; }
 
     [EngineRoutine(0x0041e7e0)]
@@ -22,6 +24,7 @@ internal sealed class Sfx
     public void Load(Sound sound, int id, SfxRecord record)
     {
         Release();
+        Id = id;
         Record = record;
         int variants = 0;
         for (int k = 0; k < SfxRecord.MaxSamples; k++)
@@ -82,10 +85,10 @@ internal sealed class Sfx
     }
 
     [EngineRoutine(0x0041eb30)]
-    public int Duplicate(Sound sound, int id, int voice, GameRandom random)
+    public int Duplicate(Sound sound, int voice)
     {
-        int variant = random.Next() % Count;
-        int handle = id * SfxRecord.MaxSamples + variant;
+        int variant = sound.Random.Next() % Count;
+        int handle = Id * SfxRecord.MaxSamples + variant;
         ref var original = ref Buffers[variant];
         original.References++;
 

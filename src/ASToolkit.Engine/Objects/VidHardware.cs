@@ -1,4 +1,3 @@
-using System.Diagnostics.CodeAnalysis;
 using System.Drawing;
 using System.Numerics;
 using System.Runtime.InteropServices;
@@ -42,21 +41,22 @@ public sealed class VidHardware : Vid
     /// <summary>
     /// Initializes a new instance of the <see cref="VidHardware"/> class.
     /// </summary>
+    /// <param name="map">The map.</param>
     /// <param name="id">The object ID.</param>
     /// <param name="gameObject">The object record.</param>
     /// <param name="weapons">The weapon table.</param>
     /// <param name="file">The sprite file.</param>
     /// <param name="totalFrames">The frame count of the sprite file.</param>
     /// <param name="format">The layout of the 16-bit colors that palette surfaces are converted to.</param>
-    public VidHardware(KnownObject id, in GameObject gameObject, AlienShooterWeaponRecord[] weapons, in VidResource file, int totalFrames, HighColorFormat format)
-        : base(id, gameObject, weapons, file, totalFrames)
+    public VidHardware(Map map, KnownObject id, in GameObject gameObject, AlienShooterWeaponRecord[] weapons, in VidResource file, int totalFrames, HighColorFormat format)
+        : base(map, id, gameObject, weapons, file, totalFrames)
     {
         _format = format;
     }
 
     [EngineRoutine(0x00419750)]
-    internal VidHardware(KnownObject id, Size size, AlienShooterWeaponRecord[] weapons, GameSession session)
-        : base(id, new GameObject(SpriteClass.Primitive, GroundObjectSize), weapons, Map.DefaultSpriteSpeed)
+    internal VidHardware(Map map, KnownObject id, Size size, AlienShooterWeaponRecord[] weapons)
+        : base(map, id, new GameObject(SpriteClass.Primitive, GroundObjectSize), weapons, Map.DefaultSpriteSpeed)
     {
         FileType = GroundType;
         FrameSize = size;
@@ -84,8 +84,8 @@ public sealed class VidHardware : Vid
         for (int surface = 0; surface < texture; surface += 2)
         {
             var tileSize = _tiles[surface / 2].Size;
-            _surfaces[surface] = new Texture(tileSize, VidPixelFormat.R5G6B5, TextureFlags.None, session);
-            var depths = new Texture(tileSize, VidPixelFormat.D16, TextureFlags.SystemMemory, session);
+            _surfaces[surface] = new Texture(tileSize, VidPixelFormat.R5G6B5, TextureFlags.None, _map.Session);
+            var depths = new Texture(tileSize, VidPixelFormat.D16, TextureFlags.SystemMemory, _map.Session);
             depths.Lock(null, out _).Fill(EmptyDepth);
             _surfaces[surface + 1] = depths;
         }
@@ -108,10 +108,9 @@ public sealed class VidHardware : Vid
     /// <summary>
     /// Draws a built terrain sprite into every tile it touches.
     /// </summary>
-    /// <param name="map">The map.</param>
     /// <param name="sprite">The sprite.</param>
     [EngineRoutine(0x00419b80)]
-    public override void AddVidToTextures(Map map, Sprite sprite)
+    public override void AddVidToTextures(Sprite sprite)
     {
         var vid = sprite.Vid;
         if (!FileType.HasFlag(VidType.Runs8Bit) || !FileType.HasFlag(VidType.ZBuffer) || Directions != 1 || vid.Properties.HasFlag(ObjectProperties.InvisibleForEnemy))
@@ -126,7 +125,7 @@ public sealed class VidHardware : Vid
             var tileHalf = tile.Size / 2;
             if (Math.Abs(tile.Origin.X - center.X + tile.Offset.X + tileHalf.Width) < half.Width + tileHalf.Width && Math.Abs(tile.Origin.Y - center.Y + tile.Offset.Y + tileHalf.Height) < half.Height + tileHalf.Height)
             {
-                vid.DrawToVid(map, sprite, tile, _surfaces[tile.Texture]!, _surfaces[tile.Texture + 1]!, new Rectangle(tile.Offset, tile.Size));
+                vid.DrawToVid(sprite, tile, _surfaces[tile.Texture]!, _surfaces[tile.Texture + 1]!);
             }
 
             if (tile.Next == 0)
@@ -175,11 +174,9 @@ public sealed class VidHardware : Vid
     /// Draws the tiles of a sprite frame and, if the ground has depths, copies them into the depth buffer.
     /// </summary>
     /// <param name="screen">The screen to draw to.</param>
-    /// <param name="map">The map.</param>
     /// <param name="sprite">The sprite.</param>
-    /// <param name="shift">The top left corner of the view, in map pixels.</param>
     [EngineRoutine(0x0041a7f0)]
-    public override void Draw(Screen screen, Map map, Sprite sprite, Vector2 shift)
+    public override void Draw(Screen screen, Sprite sprite)
     {
         if (_tiles.Count == 0)
             return;
@@ -189,8 +186,8 @@ public sealed class VidHardware : Vid
             return;
 
         var position = sprite.Position;
-        int x = (int)(position.X - shift.X);
-        int y = (int)(position.Y - position.Z - shift.Y);
+        int x = (int)(position.X - _map.Shift.X);
+        int y = (int)(position.Y - position.Z - _map.Shift.Y);
         int z = (int)position.Z;
         float scaleX = Scale.X;
         float scaleY = Scale.Y;
@@ -218,8 +215,8 @@ public sealed class VidHardware : Vid
         }
 
         bool hasDepth = FileType.HasFlag(VidType.ZBuffer);
-        var gamma = GetGamma(map, sprite);
-        var graphics = map.Session.Graphics;
+        var gamma = GetGamma(sprite);
+        var graphics = _map.Session.Graphics;
         if (!FileType.HasFlag(VidType.Blended))
         {
             graphics.SetRenderState(RenderState.AlphaBlendEnable, 0);
@@ -236,8 +233,8 @@ public sealed class VidHardware : Vid
         {
             if (properties.HasFlag(ObjectProperties.Blur))
             {
-                x = (int)(position.X - shift.X + (sprite.PreviousPosition.X - position.X) * iteration / iterations);
-                y = (int)(position.Y - position.Z - shift.Y + (sprite.PreviousPosition.Y - sprite.PreviousPosition.Z - position.Y + position.Z) * iteration / iterations);
+                x = (int)(position.X - _map.Shift.X + (sprite.PreviousPosition.X - position.X) * iteration / iterations);
+                y = (int)(position.Y - position.Z - _map.Shift.Y + (sprite.PreviousPosition.Y - sprite.PreviousPosition.Z - position.Y + position.Z) * iteration / iterations);
                 z = (int)((sprite.PreviousPosition.Z - position.Z) * iteration / iterations + position.Z);
             }
 
@@ -270,7 +267,7 @@ public sealed class VidHardware : Vid
                     float topDepth = z * DepthUnit + DepthBase;
                     if (properties.HasFlag(ObjectProperties.Wave) && !TopZ.IsExactlyZero())
                     {
-                        topDepth = new Angle((byte)(map.CurrentTime >> WaveTimeShift & WaveTableMask)).Sine * TopZ * DepthUnit * 0.5f + topDepth;
+                        topDepth = new Angle((byte)(_map.CurrentTime >> WaveTimeShift & WaveTableMask)).Sine * TopZ * DepthUnit * 0.5f + topDepth;
                     }
 
                     float bottomDepth;
@@ -290,7 +287,7 @@ public sealed class VidHardware : Vid
                         topDepth = FrontDepth;
                     }
 
-                    _surfaces[tile.Texture]!.DrawQuad(screen, destination, source, gamma, map.Session.Graphics.Blend, false, topDepth, bottomDepth);
+                    _surfaces[tile.Texture]!.DrawQuad(screen, destination, source, gamma, topDepth, bottomDepth);
                 }
 
                 if (tile.Next == 0)
@@ -303,7 +300,7 @@ public sealed class VidHardware : Vid
     internal override Vid CreateMirror() => new VidHardware(this);
 
     [EngineRoutine(0x00419ad0)]
-    internal override void Destruct(GameSession session)
+    internal override void Destruct()
     {
         if (NextMirror == this)
         {
@@ -312,7 +309,7 @@ public sealed class VidHardware : Vid
             {
                 if (surface < _surfaces.Length)
                 {
-                    _surfaces[surface]?.Destruct(session);
+                    _surfaces[surface]?.Destruct();
                 }
             }
 
@@ -320,17 +317,17 @@ public sealed class VidHardware : Vid
             SurfaceCount = 0;
         }
 
-        base.Destruct(session);
+        base.Destruct();
     }
 
     [EngineRoutine(0x00419d20)]
-    internal override void Load(in VidResource file, ReadOnlyMemory<byte> data, GameSession session)
+    internal override void Load(in VidResource file, ReadOnlyMemory<byte> data)
     {
         FrameSize = file.Size;
         SurfaceCount = file.SurfaceCount;
         if (!file.HasSurfaceChunk)
         {
-            Report(session.Error, LogError.Load, 0, "SURF"u8);
+            Report(LogError.Load, 0, "SURF"u8);
         }
 
         if (SurfaceCount == 0)
@@ -345,7 +342,7 @@ public sealed class VidHardware : Vid
         {
             if (i >= surfaces.Length)
             {
-                Report(session.Error, LogError.Create, 0, TextureText);
+                Report(LogError.Create, 0, TextureText);
                 return;
             }
 
@@ -365,10 +362,10 @@ public sealed class VidHardware : Vid
                 format = FileType.HasFlag(BlendedRuns) ? VidPixelFormat.A4R4G4B4 : VidPixelFormat.R5G6B5;
             }
 
-            var created = new Texture(surface.Size, format, TextureFlags.None, session);
+            var created = new Texture(surface.Size, format, TextureFlags.None, _map.Session);
             if (created.IsEmpty)
             {
-                Report(session.Error, LogError.Create, 0, TextureText);
+                Report(LogError.Create, 0, TextureText);
                 return;
             }
 
@@ -380,7 +377,7 @@ public sealed class VidHardware : Vid
             var colors = MemoryMarshal.Cast<byte, VidPackedColor>(paletteBytes);
             if (hasPalette)
             {
-                Report(session.Error, LogError.Text, format == VidPixelFormat.P8 ? 1 : 0, "palette %i"u8);
+                Report(LogError.Text, format == VidPixelFormat.P8 ? 1 : 0, "palette %i"u8);
             }
 
             if (hasPalette && format == VidPixelFormat.P8)
@@ -391,19 +388,19 @@ public sealed class VidHardware : Vid
                     palette[entry] = Graphics.PackColor(colors[entry].Red, colors[entry].Green, colors[entry].Blue);
                 }
 
-                created.SetPalette(palette, session);
+                created.SetPalette(palette);
             }
 
             if (surface.Failure == VidSurfaceFailure.Decode)
             {
-                Report(session.Error, LogError.Load, i, "Can't decode"u8);
+                Report(LogError.Load, i, "Can't decode"u8);
             }
 
             int area = surface.Size.Width * surface.Size.Height;
             var stream = surface.Data.Span;
             if (!hasPalette && surface.StreamSize < area * sizeof(ushort))
             {
-                Report(session.Error, LogError.Text, 0, "Load DXT"u8);
+                Report(LogError.Text, 0, "Load DXT"u8);
                 stream.CopyTo(MemoryMarshal.AsBytes(texels));
             }
             else
@@ -470,21 +467,21 @@ public sealed class VidHardware : Vid
 
                 var depthSurface = surfaces[i];
                 var surfaceSize = surface.Size;
-                var depths = new Texture(surfaceSize, VidPixelFormat.D16, TextureFlags.SystemMemory, session);
+                var depths = new Texture(surfaceSize, VidPixelFormat.D16, TextureFlags.SystemMemory, _map.Session);
                 var depthSize = depths.Size;
                 if (depths.IsEmpty)
                 {
-                    Report(session.Error, LogError.Create, 0, TextureText);
+                    Report(LogError.Create, 0, TextureText);
                 }
                 else if (depthSurface.StreamSize != surfaceSize.Height * depthSize.Width * sizeof(ushort))
                 {
-                    Report(session.Error, LogError.Load, depthSurface.StreamSize, "ZBuffer: invalid size"u8);
+                    Report(LogError.Load, depthSurface.StreamSize, "ZBuffer: invalid size"u8);
                 }
                 else
                 {
                     if (depthSurface.Failure == VidSurfaceFailure.DepthDecode)
                     {
-                        Report(session.Error, LogError.Load, depthSurface.DecodedSize, "Can't decode z"u8);
+                        Report(LogError.Load, depthSurface.DecodedSize, "Can't decode z"u8);
                     }
 
                     depthSurface.Data.Span.CopyTo(MemoryMarshal.AsBytes(depths.Lock(null, out _)));
@@ -496,12 +493,12 @@ public sealed class VidHardware : Vid
 
         if (file.FrameRecords.Length == 0)
         {
-            Report(session.Error, LogError.Load, 0, "DATA"u8);
+            Report(LogError.Load, 0, "DATA"u8);
         }
 
         if (file.Type.HasFlag(VidType.CurrentVersion) && file.TextureFrameCount == 0)
         {
-            Report(session.Error, LogError.Load, 0, "tex_coor"u8);
+            Report(LogError.Load, 0, "tex_coor"u8);
         }
 
         for (int i = 0; i < file.TextureFrameCount; i++)

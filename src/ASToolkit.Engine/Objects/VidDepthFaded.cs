@@ -1,5 +1,4 @@
 using System.Drawing;
-using System.Numerics;
 using System.Runtime.InteropServices;
 using ASToolkit.Core;
 using ASToolkit.Formats;
@@ -22,14 +21,15 @@ public sealed class VidDepthFaded : VidSoftware
     /// <summary>
     /// Initializes a new instance of the <see cref="VidDepthFaded"/> class.
     /// </summary>
+    /// <param name="map">The map.</param>
     /// <param name="id">The object ID.</param>
     /// <param name="gameObject">The object record.</param>
     /// <param name="weapons">The weapon table.</param>
     /// <param name="file">The sprite file.</param>
     /// <param name="totalFrames">The frame count of the sprite file.</param>
     /// <param name="format">The channel layout of the 16-bit back buffer.</param>
-    public VidDepthFaded(KnownObject id, in GameObject gameObject, AlienShooterWeaponRecord[] weapons, in VidResource file, int totalFrames, HighColorFormat format)
-        : base(id, gameObject, weapons, file, totalFrames, format)
+    public VidDepthFaded(Map map, KnownObject id, in GameObject gameObject, AlienShooterWeaponRecord[] weapons, in VidResource file, int totalFrames, HighColorFormat format)
+        : base(map, id, gameObject, weapons, file, totalFrames, format)
     {
     }
 
@@ -107,23 +107,21 @@ public sealed class VidDepthFaded : VidSoftware
     /// Draws a sprite, faded by the depth buffer.
     /// </summary>
     /// <param name="screen">The screen to draw to.</param>
-    /// <param name="map">The map.</param>
     /// <param name="sprite">The sprite.</param>
-    /// <param name="shift">The top left corner of the view, in map pixels.</param>
     [EngineRoutine(0x0041b0e0)]
-    public override void Draw(Screen screen, Map map, Sprite sprite, Vector2 shift)
+    public override void Draw(Screen screen, Sprite sprite)
     {
         if (IsHidden)
             return;
 
         var viewport = screen.Viewport;
-        var origin = new Point((int)(sprite.Position.X - shift.X - FrameSize.Center.X), (int)(sprite.Position.Y - sprite.Position.Z - shift.Y - FrameSize.Center.Y));
-        if (!TryLocateFrame(map, sprite, viewport, ref origin, out int z, out var rows))
+        var origin = new Point((int)(sprite.Position.X - _map.Shift.X - FrameSize.Center.X), (int)(sprite.Position.Y - sprite.Position.Z - _map.Shift.Y - FrameSize.Center.Y));
+        if (!TryLocateFrame(sprite, viewport, ref origin, out int z, out var rows))
             return;
 
         var runs = new RunWalker(Frames, rows, origin.X, FrameSize.Width, viewport, FadedPixelSize);
         int rowCount = runs.End - runs.Top;
-        var alpha = map.Session.Graphics.AlphaTexture;
+        var alpha = _map.Session.Graphics.AlphaTexture;
         int scratchWidth = alpha.Size.Width;
         var scratch = alpha.Lock(null, out _);
         scratch[..(rowCount * scratchWidth)].Clear();
@@ -148,12 +146,12 @@ public sealed class VidDepthFaded : VidSoftware
             }
         }
 
-        var gamma = GetGamma(map, sprite);
+        var gamma = GetGamma(sprite);
         var destination = Rectangle.FromLTRB(origin.X, runs.Top, origin.X + FrameSize.Width, runs.End);
         var source = new Rectangle(0, 0, FrameSize.Width, rowCount);
-        var graphics = map.Session.Graphics;
+        var graphics = _map.Session.Graphics;
         graphics.SetAlphaBlend(BlendFactor.SourceAlpha, BlendFactor.One);
-        alpha.DrawFlatQuad(screen, destination, source, gamma, graphics.Blend);
+        alpha.DrawFlatQuad(screen, destination, source, gamma);
     }
 
     /// <inheritdoc/>
@@ -183,5 +181,5 @@ public sealed class VidDepthFaded : VidSoftware
     internal override Vid CreateMirror() => new VidDepthFaded(this);
 
     [EngineRoutine(0x004127e0)]
-    internal override void SetGamma(Gamma gamma, int army, Gamma ambient, GameSession session) => StoreGamma(gamma, army, session.Error);
+    internal override void SetGamma(Gamma gamma, int army) => StoreGamma(gamma, army);
 }

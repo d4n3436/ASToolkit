@@ -1,5 +1,4 @@
 using System.Drawing;
-using System.Numerics;
 using System.Runtime.InteropServices;
 using ASToolkit.Core;
 using ASToolkit.Formats;
@@ -14,14 +13,15 @@ public sealed class VidHighColor : VidSoftware
     /// <summary>
     /// Initializes a new instance of the <see cref="VidHighColor"/> class.
     /// </summary>
+    /// <param name="map">The map.</param>
     /// <param name="id">The object ID.</param>
     /// <param name="gameObject">The object record.</param>
     /// <param name="weapons">The weapon table.</param>
     /// <param name="file">The sprite file.</param>
     /// <param name="totalFrames">The frame count of the sprite file.</param>
     /// <param name="format">The channel layout of the 16-bit back buffer.</param>
-    public VidHighColor(KnownObject id, in GameObject gameObject, AlienShooterWeaponRecord[] weapons, in VidResource file, int totalFrames, HighColorFormat format)
-        : base(id, gameObject, weapons, file, totalFrames, format)
+    public VidHighColor(Map map, KnownObject id, in GameObject gameObject, AlienShooterWeaponRecord[] weapons, in VidResource file, int totalFrames, HighColorFormat format)
+        : base(map, id, gameObject, weapons, file, totalFrames, format)
     {
     }
 
@@ -72,36 +72,32 @@ public sealed class VidHighColor : VidSoftware
     /// Draws a sprite with 16-bit pixels from its runs.
     /// </summary>
     /// <param name="screen">The screen to draw to.</param>
-    /// <param name="map">The map.</param>
     /// <param name="sprite">The sprite.</param>
-    /// <param name="shift">The top left corner of the view, in map pixels.</param>
     [EngineRoutine(0x00417780)]
-    public override void Draw(Screen screen, Map map, Sprite sprite, Vector2 shift)
+    public override void Draw(Screen screen, Sprite sprite)
     {
         if (IsHidden)
             return;
 
-        var origin = GetScreenOrigin(sprite, shift);
-        if (!TryLocateFrame(map, sprite, screen.Viewport, ref origin, out int depth, out var rows))
+        var origin = GetScreenOrigin(sprite);
+        if (!TryLocateFrame(sprite, screen.Viewport, ref origin, out int depth, out var rows))
             return;
 
-        map.Session.Graphics.LockDepth();
+        _map.Session.Graphics.LockDepth();
         Span<byte> scratch = stackalloc byte[PaletteScratchSize];
         var target = new RunTarget<ushort>(screen.HighColorPixels, screen.Pitch, screen.Depth, screen.DepthWidth, screen.Viewport, screen.Format);
-        DrawRuns(target, SelectPalette(map, sprite, scratch), origin, depth, rows);
+        DrawRuns(target, SelectPalette(sprite, scratch), origin, depth, rows);
     }
 
     /// <summary>
     /// Draws a sprite with 16-bit pixels into the color and depth of a tile of the hardware ground.
     /// </summary>
-    /// <param name="map">The map.</param>
     /// <param name="sprite">The sprite.</param>
     /// <param name="tile">The tile.</param>
     /// <param name="colorTexture">The color texture of <paramref name="tile"/>.</param>
     /// <param name="depthTexture">The depth texture of <paramref name="tile"/>.</param>
-    /// <param name="tileViewport">The area of the textures that is drawn to, in texels.</param>
     [EngineRoutine(0x00418940)]
-    public override void DrawToVid(Map map, Sprite sprite, HardwareTile tile, Texture colorTexture, Texture depthTexture, Rectangle tileViewport)
+    public override void DrawToVid(Sprite sprite, HardwareTile tile, Texture colorTexture, Texture depthTexture)
     {
         if (IsHidden)
             return;
@@ -113,7 +109,8 @@ public sealed class VidHighColor : VidSoftware
         worldY -= tile.Origin.Y;
         worldY -= tile.Offset.Y;
         var origin = new Point((int)worldX, (int)worldY);
-        if (!TryLocateFrame(map, sprite, tileViewport, ref origin, out int depth, out var rows))
+        var tileViewport = new Rectangle(tile.Offset, tile.Size);
+        if (!TryLocateFrame(sprite, tileViewport, ref origin, out int depth, out var rows))
             return;
 
         var target = new RunTarget<ushort>(colorTexture.Lock(null, out _), colorTexture.Size.Width, depthTexture.Lock(null, out _), depthTexture.Size.Width, tileViewport, Format);

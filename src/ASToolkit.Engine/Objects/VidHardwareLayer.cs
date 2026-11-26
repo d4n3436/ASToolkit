@@ -23,13 +23,14 @@ public sealed class VidHardwareLayer : Vid
     /// <summary>
     /// Initializes a new instance of the <see cref="VidHardwareLayer"/> class from a sprite file.
     /// </summary>
+    /// <param name="map">The map.</param>
     /// <param name="id">The object ID.</param>
     /// <param name="gameObject">The object record.</param>
     /// <param name="weapons">The weapon table.</param>
     /// <param name="file">The sprite file.</param>
     /// <param name="totalFrames">The frame count of the sprite file.</param>
-    public VidHardwareLayer(KnownObject id, in GameObject gameObject, AlienShooterWeaponRecord[] weapons, in VidResource file, int totalFrames)
-        : base(id, gameObject, weapons, file, totalFrames)
+    public VidHardwareLayer(Map map, KnownObject id, in GameObject gameObject, AlienShooterWeaponRecord[] weapons, in VidResource file, int totalFrames)
+        : base(map, id, gameObject, weapons, file, totalFrames)
     {
     }
 
@@ -64,11 +65,9 @@ public sealed class VidHardwareLayer : Vid
     /// Draws a sprite with the frames of this object ID as meshes placed by the position, scale and offset of the sprite.
     /// </summary>
     /// <param name="screen">The screen to draw to.</param>
-    /// <param name="map">The map.</param>
     /// <param name="sprite">The sprite.</param>
-    /// <param name="shift">The top left corner of the view, in map pixels.</param>
     [EngineRoutine(0x0041bdf0)]
-    public override void Draw(Screen screen, Map map, Sprite sprite, Vector2 shift)
+    public override void Draw(Screen screen, Sprite sprite)
     {
         if (IsHidden)
             return;
@@ -81,8 +80,8 @@ public sealed class VidHardwareLayer : Vid
         if (!Properties.HasFlag(ObjectProperties.AlwaysTop) && !hasDepth)
         {
             seed = (uint)BitConverter.SingleToInt32Bits(position.Z);
-            float screenX = position.X - shift.X;
-            float screenY = position.Y - position.Z - shift.Y;
+            float screenX = position.X - _map.Shift.X;
+            float screenY = position.Y - position.Z - _map.Shift.Y;
             if (screenX < viewport.Left || screenX >= viewport.Right || screenY < viewport.Top || screenY >= viewport.Bottom || screen.Depth[screen.DepthWidth * (int)screenY + (int)screenX] > (int)position.Z * 8 + DepthBias)
                 return;
         }
@@ -122,10 +121,10 @@ public sealed class VidHardwareLayer : Vid
         var gamma = new Gamma(seed, 0).Add(sprite.GetGamma());
         if (!Properties.HasFlag(ObjectProperties.Gamma))
         {
-            gamma = gamma.Add(map.Session.Graphics.Gamma);
+            gamma = gamma.Add(_map.Session.Graphics.Gamma);
         }
 
-        var graphics = map.Session.Graphics;
+        var graphics = _map.Session.Graphics;
         if (FileType.HasFlag(VidType.Blended))
         {
             graphics.SetAlphaBlend(BlendFactor.SourceAlpha, BlendFactor.InverseSourceAlpha);
@@ -135,15 +134,17 @@ public sealed class VidHardwareLayer : Vid
             graphics.SetRenderState(RenderState.AlphaBlendEnable, 0);
         }
 
-        var transform = world * Graphics.CreateView(shift, viewport) * map.Session.Graphics.Projection;
-        Meshes[sprite.Frame].Draw(screen, Textures[sprite.Frame]!.View, transform, graphics.Blend, ~gamma.Negative);
+        graphics.WorldTransform = world;
+        graphics.ViewTransform = Graphics.CreateView(_map.Shift, viewport);
+        graphics.SetRenderState(RenderState.TextureFactor, ~gamma.Negative);
+        Meshes[sprite.Frame].Draw(screen);
     }
 
     [EngineRoutine(0x004128a0)]
     internal override Vid CreateMirror() => new VidHardwareLayer(this);
 
     [EngineRoutine(0x0041b990)]
-    internal override void Destruct(GameSession session)
+    internal override void Destruct()
     {
         if (NextMirror == this)
         {
@@ -166,18 +167,18 @@ public sealed class VidHardwareLayer : Vid
                 if (isRepeated)
                     continue;
 
-                texture.Destruct(session);
+                texture.Destruct();
             }
 
             Textures = [];
             Meshes = [];
         }
 
-        base.Destruct(session);
+        base.Destruct();
     }
 
     [EngineRoutine(0x0041baf0)]
-    internal override void Load(in VidResource file, ReadOnlyMemory<byte> data, GameSession session)
+    internal override void Load(in VidResource file, ReadOnlyMemory<byte> data)
     {
         Format = file.Format;
         ReadOnlySpan<uint> palette = default;
@@ -185,7 +186,7 @@ public sealed class VidHardwareLayer : Vid
         {
             if (file.Palette.IsEmpty)
             {
-                Report(session.Error, LogError.Load, 0, "PAL "u8);
+                Report(LogError.Load, 0, "PAL "u8);
             }
 
             palette = MemoryMarshal.Cast<byte, uint>(file.Palette.Span[..Math.Min(file.Palette.Length, PaletteSize)]);
@@ -194,7 +195,7 @@ public sealed class VidHardwareLayer : Vid
         var records = file.FrameRecords;
         if (records.IsEmpty)
         {
-            Report(session.Error, LogError.Load, 0, "DATA"u8);
+            Report(LogError.Load, 0, "DATA"u8);
         }
 
         int frameCount = Math.Min(FileFrameCount, records.Length);
@@ -225,7 +226,7 @@ public sealed class VidHardwareLayer : Vid
                 flags |= TextureFlags.AlphaPalette;
             }
 
-            var texture = new Texture(texels.Span, size, Format, palette, flags, session);
+            var texture = new Texture(texels.Span, size, Format, palette, flags, _map.Session);
             Textures[frame] = texture;
             size = texture.Size;
             ref readonly var mesh = ref MemoryMarshal.AsRef<VidLayerMeshHeader>(record[position..]);
@@ -242,7 +243,7 @@ public sealed class VidHardwareLayer : Vid
 
             ushort[] indexes = new ushort[Math.Max(mesh.IndexCount, 0)];
             MemoryMarshal.Cast<byte, ushort>(record[position..])[..indexes.Length].CopyTo(indexes);
-            Meshes[frame] = new HardwareLayerMesh(vertices, indexes);
+            Meshes[frame] = new HardwareLayerMesh(vertices, indexes, texture);
         }
     }
 }

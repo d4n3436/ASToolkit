@@ -32,17 +32,18 @@ public sealed partial class Graphics
     }
 
     [EngineRoutine(0x00433da0)]
-    internal void Box(Map map, Vector2 topLeft, Vector2 bottomRight, uint color)
+    internal void Box(Vector2 topLeft, Vector2 bottomRight, uint color)
     {
-        WuLine(map, topLeft, bottomRight with { Y = topLeft.Y }, color);
-        WuLine(map, topLeft with { Y = bottomRight.Y }, bottomRight, color);
-        WuLine(map, topLeft, topLeft with { Y = bottomRight.Y }, color);
-        WuLine(map, bottomRight with { Y = topLeft.Y }, bottomRight, color);
+        WuLine(topLeft, bottomRight with { Y = topLeft.Y }, color);
+        WuLine(topLeft with { Y = bottomRight.Y }, bottomRight, color);
+        WuLine(topLeft, topLeft with { Y = bottomRight.Y }, color);
+        WuLine(bottomRight with { Y = topLeft.Y }, bottomRight, color);
     }
 
     [EngineRoutine(0x00433e10)]
-    internal void WuLine(Map map, Vector2 start, Vector2 end, uint color)
+    internal void WuLine(Vector2 start, Vector2 end, uint color)
     {
+        var map = _session.Map!;
         start.X = ClampLineCoordinate(map, start.X, "x in Line"u8);
         end.X = ClampLineCoordinate(map, end.X, "x1 in Line"u8);
         start.Y = ClampLineCoordinate(map, start.Y, "y in Line"u8);

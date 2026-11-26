@@ -63,7 +63,7 @@ public partial class Map
                     if (!IsInViewport(viewport, start) && !IsInViewport(viewport, end))
                         continue;
 
-                    Session.Graphics.WuLine(this, start, end, Gray);
+                    Session.Graphics.WuLine(start, end, Gray);
                 }
             }
 
@@ -100,22 +100,13 @@ public partial class Map
 
     private static bool IsInViewport(Rectangle viewport, Vector2 point) => viewport.Left <= point.X && point.X < viewport.Right && viewport.Top <= point.Y && point.Y < viewport.Bottom;
 
-    [EngineRoutine(0x0043ac40)]
-    private void DrawGroup(Group group, int index)
-    {
-        foreach (var member in group)
-        {
-            Session.Graphics.DrawFormattedText(GetScreenPoint(member), $"{index}");
-        }
-    }
-
     [EngineRoutine(0x0043ae50)]
     private void DrawGroups()
     {
         int index = 0;
         foreach (var group in Groups)
         {
-            DrawGroup(group, index++);
+            group.Draw(index++);
         }
     }
 }

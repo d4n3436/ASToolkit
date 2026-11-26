@@ -9,6 +9,7 @@ internal enum RenderState
     DitherEnable = 26,
     AlphaBlendEnable = 27,
     SpecularEnable = 29,
+    TextureFactor = 60,
     Lighting = 137,
     LocalViewer = 142
 }

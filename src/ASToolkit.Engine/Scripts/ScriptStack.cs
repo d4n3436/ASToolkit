@@ -147,8 +147,9 @@ public struct ScriptStack
     public readonly ReadOnlyMemory<byte> GetText() => Flags.HasFlag(ScriptStackFlags.Number) ? FormatNumber(Value) : Text;
 
     [EngineRoutine(0x004245e0)]
-    internal void BinarOperator(ScriptOpcode opcode, in ScriptStack right, MyError? error)
+    internal bool BinarOperator(ScriptOpcode opcode, in ScriptStack right)
     {
+        bool isKnown = true;
         int value = right.GetValue();
         bool areTexts = Flags.HasFlag(ScriptStackFlags.Text) && right.Flags.HasFlag(ScriptStackFlags.Text);
         if (Flags.HasFlag(ScriptStackFlags.Text))
@@ -171,7 +172,7 @@ public struct ScriptStack
                 right.Text.Span.CopyTo(joined.AsSpan(Text.Length));
                 Text = joined;
                 Flags = ScriptStackFlags.Text;
-                return;
+                return true;
             case ScriptOpcode.Add:
                 Value = unchecked(current + value);
                 break;
@@ -221,10 +222,12 @@ public struct ScriptStack
                 Value = current << (value & 31);
                 break;
             default:
-                error?.Log($"!!!ERROE!!!LOGIC::Unknown Binary command {(int)opcode}");
+                isKnown = false;
                 break;
         }
 
         Flags = ScriptStackFlags.Number;
+
+        return isKnown;
     }
 }

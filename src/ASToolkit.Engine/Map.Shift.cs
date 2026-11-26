@@ -58,7 +58,7 @@ public partial class Map
 
         if (move == ShiftMove.Smooth)
         {
-            Session.Graphics.Effect(this, (int)ScreenEffect.Scroll, (int)center.X, (int)center.Y, 0);
+            Session.Graphics.Effect((int)ScreenEffect.Scroll, (int)center.X, (int)center.Y, 0);
 
             return;
         }
@@ -75,15 +75,6 @@ public partial class Map
 
         Input.Cursor += delta;
     }
-
-    private static float GetLead(float cursor, float low, float high) => low > cursor ? low : cursor > high ? high : cursor;
-
-    private static float Accelerate(float speed, float limit, int direction, float acceleration) => direction switch
-    {
-        < 0 => -limit < speed ? speed - acceleration : speed,
-        > 0 => speed < limit ? speed + acceleration : speed,
-        _ => 0
-    };
 
     [EngineRoutine(0x0040bed0)]
     private protected void ControlShiftCoordinates()
@@ -141,4 +132,13 @@ public partial class Map
         float elapsed = (uint)FrameTime;
         SetShiftCoordinates(screen * HalfShare + Vector2.Truncate(elapsed * speed) + Shift, ShiftMove.None);
     }
+
+    private static float GetLead(float cursor, float low, float high) => low > cursor ? low : cursor > high ? high : cursor;
+
+    private static float Accelerate(float speed, float limit, int direction, float acceleration) => direction switch
+    {
+        < 0 => -limit < speed ? speed - acceleration : speed,
+        > 0 => speed < limit ? speed + acceleration : speed,
+        _ => 0
+    };
 }

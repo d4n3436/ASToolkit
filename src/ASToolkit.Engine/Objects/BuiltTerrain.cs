@@ -25,7 +25,7 @@ public sealed class BuiltTerrain : Sprite
             Map.CreateEmptyHardwareGround();
         }
 
-        Map.HardwareGroundVid.AddVidToTextures(Map, this);
+        Map.HardwareGroundVid.AddVidToTextures(this);
 
         if (Map.IsBaked(Vid))
         {
@@ -37,15 +37,13 @@ public sealed class BuiltTerrain : Sprite
     /// Draws the sprite unless the hardware ground holds the terrain.
     /// </summary>
     /// <param name="screen">The screen to draw to.</param>
-    /// <param name="map">The map.</param>
-    /// <param name="shift">The top left corner of the view, in map pixels.</param>
     [EngineRoutine(0x0040eed0)]
-    public override void Draw(Screen screen, Map map, Vector2 shift)
+    public override void Draw(Screen screen)
     {
-        var ground = map.HardwareGroundVid;
-        if (ground != map.EmptyVid && ground.Directions == 1)
+        var ground = Map.HardwareGroundVid;
+        if (ground != Map.EmptyVid && ground.Directions == 1)
             return;
 
-        base.Draw(screen, map, shift);
+        base.Draw(screen);
     }
 }

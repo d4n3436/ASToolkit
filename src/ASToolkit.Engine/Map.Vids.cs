@@ -37,11 +37,6 @@ public partial class Map
 
 
     /// <summary>
-    /// Gets a value indicating whether object IDs of the built terrain class are loaded as terrain.
-    /// </summary>
-    public bool ShouldResetBuiltTerrain => Session.HasAppMenu;
-
-    /// <summary>
     /// Gets the sprite parts of the object IDs.
     /// </summary>
     public SpritePartReader Parts { get; }
@@ -49,7 +44,7 @@ public partial class Map
     /// <summary>
     /// Gets the shared data, without frames, of the cursor and goal sprites.
     /// </summary>
-    public Vid EmptyVid { get; } = ASToolkit.Engine.Vid.CreateDefault();
+    public Vid EmptyVid { get; }
 
     internal ReadOnlySpan<Vid?> Vids => _vids.AsSpan(0, _vidCount);
 
@@ -134,8 +129,8 @@ public partial class Map
             }
         }
 
-        var objectsFile = new Resource();
-        if (OpenObjects(FileSystem, Session.Error, ref objectsFile) != 0)
+        var objectsFile = new Resource(Session.Error);
+        if (OpenObjects(FileSystem, ref objectsFile) != 0)
         {
             Session.Error.Error(MapLogTag, LogError.Open, 0, "resource file"u8);
             return;
@@ -173,7 +168,7 @@ public partial class Map
             _objects.TryFind(id, out var gameObject);
             target.SetWeapons(_weapons!);
             target.Name = GetVidName(target);
-            target.LoadParameters(gameObject, Session.Error, Sound, ShouldResetBuiltTerrain);
+            target.LoadParameters(gameObject);
         }
 
         foreach (var vid in Vids)
@@ -276,23 +271,23 @@ public partial class Map
 
         if (link != 0 && !ValidateVid(link))
         {
-            vid.Report(Session.Error, LogError.Invalid, link, "LinkVid"u8);
+            vid.Report(LogError.Invalid, link, "LinkVid"u8);
         }
 
         foreach (int child in vid.Children)
         {
             if (child != 0 && !ValidateVid(Math.Abs(child)))
             {
-                vid.Report(Session.Error, LogError.Invalid, child, "child"u8);
+                vid.Report(LogError.Invalid, child, "child"u8);
             }
         }
     }
 
-    private static void LogUnopened(MyError? error, string path) => error?.Log($"LOAD::Can't open file {path}");
+    private void LogUnopened(string path) => Session.Error.Log($"LOAD::Can't open file {path}");
 
-    private static ReadOnlyMemory<byte> ConvertPicture(string gameFolder, string path, bool isText, MyError? error)
+    private ReadOnlyMemory<byte> ConvertPicture(string path, bool isText, MyError? error)
     {
-        using var picture = isText ? new FontPicture(gameFolder, error) : new Picture(gameFolder, error);
+        using var picture = isText ? new FontPicture(_gameFolder, error) : new Picture(_gameFolder, error);
         return picture.Load(path, string.Empty, string.Empty) ? picture.Convert() : default;
     }
 
@@ -316,9 +311,6 @@ public partial class Map
         }
 
         int existing = _vidCount;
-        var screen = Session.Graphics.Screen;
-        bool isTrueColor = screen?.IsTrueColor ?? true;
-        var format = screen?.Format ?? HighColorFormat.Rgb565;
         do
         {
             int id = resource.Read<int>();
@@ -330,12 +322,12 @@ public partial class Map
 
             if (_vids[id] is not null)
             {
-                _vids[id]!.Destruct(Session);
+                _vids[id]!.Destruct();
                 _vids[id] = null;
                 Session.Error.Error(MapLogTag, LogError.Load, id, "this VID already loaded"u8);
             }
 
-            var vid = CreateVid(ref resource, (KnownObject)id, isTrueColor, format);
+            var vid = CreateVid(ref resource, (KnownObject)id);
             _vids[id] = vid;
             if (vid is null)
                 continue;
@@ -352,10 +344,10 @@ public partial class Map
 
             if (vid.WeaponIndex >= _weaponCount)
             {
-                vid.Report(Session.Error, LogError.Text, vid.WeaponIndex, "nWeapon > noWeapon"u8);
+                vid.Report(LogError.Text, vid.WeaponIndex, "nWeapon > noWeapon"u8);
             }
 
-            Session.Graphics.DrawLoadBar(this, _vids[0]);
+            Session.Graphics.DrawLoadBar(_vids[0]);
         }
         while (resource.GoNextSub(ObjectChunkTag) == Resource.Found);
 
@@ -375,7 +367,7 @@ public partial class Map
     [EngineRoutine(0x00411880)]
     private void LoadWeaponRecords(ref Resource resource)
     {
-        _weapons = resource.Load<AlienShooterWeaponRecord>("WEAP"u8, Session.Error);
+        _weapons = resource.Load<AlienShooterWeaponRecord>("WEAP"u8);
         _weaponCount = _weapons.Length;
         for (int i = 0; i < _weaponCount; i++)
         {
@@ -396,13 +388,16 @@ public partial class Map
     }
 
     [EngineRoutine(0x00411b50)]
-    private Vid? CreateVid(ref Resource resource, KnownObject id, bool isTrueColor, HighColorFormat format)
+    private Vid? CreateVid(ref Resource resource, KnownObject id)
     {
+        var screen = Session.Graphics.Screen;
+        bool isTrueColor = screen?.IsTrueColor ?? true;
+        var format = screen?.Format ?? HighColorFormat.Rgb565;
         string name = GameTextEncoding.Cyrillic.GetString(resource.ReadText());
         var gameObject = _objects.ReadObject(resource.Read<byte>(_objects.ObjectSize));
         string path = Encoding.ASCII.GetString(resource.ReadText());
-        var temporary = ASToolkit.Engine.Vid.CreateEmpty(KnownObject.None, gameObject, DefaultSpriteSpeed, ObjectLayer.Menu);
-        temporary.LoadParameters(gameObject, Session.Error, Sound, ShouldResetBuiltTerrain);
+        var temporary = ASToolkit.Engine.Vid.CreateEmpty(this, KnownObject.None, gameObject, DefaultSpriteSpeed, ObjectLayer.Menu);
+        temporary.LoadParameters(gameObject);
         Vid? source = null;
         bool isBuiltTerrain = temporary.Class == SpriteClass.BuiltTerrain;
         foreach (var existing in Vids)
@@ -429,7 +424,7 @@ public partial class Map
             mirror.RecordId = id;
             mirror.Name = name;
             mirror.Path = path;
-            mirror.LoadParameters(gameObject, Session.Error, Sound, ShouldResetBuiltTerrain);
+            mirror.LoadParameters(gameObject);
             mirror.SetLayer();
 
             return mirror;
@@ -441,9 +436,9 @@ public partial class Map
         {
             if (path.Contains(FontExtension, StringComparison.Ordinal) || path.Contains(TrueTypeExtension, StringComparison.Ordinal))
             {
-                var font = new VidFont(id, gameObject, _weapons!, DefaultMaxTextureSize);
+                var font = new VidFont(this, id, gameObject, _weapons!, DefaultMaxTextureSize);
                 PrepareVid(font, gameObject, name, path);
-                font.Load(default, default, Session);
+                font.Load(default, default);
                 font.SetLayer();
                 return font;
             }
@@ -453,13 +448,13 @@ public partial class Map
                 var key = (Path.GetFullPath(Path.Combine(_gameFolder, path)), isText);
                 if (!Session.ConvertedPictures.TryGetValue(key, out data))
                 {
-                    data = ConvertPicture(_gameFolder, path, isText, null);
+                    data = ConvertPicture(path, isText, null);
                     Session.ConvertedPictures.Add(key, data);
                 }
                 if (data.IsEmpty)
                 {
-                    ConvertPicture(_gameFolder, path, isText, Session.Error);
-                    LogUnopened(Session.Error, path);
+                    ConvertPicture(path, isText, Session.Error);
+                    LogUnopened(path);
                 }
             }
         }
@@ -471,9 +466,9 @@ public partial class Map
 
         if (file is null)
         {
-            new Resource().Open(new GameFolder(_gameFolder), Session.Error, Encoding.ASCII.GetBytes(path), Resource.AnyTag);
+            new Resource(Session.Error).Open(new GameFolder(_gameFolder), Encoding.ASCII.GetBytes(path), Resource.AnyTag);
 
-            LogUnopened(Session.Error, path);
+            LogUnopened(path);
             return null;
         }
 
@@ -485,41 +480,41 @@ public partial class Map
         ReadOnlyMemory<byte> bytes = default;
         if (type.HasFlag(VidType.HardwareLayer))
         {
-            vid = new VidHardwareLayer(id, gameObject, _weapons!, sprite, totalFrames);
+            vid = new VidHardwareLayer(this, id, gameObject, _weapons!, sprite, totalFrames);
         }
         else if (type.HasFlag(VidType.Light))
         {
             bytes = data.IsEmpty ? GetVidBytes(path) : data;
-            vid = new VidLight(id, gameObject, _weapons!, sprite, totalFrames);
+            vid = new VidLight(this, id, gameObject, _weapons!, sprite, totalFrames);
         }
         else if (type.HasFlag(VidType.Hardware) && !(type.HasFlag(VidType.Blended) && type.HasFlag(VidType.ZBuffer)))
         {
-            vid = new VidHardware(id, gameObject, _weapons!, sprite, totalFrames, format);
+            vid = new VidHardware(this, id, gameObject, _weapons!, sprite, totalFrames, format);
         }
         else
         {
             bytes = data.IsEmpty ? GetVidBytes(path) : data;
             if (type.HasFlag(VidType.Hardware))
             {
-                vid = new VidDepthFaded(id, gameObject, _weapons!, sprite, totalFrames, format);
+                vid = new VidDepthFaded(this, id, gameObject, _weapons!, sprite, totalFrames, format);
             }
             else if (gameObject.SpriteClass == SpriteClass.BuiltTerrain || !isTrueColor)
             {
-                vid = new VidHighColor(id, gameObject, _weapons!, sprite, totalFrames, format);
+                vid = new VidHighColor(this, id, gameObject, _weapons!, sprite, totalFrames, format);
             }
             else
             {
-                vid = new VidSoftware(id, gameObject, _weapons!, sprite, totalFrames, format);
+                vid = new VidSoftware(this, id, gameObject, _weapons!, sprite, totalFrames, format);
             }
         }
 
         PrepareVid(vid, gameObject, name, path);
-        vid.Load(sprite, bytes, Session);
+        vid.Load(sprite, bytes);
         if (vid is VidHardware hardware)
         {
             for (int surface = 0; surface < hardware.SurfaceCount; surface++)
             {
-                Session.Graphics.DrawLoadBar(this, Vid(0));
+                Session.Graphics.DrawLoadBar(Vid(0));
             }
         }
 
@@ -539,6 +534,6 @@ public partial class Map
     {
         vid.Name = name;
         vid.Path = path;
-        vid.LoadParameters(record, Session.Error, Sound, ShouldResetBuiltTerrain);
+        vid.LoadParameters(record);
     }
 }

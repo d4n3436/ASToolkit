@@ -4,11 +4,14 @@ namespace ASToolkit.Engine;
 
 internal struct SfxBuffer
 {
-    public SfxBuffer(int id, int buffer)
+    public SfxBuffer(int index, int id, int buffer)
     {
+        Index = index;
         Id = id;
         Buffer = buffer;
     }
+
+    public int Index { get; }
 
     public int Id { get; set; }
 
@@ -37,7 +40,7 @@ internal struct SfxBuffer
     }
 
     [EngineRoutine(0x0041e560)]
-    public void Play(Sound sound, int index, int pan, int volume, int time, uint realTime)
+    public void Play(Sound sound, int pan, int volume)
     {
         if (Id < 0 || Buffer == Sound.NoBuffer)
             return;
@@ -45,73 +48,73 @@ internal struct SfxBuffer
         Volume = volume;
         Pan = pan;
         ref var buffer = ref sound.GetBuffer(Buffer);
-        sound.Device?.SetVoicePan(index, pan);
+        sound.Device?.SetVoicePan(Index, pan);
         buffer.Pan = pan;
-        sound.Device?.SetVoiceVolume(index, volume);
+        sound.Device?.SetVoiceVolume(Index, volume);
         buffer.Volume = volume;
 
         if (!IsPlaying)
         {
             bool isLooping = sound.IsLooped(Id);
 
-            if (sound.Device?.PlayVoice(index, isLooping) ?? false)
+            if (sound.Device?.PlayVoice(Index, isLooping) ?? false)
             {
                 sound.Error?.Error($"SFXBUFFER[{Id}]", LogError.Text, 0, "buffer is lost"u8);
                 sound.ReloadBuffers();
             }
             else
             {
-                buffer.Play(isLooping, realTime);
+                buffer.Play(isLooping, sound.RealTime);
             }
         }
 
         IsPlaying = true;
-        Start = time;
+        Start = sound.Time;
     }
 
     [EngineRoutine(0x0041e650)]
-    public void Resume(Sound sound, int index, uint realTime)
+    public void Resume(Sound sound)
     {
         if (Id < 0 || Buffer == Sound.NoBuffer || !IsPlaying)
             return;
 
         bool isLooping = sound.IsLooped(Id);
 
-        if (sound.Device?.PlayVoice(index, isLooping) ?? false)
+        if (sound.Device?.PlayVoice(Index, isLooping) ?? false)
         {
             sound.Error?.Log("!!!ERROR!!! SFXBUFFER::buffer is lost"u8);
             sound.ReloadBuffers();
         }
         else
         {
-            sound.GetBuffer(Buffer).Play(isLooping, realTime);
+            sound.GetBuffer(Buffer).Play(isLooping, sound.RealTime);
         }
     }
 
     [EngineRoutine(0x0041e6e0)]
-    public bool CheckPlay(Sound sound, int index, int time, uint realTime)
+    public bool CheckPlay(Sound sound)
     {
         if (Id < 0 || Buffer == Sound.NoBuffer || !IsPlaying)
             return false;
 
         ref var buffer = ref sound.GetBuffer(Buffer);
 
-        bool isTimedPlaying = buffer.GetStatus(realTime);
+        bool isTimedPlaying = buffer.GetStatus(sound.RealTime);
 
-        if (!(sound.Device?.IsVoicePlaying(index) ?? isTimedPlaying))
+        if (!(sound.Device?.IsVoicePlaying(Index) ?? isTimedPlaying))
         {
             IsPlaying = false;
 
             if (isTimedPlaying)
             {
-                buffer.Stop(realTime);
+                buffer.Stop(sound.RealTime);
             }
         }
 
-        if (sound.IsLooped(Id) && (uint)(time - Start) > Sound.LoopHold)
+        if (sound.IsLooped(Id) && (uint)(sound.Time - Start) > Sound.LoopHold)
         {
             IsPlaying = false;
-            buffer.Stop(realTime);
+            buffer.Stop(sound.RealTime);
         }
 
         return IsPlaying;

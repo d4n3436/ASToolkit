@@ -104,6 +104,7 @@ public class MyList<T> : IReadOnlyList<T>
     /// Grows the array to hold a number of entries, if it holds fewer.
     /// </summary>
     /// <param name="capacity">The number of entries.</param>
+    [EngineRoutine(0x00424f70)]
     [EngineRoutine(0x00425080)]
     [EngineRoutine(0x00446be0)]
     public void Expand(int capacity)

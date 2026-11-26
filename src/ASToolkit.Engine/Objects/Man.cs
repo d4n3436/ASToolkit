@@ -80,7 +80,7 @@ public sealed class Man : Unit
     }
 
     [EngineRoutine(0x00454800)]
-    internal override int Action(ActionCode act, int var1, int var2, int var3, Sprite? target)
+    internal override int Action(ActionCode act, int var1, int var2, int var3)
     {
         switch (act)
         {
@@ -124,14 +124,14 @@ public sealed class Man : Unit
             case ActionCode.ChangeVid:
                 if ((int)Vid.Id < PlayerIdLimit)
                 {
-                    SlotAmmo[WeaponSlot] = base.Action(ActionCode.GetAmmo, 0, 0, 0, null);
+                    SlotAmmo[WeaponSlot] = base.Action(ActionCode.GetAmmo, 0, 0, 0);
                 }
 
-                base.Action(ActionCode.ChangeVid, var1, var2, var3, target);
+                base.Action(ActionCode.ChangeVid, var1, var2, var3);
 
                 if ((int)Vid.Id > PlayerIdLimit)
                 {
-                    base.Action(ActionCode.AddAmmo, Vid.GetMaxAmmo() - base.Action(ActionCode.GetAmmo, 0, 0, 0, null), 0, 0, null);
+                    base.Action(ActionCode.AddAmmo, Vid.GetMaxAmmo() - base.Action(ActionCode.GetAmmo, 0, 0, 0), 0, 0);
 
                     return 0;
                 }
@@ -148,7 +148,7 @@ public sealed class Man : Unit
                     Link!.AddLink(armor);
                 }
 
-                base.Action(ActionCode.AddAmmo, SlotAmmo[WeaponSlot] - base.Action(ActionCode.GetAmmo, 0, 0, 0, null), 0, 0, null);
+                base.Action(ActionCode.AddAmmo, SlotAmmo[WeaponSlot] - base.Action(ActionCode.GetAmmo, 0, 0, 0), 0, 0);
                 return 0;
             case ActionCode.AddItem:
                 if ((KnownObject)var1 is KnownObject.Dynamite or KnownObject.ExtraLife)
@@ -166,7 +166,7 @@ public sealed class Man : Unit
                 if (slot is < 0 or >= WeaponSlots)
                     return 0;
 
-                if (base.Action(ActionCode.GetAmmo, 0, 0, 0, null) == 0 || WeaponSlot < slot || slot == 0)
+                if (base.Action(ActionCode.GetAmmo, 0, 0, 0) == 0 || WeaponSlot < slot || slot == 0)
                 {
                     ChangeWeapon(slot);
                 }
@@ -174,7 +174,7 @@ public sealed class Man : Unit
                 return 0;
             case ActionCode.Damage:
                 if (var1 <= 0)
-                    return SpriteAction(ActionCode.Damage, var1, var2, var3, target);
+                    return SpriteAction(ActionCode.Damage, var1, var2, var3);
 
                 if (Vid.Id != KnownObject.MannedCannon)
                 {
@@ -198,7 +198,7 @@ public sealed class Man : Unit
                 }
 
                 if (var1 < Hp || Map.Action(this, ActionCode.HaveItem, (int)KnownObject.Medkit) == 0)
-                    return SpriteAction(ActionCode.Damage, var1, var2, var3, target);
+                    return SpriteAction(ActionCode.Damage, var1, var2, var3);
 
                 Map.Action(this, ActionCode.DeleteItem, (int)KnownObject.Medkit);
                 ChangeHp(Vid.GetArmyMaxHp((int)Army));
@@ -209,7 +209,7 @@ public sealed class Man : Unit
                 if (var1 != 0 && var1 != WeaponSlot)
                     return var1 >= 0 && var1 < SlotAmmo.Length ? SlotAmmo[var1] : 0;
 
-                return base.Action(act, 0, 0, 0, null);
+                return base.Action(act, 0, 0, 0);
             case ActionCode.AddAmmo:
                 // TODO: Port AS1's write before the slot array for a negative slot; the port returns 0
                 if (var2 < 0 || var2 >= SlotAmmo.Length)
@@ -218,7 +218,7 @@ public sealed class Man : Unit
                 if (var2 != 0 && var2 != WeaponSlot)
                     return SlotAmmo[var2] += var1;
 
-                return base.Action(act, var1, 0, 0, null);
+                return base.Action(act, var1, 0, 0);
             case ActionCode.NextCommand:
                 if (Animation >= SpriteAnimation.Death)
                     return 0;
@@ -233,7 +233,7 @@ public sealed class Man : Unit
                 return 0;
         }
 
-        return base.Action(act, var1, var2, var3, target);
+        return base.Action(act, var1, var2, var3);
     }
 
     [EngineRoutine(0x00455070)]

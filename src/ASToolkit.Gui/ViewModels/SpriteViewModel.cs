@@ -160,17 +160,20 @@ public partial class SpriteViewModel : ViewModelBase
         var size = new System.Drawing.Size(Math.Max(1, vid.FrameSize.Width * 2), Math.Max(1, vid.FrameSize.Height * 2));
         var screen = new Screen(size, true);
         var pixels = new Bgra32[size.Width * size.Height];
+        var savedShift = map.Shift;
         try
         {
             int saved = sprite.Frame;
             var center = sprite.Position.ToDrawPosition();
             Graphics.ClearScreen(screen, Backdrop);
             sprite.Frame = frame;
-            vid.Draw(screen, map, sprite, center - new Vector2(size.Width, size.Height) * 0.5f);
+            map.Shift = center - new Vector2(size.Width, size.Height) * 0.5f;
+            vid.Draw(screen, sprite);
             sprite.Frame = saved;
         }
         finally
         {
+            map.Shift = savedShift;
             Monitor.Exit(map);
         }
 

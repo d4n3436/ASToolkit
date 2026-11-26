@@ -17,7 +17,7 @@ public class MyErrorTests
     {
         var fileSystem = new MemoryWriteOverlay();
 
-        using (new MyError(fileSystem, new FakeTimeProvider(StartTime), "AlienShooter.exe"))
+        using (new MyError(fileSystem, new FakeTimeProvider(StartTime)))
         {
             Assert.Equal("----< 2026-01-01 12:00:00 >----< AlienShooter.exe (Cr-1601-01-01 12:00:00 La-1601-01-01 12:00:00 Lw-1601-01-01 12:00:00) >----\r\n", Read(fileSystem, DatedPath));
         }
@@ -27,7 +27,7 @@ public class MyErrorTests
     public void Error_FormatsTheValueAndTextAfterTheTag()
     {
         var fileSystem = new MemoryWriteOverlay();
-        var error = new MyError(fileSystem, new FakeTimeProvider(StartTime), "AlienShooter.exe");
+        var error = new MyError(fileSystem, new FakeTimeProvider(StartTime));
         string name = "смерть 1 Spawn ЛЕТУН";
         error.Error($"VID [881-{name}]", LogError.Invalid, 0x520, "child"u8);
         error.Error("SPRITE -1", LogError.Invalid, 1, "noRef at Release"u8);
@@ -43,7 +43,7 @@ public class MyErrorTests
     public void Write_Widths_PadTheNumbers()
     {
         var fileSystem = new MemoryWriteOverlay();
-        var error = new MyError(fileSystem, new FakeTimeProvider(StartTime), "AlienShooter.exe");
+        var error = new MyError(fileSystem, new FakeTimeProvider(StartTime));
         error.Log($"LoadVid::No   ={1001,-15}   sizeof(VID)   ={1156,-8}");
         error.Log($"NoVid[{3,3}]={1} Layer={13}");
 
@@ -61,7 +61,7 @@ public class MyErrorTests
             stale.Write("old"u8);
         }
 
-        new MyError(fileSystem, new FakeTimeProvider(StartTime), "AlienShooter.exe").Dispose();
+        new MyError(fileSystem, new FakeTimeProvider(StartTime)).Dispose();
 
         Assert.False(fileSystem.TryRead(DatedPath, out _));
         Assert.StartsWith("----< 2026-01-01", Read(fileSystem, "logs\\error.log"));
@@ -70,7 +70,7 @@ public class MyErrorTests
     [Fact]
     public void Write_WithoutFiles_WritesNothing()
     {
-        var error = new MyError(null, new FakeTimeProvider(StartTime), "AlienShooter.exe");
+        var error = new MyError(null, new FakeTimeProvider(StartTime));
         error.Log("x"u8);
 
         Assert.False(error.IsOpen);
@@ -86,7 +86,7 @@ public class MyErrorTests
             var scriptFileSystem = new MemoryWriteOverlay(new GameFolder(TestGameFolder.RequireFolder()));
             scriptFileSystem.Set("maps\\log.lgc", "#include \"maps\\export.lgc\"\nmain()\n{\n  Log(\"from the script\");\n}\n"u8.ToArray());
             Assert.True(map.Script.Load(scriptFileSystem, "maps\\log.lgc"));
-            map.Script.CallFunction(map, -1, 0, 0, 0);
+            map.Script.CallFunction(-1, 0, 0, 0);
         }
 
         string[] lines = Read(fileSystem, "logs\\error.log").Split("\r\n");

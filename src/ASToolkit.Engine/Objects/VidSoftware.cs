@@ -35,6 +35,7 @@ public partial class VidSoftware : Vid
     /// <summary>
     /// Initializes a new instance of the <see cref="VidSoftware"/> class.
     /// </summary>
+    /// <param name="map">The map.</param>
     /// <param name="id">The object ID.</param>
     /// <param name="gameObject">The object record.</param>
     /// <param name="weapons">The weapon table.</param>
@@ -42,8 +43,8 @@ public partial class VidSoftware : Vid
     /// <param name="totalFrames">The frame count of the sprite file.</param>
     /// <param name="format">The channel layout of the 16-bit back buffer.</param>
     [EngineRoutine(0x00415410)]
-    public VidSoftware(KnownObject id, in GameObject gameObject, AlienShooterWeaponRecord[] weapons, in VidResource file, int totalFrames, HighColorFormat format)
-        : base(id, gameObject, weapons, file, totalFrames)
+    public VidSoftware(Map map, KnownObject id, in GameObject gameObject, AlienShooterWeaponRecord[] weapons, in VidResource file, int totalFrames, HighColorFormat format)
+        : base(map, id, gameObject, weapons, file, totalFrames)
     {
         Format = format;
     }
@@ -116,24 +117,24 @@ public partial class VidSoftware : Vid
     internal override Vid CreateMirror() => new VidSoftware(this);
 
     [EngineRoutine(0x00415440)]
-    internal override void Destruct(GameSession session)
+    internal override void Destruct()
     {
         if (NextMirror == this)
         {
             _buffer = [];
             FrameOffsets = [];
-            session.VidMemoryInUse -= _bufferSize;
+            _map.Session.VidMemoryInUse -= _bufferSize;
             _bufferSize = 0;
         }
 
-        base.Destruct(session);
+        base.Destruct();
     }
 
     [EngineRoutine(0x004154b0)]
-    internal override void Load(in VidResource file, ReadOnlyMemory<byte> data, GameSession session)
+    internal override void Load(in VidResource file, ReadOnlyMemory<byte> data)
     {
         var resource = default(Resource);
-        resource.Open(null, data.Span, Resource.AnyTag);
+        resource.Open(data.Span, Resource.AnyTag);
         resource.GoBegin("HEAD"u8);
         resource.Read(stackalloc byte[HeadFieldsSize]);
         var coder = FileType.HasFlag(VidType.RangeCoded) ? new RangeCoder(1) : null;
@@ -141,7 +142,7 @@ public partial class VidSoftware : Vid
         Span<uint> colors = stackalloc uint[PaletteEntries];
         if (hasPalette && resource.GoNext("PAL "u8) != Resource.Found)
         {
-            Report(session.Error, LogError.Load, 0, "PAL "u8);
+            Report(LogError.Load, 0, "PAL "u8);
             throw new InvalidDataException($"There is no palette in '{Path}'.");
         }
 
@@ -174,7 +175,7 @@ public partial class VidSoftware : Vid
 
         if (resource.GoNext("DATA"u8) != Resource.Found)
         {
-            Report(session.Error, LogError.Load, 0, "DATA"u8);
+            Report(LogError.Load, 0, "DATA"u8);
         }
 
         int paletteSize = GetPaletteSize();
@@ -206,7 +207,6 @@ public partial class VidSoftware : Vid
             position = paletteSize * 2;
         }
 
-        var error = session.Error;
 
         bool isConverted = !FileType.HasFlag(VidType.Palette) && Format.IsRgb555 && IsHighColor && !FileType.HasFlag(VidType.Blended);
         int length = 0;
@@ -226,7 +226,7 @@ public partial class VidSoftware : Vid
 
             if (missing != 0)
             {
-                Report(error, LogError.Load, length - missing, "Can't decode software"u8);
+                Report(LogError.Load, length - missing, "Can't decode software"u8);
             }
 
             if (length == AliasBody)
@@ -256,7 +256,7 @@ public partial class VidSoftware : Vid
 
             resource.GoNextSub("DATA"u8);
         }
-        session.VidMemoryInUse += _bufferSize;
+        _map.Session.VidMemoryInUse += _bufferSize;
         if (!Properties.HasFlag(ObjectProperties.BuildVidZToGridZ) || !FileType.HasFlag(VidType.Palette) || !FileType.HasFlag(VidType.Runs8Bit))
             return;
 
@@ -341,7 +341,7 @@ public partial class VidSoftware : Vid
     }
 
     [EngineRoutine(0x004162b0)]
-    internal override void SetGamma(Gamma gamma, int army, Gamma ambient, GameSession session)
+    internal override void SetGamma(Gamma gamma, int army)
     {
         int size = GetPaletteSize();
         if (_buffer.Length == 0 || !FileType.HasFlag(VidType.Palette))
@@ -349,7 +349,7 @@ public partial class VidSoftware : Vid
 
         if ((uint)army > AllArmies)
         {
-            Report(session.Error, LogError.Invalid, army, "n_gamma in VID_SOFTWARE::SetGamma"u8);
+            Report(LogError.Invalid, army, "n_gamma in VID_SOFTWARE::SetGamma"u8);
 
             return;
         }
@@ -361,7 +361,7 @@ public partial class VidSoftware : Vid
             {
                 for (int i = 0; i < ArmyPalettes; i++)
                 {
-                    SetGamma(Gammas[i], i, ambient, session);
+                    SetGamma(Gammas[i], i);
                 }
 
                 return;
@@ -380,7 +380,7 @@ public partial class VidSoftware : Vid
         if (!FileType.HasFlag(VidType.PaletteVariants))
         {
             _bufferSize += size * 3;
-            session.VidMemoryInUse += size * 3;
+            _map.Session.VidMemoryInUse += size * 3;
             byte[] split = new byte[_bufferSize];
             _buffer.AsSpan(size).CopyTo(split.AsSpan(size * ArmyPalettes));
             split.AsSpan(size * ArmyPalettes, size).CopyTo(split.AsSpan(0, size));
@@ -402,6 +402,6 @@ public partial class VidSoftware : Vid
 
         var slot = _buffer.AsSpan(size * army, size);
         _buffer.AsSpan(size * ArmyPalettes, size).CopyTo(slot);
-        ApplyGamma(slot, ambientApplies ? gamma.Add(ambient) : gamma);
+        ApplyGamma(slot, ambientApplies ? gamma.Add(_map.Session.Graphics.Gamma) : gamma);
     }
 }

@@ -159,12 +159,12 @@ public class Unit : Terrain
     }
 
     [EngineRoutine(0x00447500)]
-    internal override int Action(ActionCode act, int var1, int var2, int var3, Sprite? target)
+    internal override int Action(ActionCode act, int var1, int var2, int var3)
     {
         switch (act)
         {
             case ActionCode.Damage:
-                int damageResult = base.Action(ActionCode.Damage, var1, var2, var3, target);
+                int damageResult = base.Action(ActionCode.Damage, var1, var2, var3);
 
                 if (var1 >= 0 && Command == Command.None && !Vid.Speed.IsExactlyZero())
                 {
@@ -245,7 +245,7 @@ public class Unit : Terrain
             case ActionCode.Repair:
                 FillAmmo();
 
-                return base.Action(act, var1, var2, var3, target);
+                return base.Action(act, var1, var2, var3);
             case ActionCode.GetAmmo:
                 return GetAmmo();
             case ActionCode.AddAmmo:
@@ -263,7 +263,7 @@ public class Unit : Terrain
                 return 0;
         }
 
-        return base.Action(act, var1, var2, var3, target);
+        return base.Action(act, var1, var2, var3);
     }
 
     [EngineRoutine(0x00447500)]

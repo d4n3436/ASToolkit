@@ -66,6 +66,11 @@ public sealed partial class Script
         get => _stack[^1].Flags.HasFlag(ScriptStackFlags.Text);
     }
 
+    /// <summary>
+    /// Gets or sets the object that runs the built-in functions.
+    /// </summary>
+    public IScriptFunctionHost? Host { get; set; }
+
     internal MyList<ScriptStack> Stack => _stack;
 
     internal MyError? Error
@@ -150,7 +155,6 @@ public sealed partial class Script
     /// <summary>
     /// Runs a function of the script.
     /// </summary>
-    /// <param name="host">The object that runs the built-in functions.</param>
     /// <param name="function">The index of the function, or a negative index for <c>main</c>.</param>
     /// <param name="first">The first argument, a sprite handle when nonzero.</param>
     /// <param name="second">The second argument, a sprite handle when nonzero.</param>
@@ -159,7 +163,7 @@ public sealed partial class Script
     /// <exception cref="NotSupportedException">The script is an Alien Shooter 2 script.</exception>
     /// <exception cref="InvalidOperationException">The function pops more values than it pushes.</exception>
     [EngineRoutine(0x00423430)]
-    public int CallFunction(IScriptFunctionHost host, int function, int first, int second, int third)
+    public int CallFunction(int function, int first, int second, int third)
     {
         if (IsAlienShooter2)
             throw new NotSupportedException("Alien Shooter 2 scripts are not supported.");
@@ -225,7 +229,11 @@ public sealed partial class Script
             if (opcode is >= ScriptOpcode.Divide and <= ScriptOpcode.ShiftLeft)
             {
                 programCounter++;
-                _stack[^2].BinarOperator(opcode, _stack[^1], Error);
+                if (!_stack[^2].BinarOperator(opcode, _stack[^1]))
+                {
+                    Error?.Log($"!!!ERROE!!!LOGIC::Unknown Binary command {(int)opcode}");
+                }
+
                 _stack.Count--;
                 continue;
             }
@@ -310,7 +318,12 @@ public sealed partial class Script
                         break;
                     case ScriptOpcode.CompoundAssign:
                         _stack.Count--;
-                        _stack[target].BinarOperator((ScriptOpcode)code[programCounter + 4], _stack[_stack.Count], Error);
+                        var compound = (ScriptOpcode)code[programCounter + 4];
+                        if (!_stack[target].BinarOperator(compound, _stack[_stack.Count]))
+                        {
+                            Error?.Log($"!!!ERROE!!!LOGIC::Unknown Binary command {(int)compound}");
+                        }
+
                         _stack.Insert(_stack[target]);
                         programCounter++;
                         break;
@@ -435,7 +448,7 @@ public sealed partial class Script
                         result = 1;
                     }
 
-                    host.ExecFunc(this, code[programCounter - 1]);
+                    Host!.ExecFunc(this, code[programCounter - 1]);
                     break;
             }
         }

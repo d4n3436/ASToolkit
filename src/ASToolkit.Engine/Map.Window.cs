@@ -53,30 +53,30 @@ public partial class Map
     [EngineRoutine(0x0040b930)]
     private bool WindowProc(in WindowMessage message)
     {
-        if (_flags.HasFlag(MapFlags.WindowActive) && Input.WindowProc(message.Id, message.WParam, message.LParam, Session.Graphics.WindowPosition, Session.Graphics.Viewport, Shift, Mouse))
+        if (_flags.HasFlag(MapFlags.WindowActive) && Input.WindowProc(message.Id, message.WParam, message.LParam))
             return true;
 
         switch (message.Id)
         {
             case WindowMessageId.EnterMenuLoop or WindowMessageId.EnterSizeMove:
                 Session.Graphics.BeginPause();
-                Sound.Pause(RealCurrentTime);
+                Sound.Pause();
                 break;
             case WindowMessageId.ExitMenuLoop or WindowMessageId.ExitSizeMove:
                 Session.Graphics.EndPause();
-                Sound.Resume(RealCurrentTime);
+                Sound.Resume();
                 break;
             case WindowMessageId.ActivateApp:
                 SetFlag(MapFlags.WindowActive, message.WParam != 0);
 
                 if (_flags.HasFlag(MapFlags.WindowActive))
                 {
-                    Sound.Resume(RealCurrentTime);
+                    Sound.Resume();
                     Mouse.Enable(FileSystem);
                 }
                 else
                 {
-                    Sound.Pause(RealCurrentTime);
+                    Sound.Pause();
                     Mouse.Disable();
                 }
 

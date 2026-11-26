@@ -80,7 +80,7 @@ public class AlienShooter2CompilerTests
     {
         var script = Compile("main()\n{\n}\n");
 
-        Assert.Throws<NotSupportedException>(() => script.CallFunction(null!, -1, 0, 0, 0));
+        Assert.Throws<NotSupportedException>(() => script.CallFunction(-1, 0, 0, 0));
     }
 
     [Fact]

@@ -1,11 +1,11 @@
 using System.Globalization;
-using System.Text;
 using ASToolkit.Formats;
 
 namespace ASToolkit.Engine.IO;
 
 internal sealed class MyError : IDisposable
 {
+    private const string ProgramName = "AlienShooter.exe";
     private const string NamePrefix = "logs\\error";
     private const string FolderPrefix = "logs\\";
     private const string NameExtension = ".log";
@@ -21,7 +21,7 @@ internal sealed class MyError : IDisposable
     private Stream? _stream;
 
     [EngineRoutine(0x004084a0)]
-    public MyError(IGameFileSystem? fileSystem, TimeProvider time, string program, bool isTimestamped = true)
+    public MyError(IGameFileSystem? fileSystem, TimeProvider time, bool isTimestamped = true)
     {
         _fileSystem = fileSystem;
         _time = time;
@@ -40,7 +40,7 @@ internal sealed class MyError : IDisposable
         }
 
         _path = path;
-        Log($"----< {MyLib.GetDateString(time)} {MyLib.GetTimeString(time)} >----< {program} ({FormatFileTimes(fileSystem?.GetWriteTime(program))}) >----");
+        Log($"----< {MyLib.GetDateString(time)} {MyLib.GetTimeString(time)} >----< {ProgramName} ({FormatFileTimes(fileSystem?.GetWriteTime(ProgramName))}) >----");
     }
 
     public bool IsOpen => _stream is not null;

@@ -72,4 +72,13 @@ public sealed class Group : SpriteList
         Center = Count != 0 ? (position + Center) * CenterBlend : position;
         Insert(sprite);
     }
+
+    [EngineRoutine(0x0043ac40)]
+    internal void Draw(int index)
+    {
+        foreach (var member in this)
+        {
+            member.Map.Session.Graphics.DrawFormattedText(member.Map.GetScreenPoint(member), $"{index}");
+        }
+    }
 }

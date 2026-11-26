@@ -16,6 +16,7 @@ public sealed class Input
     private const int CharacterMask = 0xFF;
 
     private readonly ControlSettings _settings;
+    private readonly Map _map;
     private readonly Queue<WindowMessage> _messages = [];
     private readonly HashSet<VirtualKey> _heldKeys = [];
     private bool _isQuitPosted;
@@ -24,9 +25,11 @@ public sealed class Input
     /// Initializes a new instance of the <see cref="Input"/> class for a set of controls.
     /// </summary>
     /// <param name="settings">The controls.</param>
-    public Input(ControlSettings settings)
+    /// <param name="map">The map whose cursor and view the input moves.</param>
+    public Input(ControlSettings settings, Map map)
     {
         _settings = settings;
+        _map = map;
     }
 
     /// <summary>
@@ -129,8 +132,12 @@ public sealed class Input
     }
 
     [EngineRoutine(0x00425d80)]
-    internal bool WindowProc(WindowMessageId message, int wParam, int lParam, Point windowOrigin, RectangleF view, Vector2 shift, Mouse cursorSprite)
+    internal bool WindowProc(WindowMessageId message, int wParam, int lParam)
     {
+        var windowOrigin = _map.Session.Graphics.WindowPosition;
+        var view = _map.Session.Graphics.Viewport;
+        var shift = _map.Shift;
+        var cursorSprite = _map.Mouse;
         InputFlags flag;
         switch (message)
         {

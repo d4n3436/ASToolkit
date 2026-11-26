@@ -16,22 +16,25 @@ public sealed class Texture
     private const int ColorTexelBytes = 2;
     private const int BlockSize = 4;
 
+    private readonly GameSession _session;
     private ushort[] _systemTexels = [];
     private ushort[] _deviceTexels = [];
 
     [EngineRoutine(0x00403290)]
     internal Texture(Size size, VidPixelFormat format, TextureFlags flags, GameSession session)
     {
-        Create(size, format, flags, session);
+        _session = session;
+        Create(size, format, flags);
     }
 
     [EngineRoutine(0x004032e0)]
     internal Texture(ReadOnlySpan<byte> source, Size size, VidPixelFormat format, ReadOnlySpan<uint> palette, TextureFlags flags, GameSession session)
     {
-        Create(size, format, flags, session);
+        _session = session;
+        Create(size, format, flags);
         if (Format == VidPixelFormat.P8)
         {
-            SetPalette(palette, session);
+            SetPalette(palette);
         }
 
         uint colorKey = Flags.HasFlag(TextureFlags.AlphaPalette) ? 0 : Direct3DTexture.OpaqueKey;
@@ -89,6 +92,8 @@ public sealed class Texture
     /// </summary>
     public Direct3DTexture View => new(Texels, Size, Format, Palette);
 
+    internal Graphics Graphics => _session.Graphics;
+
     private static ReadOnlySpan<byte> TextureLogTag => "TEXTURE"u8;
 
     /// <summary>
@@ -107,13 +112,13 @@ public sealed class Texture
     /// <param name="destination">The area of the screen.</param>
     /// <param name="source">The area of the texture.</param>
     /// <param name="gamma">The gamma that darkens the texels and then brightens them.</param>
-    /// <param name="blend">How the quad combines with the colors underneath.</param>
-    /// <param name="isAlphaModulated">Whether the alpha of the texels is multiplied by the alpha of the gamma's inverted reductions.</param>
-    /// <param name="minimumAlpha">The alpha that a texel needs to be drawn, after the modulation.</param>
     /// <exception cref="NotSupportedException">The texture is DXT-compressed.</exception>
     [EngineRoutine(0x00403ae0)]
-    public void DrawFlatQuad(Screen screen, Rectangle destination, Rectangle source, Gamma gamma, QuadBlend blend, bool isAlphaModulated = false, int minimumAlpha = 0) =>
-        View.DrawFlatQuad(screen, destination, source, gamma, blend, isAlphaModulated, minimumAlpha);
+    public void DrawFlatQuad(Screen screen, Rectangle destination, Rectangle source, Gamma gamma)
+    {
+        var graphics = _session.Graphics;
+        View.DrawFlatQuad(screen, destination, source, gamma, graphics.Blend, graphics.IsAlphaModulated);
+    }
 
     /// <summary>
     /// Draws a rectangle of the texture to the screen as a quad, with a gamma applied.
@@ -122,14 +127,15 @@ public sealed class Texture
     /// <param name="destination">The area of the screen.</param>
     /// <param name="source">The area of the texture.</param>
     /// <param name="gamma">The gamma that darkens the texels and then brightens them.</param>
-    /// <param name="blend">How the quad combines with the colors underneath.</param>
-    /// <param name="isDoubled">Whether the texels are doubled after the gamma and before they are blended.</param>
     /// <param name="topDepth">The depth of the vertices on the top edge of the quad.</param>
     /// <param name="bottomDepth">The depth of the vertices on the bottom edge of the quad.</param>
     /// <exception cref="NotSupportedException">The texture is DXT-compressed.</exception>
     [EngineRoutine(0x00403dd0)]
-    public void DrawQuad(Screen screen, Rectangle destination, Rectangle source, Gamma gamma, QuadBlend blend, bool isDoubled = false, float topDepth = 0, float bottomDepth = 0) =>
-        View.DrawQuad(screen, destination, source, gamma, blend, isDoubled, topDepth, bottomDepth);
+    public void DrawQuad(Screen screen, Rectangle destination, Rectangle source, Gamma gamma, float topDepth = 0, float bottomDepth = 0)
+    {
+        var graphics = _session.Graphics;
+        View.DrawQuad(screen, destination, source, gamma, graphics.Blend, graphics.IsDoubled, topDepth, bottomDepth);
+    }
 
     [EngineRoutine(0x00402fa0)]
     internal static string SetDeviceCapabilities(GameSession session)
@@ -216,11 +222,11 @@ public sealed class Texture
     }
 
     [EngineRoutine(0x00403620)]
-    internal void Destruct(GameSession session)
+    internal void Destruct()
     {
         if (_deviceTexels.Length != 0)
         {
-            session.TextureMemoryInUse -= GetTexelBytes(Format) * Size.Width * Size.Height;
+            _session.TextureMemoryInUse -= GetTexelBytes(Format) * Size.Width * Size.Height;
             _deviceTexels = [];
         }
 
@@ -228,7 +234,7 @@ public sealed class Texture
     }
 
     [EngineRoutine(0x00403970)]
-    internal int CopyFromSurface(Screen surface, Rectangle source, Point destination, MyError? error)
+    internal int CopyFromSurface(Screen surface, Rectangle source, Point destination)
     {
         var view = View;
         int result = surface.IsTrueColor
@@ -236,69 +242,69 @@ public sealed class Texture
             : view.LoadTexels(new Rectangle(destination, source.Size), MemoryMarshal.AsBytes(surface.HighColorPixels), surface.Format.IsRgb555 ? VidPixelFormat.X1R5G5B5 : VidPixelFormat.R5G6B5, surface.Pitch * sizeof(ushort), surface.Size, source, Direct3DTexture.DefaultFilter, 0);
         if (result != 0)
         {
-            error?.Error(TextureLogTag, LogError.Copy, result);
+            _session.Error.Error(TextureLogTag, LogError.Copy, result);
         }
 
         return result;
     }
 
     [EngineRoutine(0x004040c0)]
-    internal void SetPalette(ReadOnlySpan<uint> colors, GameSession session)
+    internal void SetPalette(ReadOnlySpan<uint> colors)
     {
         if (_deviceTexels.Length == 0)
         {
-            session.Error.Error(TextureLogTag, LogError.Set, 0, "palette for non initialized texture"u8);
+            _session.Error.Error(TextureLogTag, LogError.Set, 0, "palette for non initialized texture"u8);
             return;
         }
 
         if (Format != VidPixelFormat.P8)
         {
-            session.Error.Error(TextureLogTag, LogError.Set, 0, "palette for non palette texture"u8);
+            _session.Error.Error(TextureLogTag, LogError.Set, 0, "palette for non palette texture"u8);
             return;
         }
 
         Palette = colors.ToArray();
-        PaletteNumber = session.TexturePaletteCount++;
+        PaletteNumber = _session.TexturePaletteCount++;
     }
-
-    private static VidPixelFormat ReplacePalette(VidPixelFormat format, GameSession session) => format == VidPixelFormat.P8 && !session.IsTexturePaletteSupported ? VidPixelFormat.R5G6B5 : format;
 
     private static int GetTexelBytes(VidPixelFormat format) => format == VidPixelFormat.P8 ? PaletteTexelBytes : ColorTexelBytes;
 
+    private VidPixelFormat ReplacePalette(VidPixelFormat format) => format == VidPixelFormat.P8 && !_session.IsTexturePaletteSupported ? VidPixelFormat.R5G6B5 : format;
+
     [EngineRoutine(0x004036b0)]
-    private void Create(Size size, VidPixelFormat format, TextureFlags flags, GameSession session)
+    private void Create(Size size, VidPixelFormat format, TextureFlags flags)
     {
         _systemTexels = [];
         _deviceTexels = [];
-        if (!session.IsTextureDynamicSupported)
+        if (!_session.IsTextureDynamicSupported)
         {
             flags &= ~TextureFlags.Dynamic;
         }
 
         int width = size.Width;
         int height = size.Height;
-        if (session.IsTextureSquareRequired)
+        if (_session.IsTextureSquareRequired)
         {
             width = Math.Max(width, height);
             height = width;
         }
 
-        if (session.IsTexturePowerOfTwoRequired)
+        if (_session.IsTexturePowerOfTwoRequired)
         {
             width = (int)BitOperations.RoundUpToPowerOf2((uint)Math.Max(width, 1));
             height = (int)BitOperations.RoundUpToPowerOf2((uint)Math.Max(height, 1));
         }
 
-        if (width > session.TextureMaxSize.Width || width < 1)
+        if (width > _session.TextureMaxSize.Width || width < 1)
         {
-            session.Error.Error(TextureLogTag, LogError.Invalid, width, "initial sizeX"u8);
+            _session.Error.Error(TextureLogTag, LogError.Invalid, width, "initial sizeX"u8);
 
             return;
         }
 
-        if (height > session.TextureMaxSize.Height || height < 1)
+        if (height > _session.TextureMaxSize.Height || height < 1)
         {
-            session.Error.Error(TextureLogTag, LogError.Invalid, height, "initial sizeY"u8);
+            _session.Error.Error(TextureLogTag, LogError.Invalid, height, "initial sizeY"u8);
 
             return;
         }
@@ -310,18 +316,18 @@ public sealed class Texture
             Flags |= TextureFlags.AlphaPalette;
         }
 
-        if (format == VidPixelFormat.P8 && Flags.HasFlag(TextureFlags.AlphaPalette) && !session.IsTextureAlphaPaletteSupported)
+        if (format == VidPixelFormat.P8 && Flags.HasFlag(TextureFlags.AlphaPalette) && !_session.IsTextureAlphaPaletteSupported)
         {
             format = VidPixelFormat.A8R8G8B8;
         }
 
         if (!flags.HasFlag(TextureFlags.HasAlpha))
         {
-            format = ReplacePalette(format, session);
+            format = ReplacePalette(format);
         }
         else if (format == VidPixelFormat.P8)
         {
-            format = Flags.HasFlag(TextureFlags.AlphaPalette) ? ReplacePalette(format, session) : VidPixelFormat.A1R5G5B5;
+            format = Flags.HasFlag(TextureFlags.AlphaPalette) ? ReplacePalette(format) : VidPixelFormat.A1R5G5B5;
         }
         else if (format == VidPixelFormat.R5G6B5)
         {
@@ -333,7 +339,7 @@ public sealed class Texture
         }
         else
         {
-            format = ReplacePalette(format, session);
+            format = ReplacePalette(format);
         }
 
         if (flags.HasFlag(TextureFlags.SystemMemory) && format == VidPixelFormat.D16)
@@ -360,7 +366,7 @@ public sealed class Texture
             if (fallback == VidPixelFormat.None)
             {
                 Format = format;
-                session.Error.Error(TextureLogTag, LogError.Create, Direct3DTexture.InvalidCall);
+                _session.Error.Error(TextureLogTag, LogError.Create, Direct3DTexture.InvalidCall);
                 return;
             }
 
@@ -368,7 +374,7 @@ public sealed class Texture
         }
 
         Format = format;
-        session.TextureMemoryInUse += GetTexelBytes(format) * width * height;
+        _session.TextureMemoryInUse += GetTexelBytes(format) * width * height;
         _deviceTexels = Direct3DTexture.IsDxt(format)
             ? new ushort[(width + BlockSize - 1) / BlockSize * (format == VidPixelFormat.Dxt1 ? 8 : 16) * ((height + BlockSize - 1) / BlockSize) / sizeof(ushort)]
             : new ushort[width * height * (Direct3DTexture.Is32Bit(format) ? 2 : 1)];

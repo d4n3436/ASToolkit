@@ -34,10 +34,10 @@ public class Terrain : Sprite
     public bool ShouldRefillAmmo { get; set; }
 
     [EngineRoutine(0x0044bea0)]
-    internal override int Action(ActionCode act, int var1, int var2, int var3, Sprite? target)
+    internal override int Action(ActionCode act, int var1, int var2, int var3)
     {
         if (act != ActionCode.Repair)
-            return base.Action(act, var1, var2, var3, target);
+            return base.Action(act, var1, var2, var3);
 
         Repair(true);
 

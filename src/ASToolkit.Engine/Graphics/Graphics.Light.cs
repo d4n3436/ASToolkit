@@ -28,9 +28,8 @@ public sealed partial class Graphics
     /// <param name="position">The position of the light relative to the view, with the height in the third component.</param>
     /// <param name="size">The width and depth of the light.</param>
     /// <param name="color">The color of the light, packed as red, green and blue.</param>
-    /// <param name="isDoubled">Whether the intensity is doubled before it is blended.</param>
     [EngineRoutine(0x00433670)]
-    public void DrawLightSource(Screen screen, Vector3 position, Vector2 size, uint color, bool isDoubled)
+    public void DrawLightSource(Screen screen, Vector3 position, Vector2 size, uint color)
     {
         LightPhase ^= 1;
         if ((color & ColorMask) == 0)
@@ -106,7 +105,7 @@ public sealed partial class Graphics
         var source = Rectangle.FromLTRB(1, 1, width / 2 - 1, height / 2 - 1);
         SetRenderState(RenderState.SpecularEnable, 0);
         SetAlphaBlend(BlendFactor.DestinationColor, BlendFactor.One);
-        lightTexture.DrawQuad(screen, destination, source, new Gamma(~color, 0xff000000), Blend, isDoubled, (position.Z + size.X + LightDepthBias) * LightDepthScale + LightDepthBase, (position.Z + size.X + LightDepthBias) * LightDepthScale + LightDepthBase);
+        lightTexture.DrawQuad(screen, destination, source, new Gamma(~color, 0xff000000), (position.Z + size.X + LightDepthBias) * LightDepthScale + LightDepthBase, (position.Z + size.X + LightDepthBias) * LightDepthScale + LightDepthBase);
     }
 
     private static int SampleLightDepth(RectangleF viewport, ReadOnlySpan<ushort> depth, PointF point, int index)

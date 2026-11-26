@@ -151,7 +151,7 @@ public partial class Sprite
                 if (distance == 0)
                     return false;
 
-                VerticalSpeed = Vid.CalculateZSpeed(Map, offset.Z, distance);
+                VerticalSpeed = Vid.CalculateZSpeed(offset.Z, distance);
             }
         }
 

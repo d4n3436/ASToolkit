@@ -1,7 +1,5 @@
 using System.Drawing;
 using System.Numerics;
-using ASToolkit.Engine.IO;
-using ASToolkit.Formats;
 
 namespace ASToolkit.Engine;
 
@@ -34,18 +32,16 @@ public partial class Map
 
         if (offset.X < 0)
         {
-            at.X = position.X - offset.X - _rng.Next() % (1 - offset.X) * 2;
+            at.X = position.X - offset.X - Session.Random.Next() % (1 - offset.X) * 2;
         }
 
         if (offset.Y < 0)
         {
-            at.Y = position.Y - offset.Y - _rng.Next() % (1 - offset.Y) * 2;
+            at.Y = position.Y - offset.Y - Session.Random.Next() % (1 - offset.Y) * 2;
         }
 
         return new Vector3(at, position.Z);
     }
 
-    internal Act CreateAct(int act, int var1, int var2, int var3) =>
-        new(act, var1, var2, var3, Act.HasSpriteTarget((ActionCode)(act & byte.MaxValue)) ? FindSprite(var1) : null);
 
 }

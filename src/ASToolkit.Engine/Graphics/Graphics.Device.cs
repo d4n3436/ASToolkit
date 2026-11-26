@@ -1,4 +1,5 @@
 using System.Drawing;
+using System.Numerics;
 using ASToolkit.Engine.IO;
 using ASToolkit.Formats;
 
@@ -107,6 +108,16 @@ public sealed partial class Graphics
     internal int LightPhase { get; set; }
 
     internal TextureStage DeviceStage { get; private set; } = DefaultStage;
+
+    internal Matrix4x4 WorldTransform { get; set; } = Matrix4x4.Identity;
+
+    internal Matrix4x4 ViewTransform { get; set; } = Matrix4x4.Identity;
+
+    internal uint TextureFactor { get; private set; }
+
+    internal bool IsDoubled => DeviceStage.ColorOperation == TextureOperation.Modulate2X;
+
+    internal bool IsAlphaModulated => DeviceStage.AlphaOperation == TextureOperation.Modulate;
 
     private static uint[] GrayPalette { get; } = CreateGrayPalette();
 
@@ -242,7 +253,7 @@ public sealed partial class Graphics
         if (light is null || light.IsEmpty || light.Format != VidPixelFormat.P8)
             return;
 
-        light.Destruct(_session);
+        light.Destruct();
         Buffers.Light = CreateBufferTexture(VidPixelFormat.P8);
         if (Buffers.Light.IsEmpty)
         {
@@ -385,7 +396,7 @@ public sealed partial class Graphics
         var texture = new Texture(new Size(TextureSide, TextureSide), format, TextureFlags.None, _session);
         if (texture.Format == VidPixelFormat.P8)
         {
-            texture.SetPalette(GrayPalette, _session);
+            texture.SetPalette(GrayPalette);
         }
 
         return texture;

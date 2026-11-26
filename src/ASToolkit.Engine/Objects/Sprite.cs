@@ -486,10 +486,8 @@ public partial class Sprite
     /// Draws the sprite with the frames of its object ID.
     /// </summary>
     /// <param name="screen">The screen to draw to.</param>
-    /// <param name="map">The map.</param>
-    /// <param name="shift">The top left corner of the view, in map pixels.</param>
     [EngineRoutine(0x0040ec40)]
-    public virtual void Draw(Screen screen, Map map, Vector2 shift) => Vid.Draw(screen, map, this, shift);
+    public virtual void Draw(Screen screen) => Vid.Draw(screen, this);
 
     /// <summary>
     /// Determines whether this sprite touches a target on the ground plane.
@@ -982,9 +980,9 @@ public partial class Sprite
         {
             var order = ActionStack[i];
 
-            if (order.Target == removed && Act.HasSpriteTarget((ActionCode)order.Value))
+            if (removed.Handle != 0 && order.Var1 == removed.Handle && Act.HasSpriteTarget((ActionCode)order.Value))
             {
-                ActionStack[i] = order with { Value = Act.ForgottenOrder, Var1 = 0, Target = null };
+                ActionStack[i] = order with { Value = Act.ForgottenOrder, Var1 = 0 };
             }
         }
     }
@@ -1142,14 +1140,14 @@ public partial class Sprite
         {
             var start = Map.GetScreenPoint(this);
             var end = Map.GetScreenPoint(Goal);
-            graphics.WuLine(Map, start, end, Map.Green);
+            graphics.WuLine(start, end, Map.Green);
         }
 
         if (Link?.Goal is not null)
         {
             var start = Map.GetScreenPoint(Link);
             var end = Map.GetScreenPoint(Link.Goal);
-            graphics.WuLine(Map, start, end, Map.Red);
+            graphics.WuLine(start, end, Map.Red);
         }
     }
 
@@ -1457,14 +1455,14 @@ public partial class Sprite
         float right = vid.Half.X + position.X - Map.Shift.X;
         float top = position.Y - position.Z - vid.Half.Y - Map.Shift.Y;
         float left = position.X - vid.Half.X - Map.Shift.X;
-        Map.Session.Graphics.Box(Map, new Vector2(left, top), new Vector2(right, bottom), color);
+        Map.Session.Graphics.Box(new Vector2(left, top), new Vector2(right, bottom), color);
 
         if (type.HasFlag(OldSpriteType.Object) || type.HasFlag(OldSpriteType.Unit))
         {
             float feet = position.Y - position.Z - Map.Shift.Y;
             float roof = position.Y - position.Z - vid.Size.Z - Map.Shift.Y;
             float x = position.X - Map.Shift.X;
-            Map.Session.Graphics.WuLine(Map, new Vector2(x, roof), new Vector2(x, feet), Map.Blue);
+            Map.Session.Graphics.WuLine(new Vector2(x, roof), new Vector2(x, feet), Map.Blue);
         }
 
         Map.Session.Graphics.DrawFormattedText(new Vector2(position.X - Map.Shift.X + Map.TextLineOffset, position.Y - position.Z - Map.Shift.Y), $"{(int)vid.Id}");
@@ -1534,7 +1532,7 @@ public partial class Sprite
                 }
             }
 
-            ActionStack.Insert(Map.CreateAct(command - CommandBias, var1, var2, var3));
+            ActionStack.Insert(new Act(command - CommandBias, var1, var2, var3));
             text = text.After(CommandEnd);
         }
     }
@@ -1542,7 +1540,7 @@ public partial class Sprite
     [EngineRoutine(0x00445b10)]
     internal void AddActionAfterStop(int act, int var1, int var2, int var3)
     {
-        var order = Map.CreateAct(act, var1, var2, var3);
+        var order = new Act(act, var1, var2, var3);
         var orders = ActionStack.Items;
         for (int i = orders.Length - 1; i >= 0; i--)
         {
@@ -1654,7 +1652,7 @@ public partial class Sprite
         return distance < Vid.Weapon.DetectRange * 2 ? AttackResult.Pursue : AttackResult.GiveUp;
     }
 
-    internal virtual int Action(ActionCode act, int var1, int var2, int var3, Sprite? target) => SpriteAction(act, var1, var2, var3, target);
+    internal virtual int Action(ActionCode act, int var1, int var2, int var3) => SpriteAction(act, var1, var2, var3);
 
     internal void CreateChildAs(SpriteAnimation state)
     {

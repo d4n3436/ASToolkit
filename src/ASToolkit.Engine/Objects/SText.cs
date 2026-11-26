@@ -69,14 +69,12 @@ public sealed class SText : Frame
     /// Draws the shown text with the frames of the font's object ID.
     /// </summary>
     /// <param name="screen">The screen to draw to.</param>
-    /// <param name="map">The map.</param>
-    /// <param name="shift">The top left corner of the view, in map pixels.</param>
     [EngineRoutine(0x00448ba0)]
-    public override void Draw(Screen screen, Map map, Vector2 shift)
+    public override void Draw(Screen screen)
     {
-        if (Vid == map.EmptyVid || Vid.Directions < MinDirections)
+        if (Vid == Map.EmptyVid || Vid.Directions < MinDirections)
         {
-            map.Session.Graphics.DrawDeviceText(new Vector2(Position.X, Position.Y), uint.MaxValue, Shown.Span);
+            Map.Session.Graphics.DrawDeviceText(new Vector2(Position.X, Position.Y), uint.MaxValue, Shown.Span);
             return;
         }
 
@@ -85,7 +83,7 @@ public sealed class SText : Frame
 
         if ((TextBehavior & TextBehavior.LoadFrom) == TextBehavior.ScriptUpdated)
         {
-            Shown = map.Script.GetVariableString(Description);
+            Shown = Map.Script.GetVariableString(Description);
             CalcTextProperty();
         }
 
@@ -128,23 +126,23 @@ public sealed class SText : Frame
                 {
                     var identifier = Shown.After(FontTag).Span;
                     int id = identifier.Length > 1 && identifier[1] == (byte)'x' ? CRuntime.ScanInteger(identifier) : CRuntime.ParseInteger(identifier);
-                    current = map.FindVid((KnownObject)id) ?? map.EmptyVid;
+                    current = Map.FindVid((KnownObject)id) ?? Map.EmptyVid;
                     pen.X -= current.Size.X;
                     int end = shown.IndexOf(TagEnd);
                     i += end < 0 ? shown.Length : end;
                 }
-                else if (character == FontSwitch && i + 1 < VisibleCount && map.FindVid((KnownObject)shown[i + 1]) is not null)
+                else if (character == FontSwitch && i + 1 < VisibleCount && Map.FindVid((KnownObject)shown[i + 1]) is not null)
                 {
                     int id = (sbyte)shown[i + 1];
                     i++;
-                    current = map.FindVid((KnownObject)id) ?? map.EmptyVid;
+                    current = Map.FindVid((KnownObject)id) ?? Map.EmptyVid;
                     pen.X -= current.Size.X;
                 }
                 else if (character >= FirstPrintable)
                 {
                     Position = savedPosition with { X = pen.X, Y = pen.Y };
                     Frame = character;
-                    current.Draw(screen, map, this, shift);
+                    current.Draw(screen, this);
                 }
 
                 i++;
@@ -158,7 +156,7 @@ public sealed class SText : Frame
 
     // TODO: Port saving the text (ACT_SAVE) and the text address GetTextDesc and GetText return
     [EngineRoutine(0x00448ff0)]
-    internal override int Action(ActionCode act, int var1, int var2, int var3, Sprite? target)
+    internal override int Action(ActionCode act, int var1, int var2, int var3)
     {
         switch (act)
         {
@@ -227,7 +225,7 @@ public sealed class SText : Frame
                 HasPlayedStateSound = false;
                 return 0;
             default:
-                return base.Action(act, var1, var2, var3, target);
+                return base.Action(act, var1, var2, var3);
         }
     }
 

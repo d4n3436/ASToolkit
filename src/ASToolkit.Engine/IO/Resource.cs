@@ -14,6 +14,7 @@ internal ref struct Resource
     private const int ChunkHeaderSize = 8;
     private const int FirstRecordOffset = 0x18;
 
+    private readonly MyError? _error;
     private ReadOnlySpan<byte> _data;
     private ReadOnlySpan<byte> _name;
     private bool _isOpen;
@@ -27,6 +28,11 @@ internal ref struct Resource
     private int _recordOffset;
     private int _recordLength;
     private int _recordCount;
+
+    public Resource(MyError? error)
+    {
+        _error = error;
+    }
 
     public static ReadOnlySpan<byte> AnyTag => "ANY "u8;
 
@@ -67,7 +73,7 @@ internal ref struct Resource
     public ReadOnlySpan<byte> ReadText() => ReadText(_data, ref _position);
 
     [EngineRoutine(0x00407870)]
-    public int Open(MyError? error, ReadOnlySpan<byte> data, ReadOnlySpan<byte> kind)
+    public int Open(ReadOnlySpan<byte> data, ReadOnlySpan<byte> kind)
     {
         _data = data;
         _isOpen = true;
@@ -76,7 +82,7 @@ internal ref struct Resource
         Span<byte> signature = stackalloc byte[TagSize];
         if (Read(signature) != 0)
         {
-            Log(error, LogError.Load, 0, "empty file"u8);
+            Log(LogError.Load, 0, "empty file"u8);
             _isOpen = false;
             return 4;
         }
@@ -84,7 +90,7 @@ internal ref struct Resource
         _isRes = signature.SequenceEqual("RES "u8);
         if (!_isRes && !signature.SequenceEqual("RIFF"u8))
         {
-            Log(error, LogError.Invalid, 0, "resource signature"u8);
+            Log(LogError.Invalid, 0, "resource signature"u8);
             _isOpen = false;
             return 2;
         }
@@ -93,7 +99,7 @@ internal ref struct Resource
         _end += _start + ChunkHeaderSize;
         if (_data.Length < _end)
         {
-            Log(error, LogError.Text, _data.Length - _end, "Invalid filelength"u8);
+            Log(LogError.Text, _data.Length - _end, "Invalid filelength"u8);
         }
 
         Span<byte> type = stackalloc byte[TagSize];
@@ -101,7 +107,7 @@ internal ref struct Resource
         if (!type.SequenceEqual(kind) && !kind.SequenceEqual(AnyTag))
         {
             _chunkTag = BinaryPrimitives.ReadInt32LittleEndian(type);
-            Log(error, LogError.Invalid, 0, "resource type"u8);
+            Log(LogError.Invalid, 0, "resource type"u8);
             _isOpen = false;
             return 3;
         }
@@ -112,16 +118,16 @@ internal ref struct Resource
     }
 
     [EngineRoutine(0x00407a40)]
-    public int Open(IGameFileSystem fileSystem, MyError? error, ReadOnlySpan<byte> name, ReadOnlySpan<byte> kind)
+    public int Open(IGameFileSystem fileSystem, ReadOnlySpan<byte> name, ReadOnlySpan<byte> kind)
     {
         _isOpen = false;
         if (!name.IsEmpty && fileSystem.TryRead(Encoding.ASCII.GetString(name), out var data))
         {
             _name = name;
-            return Open(error, data.Span, kind);
+            return Open(data.Span, kind);
         }
 
-        Log(error, LogError.Open, 0, name);
+        Log(LogError.Open, 0, name);
 
         return 1;
     }
@@ -229,25 +235,25 @@ internal ref struct Resource
     }
 
     [EngineRoutine(0x00408080)]
-    public int SubLoad(MyError? error, out byte[] block)
+    public int SubLoad(out byte[] block)
     {
         block = [];
         if (!_isOpen)
         {
-            Log(error, LogError.Load, 0, "file not opened"u8);
+            Log(LogError.Load, 0, "file not opened"u8);
             return 0;
         }
 
         if (_recordLength < 1)
         {
-            Log(error, LogError.Section, 0, "SubLoad"u8);
+            Log(LogError.Section, 0, "SubLoad"u8);
             return 0;
         }
 
         block = new byte[_recordLength];
         if (Read(block) != 0)
         {
-            Log(error, LogError.Load, 0, "Subload"u8);
+            Log(LogError.Load, 0, "Subload"u8);
         }
 
         return _recordLength;
@@ -258,23 +264,22 @@ internal ref struct Resource
     /// </summary>
     /// <typeparam name="T">The type of the record.</typeparam>
     /// <param name="tag">The chunk tag.</param>
-    /// <param name="error">The log the errors are written to, or <see langword="null"/>.</param>
     /// <returns>The records.</returns>
     /// <exception cref="InvalidDataException">The resource isn't open or doesn't have a chunk with the tag.</exception>
     [EngineRoutine(0x00408150)]
-    public T[] Load<T>(ReadOnlySpan<byte> tag, MyError? error)
+    public T[] Load<T>(ReadOnlySpan<byte> tag)
         where T : unmanaged
     {
         if (!_isOpen)
         {
-            Log(error, LogError.Load, 0, "file not opened"u8);
+            Log(LogError.Load, 0, "file not opened"u8);
             throw new InvalidDataException("The resource file isn't open.");
         }
 
         int count = CountRecords(tag);
         if (count == 0)
         {
-            Log(error, LogError.Section, BinaryPrimitives.ReadInt32LittleEndian(tag), "Load"u8);
+            Log(LogError.Section, BinaryPrimitives.ReadInt32LittleEndian(tag), "Load"u8);
             throw new InvalidDataException($"There is no '{Encoding.ASCII.GetString(tag)}' chunk in the resource file.");
         }
 
@@ -341,8 +346,8 @@ internal ref struct Resource
         return count;
     }
 
-    private readonly void Log(MyError? error, LogError code, int value, ReadOnlySpan<byte> text)
+    private readonly void Log(LogError code, int value, ReadOnlySpan<byte> text)
     {
-        error?.Error($"RES '{MyError.Decode(_name)}' '{MyError.Decode(MemoryMarshal.AsBytes(new ReadOnlySpan<int>(in _chunkTag)))}'", code, value, text);
+        _error?.Error($"RES '{MyError.Decode(_name)}' '{MyError.Decode(MemoryMarshal.AsBytes(new ReadOnlySpan<int>(in _chunkTag)))}'", code, value, text);
     }
 }

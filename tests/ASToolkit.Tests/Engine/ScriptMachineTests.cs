@@ -34,7 +34,7 @@ public class ScriptMachineTests
             }
             """);
 
-        script.CallFunction(host, -1, 0, 0, 0);
+        script.CallFunction(-1, 0, 0, 0);
 
         Assert.Equal([14, 0x0fffffff, -1, 1, 0, 1, 15, 31, 0x24, 1, 0, -1], host.Notes);
     }
@@ -54,8 +54,8 @@ public class ScriptMachineTests
             """);
         byte[] compiled = script.Code.ToArray();
 
-        script.CallFunction(host, -1, 0, 0, 0);
-        script.CallFunction(host, -1, 0, 0, 0);
+        script.CallFunction(-1, 0, 0, 0);
+        script.CallFunction(-1, 0, 0, 0);
 
         Assert.Equal([100, 1, 2], host.Notes);
         Assert.Equal((byte)ScriptOpcode.Jump, script.Code[script.Objects[script.MainIndex].Address]);
@@ -81,7 +81,7 @@ public class ScriptMachineTests
             }
             """);
 
-        int result = script.CallFunction(host, -1, 0, 0, 0);
+        int result = script.CallFunction(-1, 0, 0, 0);
 
         Assert.Equal([0, 1, 2, 1, 15, 3], host.Notes);
         Assert.Equal(42, result);
@@ -106,7 +106,7 @@ public class ScriptMachineTests
             """);
         int handler = script.Objects.Location("F001_14"u8);
 
-        int result = script.CallFunction(host, handler, 77, 0, 0);
+        int result = script.CallFunction(handler, 77, 0, 0);
 
         Assert.Equal(1, result);
         Assert.Equal([7, 77], host.Notes);
@@ -144,7 +144,10 @@ public class ScriptMachineTests
         fileSystem.Set(ScriptPath, Encoding.ASCII.GetBytes(text));
         Assert.True(script.Load(fileSystem, ScriptPath));
 
-        return (script, new NoteHost());
+        var host = new NoteHost();
+        script.Host = host;
+
+        return (script, host);
     }
 
     private sealed class NoteHost : IScriptFunctionHost

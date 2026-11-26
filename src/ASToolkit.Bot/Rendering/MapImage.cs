@@ -13,12 +13,12 @@ namespace ASToolkit.Bot.Rendering;
 /// </summary>
 public sealed class MapImage : IDisposable
 {
+    private const uint Black = 0xff000000;
+
     /// <summary>
     /// Gets the image configuration with only the PNG format.
     /// </summary>
     public static Configuration PngConfiguration { get; } = new(new PngConfigurationModule());
-
-    private const uint Black = 0xff000000;
 
     /// <summary>
     /// Gets the image.
@@ -69,41 +69,49 @@ public sealed class MapImage : IDisposable
         var pixels = new Bgra32[tile.Width * tile.Height];
         var image = new Image<Rgb24>(PngConfiguration, Math.Max(1, (int)MathF.Ceiling(area.Width * scale)), Math.Max(1, (int)MathF.Ceiling(area.Height * scale)));
 
-        for (int top = bounds.Top / tile.Height * tile.Height; top < bounds.Bottom; top += tile.Height)
+        var savedShift = map.Shift;
+        try
         {
-            for (int left = bounds.Left / tile.Width * tile.Width; left < bounds.Right; left += tile.Width)
+            for (int top = bounds.Top / tile.Height * tile.Height; top < bounds.Bottom; top += tile.Height)
             {
-                var part = System.Drawing.Rectangle.Intersect(new System.Drawing.Rectangle(left, top, tile.Width, tile.Height), bounds);
-                if (part.IsEmpty)
-                    continue;
-
-                var camera = new Vector2(left, top);
-                Graphics.ClearScreen(screen, Black);
-                for (var layer = ObjectLayer.Ground; layer < ObjectLayer.Menu; layer++)
+                for (int left = bounds.Left / tile.Width * tile.Width; left < bounds.Right; left += tile.Width)
                 {
-                    map.DrawLayer(screen, camera, layer);
-                }
+                    var part = System.Drawing.Rectangle.Intersect(new System.Drawing.Rectangle(left, top, tile.Width, tile.Height), bounds);
+                    if (part.IsEmpty)
+                        continue;
 
-                screen.CopyTo(pixels);
-
-                var offset = new Point((int)MathF.Round((part.Left - area.Left) * scale), (int)MathF.Round((part.Top - area.Top) * scale));
-                var target = new Size(
-                    Math.Max(1, (int)MathF.Round((part.Right - area.Left) * scale) - offset.X),
-                    Math.Max(1, (int)MathF.Round((part.Bottom - area.Top) * scale) - offset.Y));
-
-                using var drawn = SixLabors.ImageSharp.Image.LoadPixelData(PngConfiguration, pixels, tile.Width, tile.Height);
-                drawn.Mutate(context =>
-                {
-                    context.Crop(new Rectangle(part.Left - left, part.Top - top, part.Width, part.Height));
-                    if (target.Width != part.Width || target.Height != part.Height)
+                    map.Shift = new Vector2(left, top);
+                    Graphics.ClearScreen(screen, Black);
+                    for (var layer = ObjectLayer.Ground; layer < ObjectLayer.Menu; layer++)
                     {
-                        context.Resize(target);
+                        map.DrawLayer(screen, layer);
                     }
-                });
 
-                using var opaque = drawn.CloneAs<Rgb24>();
-                image.Mutate(context => context.DrawImage(opaque, offset, 1f));
+                    screen.CopyTo(pixels);
+
+                    var offset = new Point((int)MathF.Round((part.Left - area.Left) * scale), (int)MathF.Round((part.Top - area.Top) * scale));
+                    var target = new Size(
+                        Math.Max(1, (int)MathF.Round((part.Right - area.Left) * scale) - offset.X),
+                        Math.Max(1, (int)MathF.Round((part.Bottom - area.Top) * scale) - offset.Y));
+
+                    using var drawn = SixLabors.ImageSharp.Image.LoadPixelData(PngConfiguration, pixels, tile.Width, tile.Height);
+                    drawn.Mutate(context =>
+                    {
+                        context.Crop(new Rectangle(part.Left - left, part.Top - top, part.Width, part.Height));
+                        if (target.Width != part.Width || target.Height != part.Height)
+                        {
+                            context.Resize(target);
+                        }
+                    });
+
+                    using var opaque = drawn.CloneAs<Rgb24>();
+                    image.Mutate(context => context.DrawImage(opaque, offset, 1f));
+                }
             }
+        }
+        finally
+        {
+            map.Shift = savedShift;
         }
 
         return new MapImage { Image = image, Origin = new Vector2(area.Left, area.Top), Scale = scale };
@@ -116,12 +124,12 @@ public sealed class MapImage : IDisposable
     /// <returns>The place in the image, in image pixels.</returns>
     public PointF ToImage(Vector2 point) => (point - Origin) * Scale;
 
+    /// <inheritdoc/>
+    public void Dispose() => Image.Dispose();
+
     private static System.Drawing.Rectangle GetMapBounds(Map map)
     {
         var size = map.Size;
         return new System.Drawing.Rectangle(0, 0, (int)MathF.Ceiling(size.Width), (int)MathF.Ceiling(size.Height));
     }
-
-    /// <inheritdoc/>
-    public void Dispose() => Image.Dispose();
 }

@@ -54,7 +54,7 @@ public class ExecFuncTests
         var fileSystem = new MemoryWriteOverlay(new GameFolder(TestGameFolder.RequireFolder()));
         fileSystem.Set(ScriptPath, "#include \"maps\\export.lgc\"\nmain()\n{\n  Pause(0);\n}\n"u8.ToArray());
         Assert.True(script.Load(fileSystem, ScriptPath));
-        script.CallFunction(map, -1, 0, 0, 0);
+        script.CallFunction(-1, 0, 0, 0);
 
         Assert.False(map.IsPaused);
         Assert.Equal(pausedAt, map.CurrentTime);
@@ -419,7 +419,7 @@ public class ExecFuncTests
     {
         var map = EngineTestMap.CreateMap();
         var script = Compile(map, text);
-        script.CallFunction(map, -1, 0, 0, 0);
+        script.CallFunction(-1, 0, 0, 0);
 
         return (map, script);
     }

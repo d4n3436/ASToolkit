@@ -1,4 +1,3 @@
-using ASToolkit.Engine.IO;
 using ASToolkit.Engine.Scripts;
 using ASToolkit.Formats;
 
@@ -25,7 +24,7 @@ public partial class Map
     /// <param name="third">The third argument.</param>
     /// <returns>The function's result.</returns>
     [EngineRoutine(0x0040f430)]
-    public int ScriptRun(int function, Sprite? sprite, int second = 0, int third = 0) => _flags.HasFlag(MapFlags.ScriptsDisabled) ? 0 : Script.CallFunction(this, function, GetSpriteHandle(sprite), second, third);
+    public int ScriptRun(int function, Sprite? sprite, int second = 0, int third = 0) => _flags.HasFlag(MapFlags.ScriptsDisabled) ? 0 : Script.CallFunction(function, GetSpriteHandle(sprite), second, third);
 
     /// <summary>
     /// Writes a number into a script variable.

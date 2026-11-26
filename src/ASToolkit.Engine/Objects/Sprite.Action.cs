@@ -26,13 +26,13 @@ public partial class Sprite
     private const float UnitAimLift = 80;
 
     [EngineRoutine(0x00440830)]
-    internal int SpriteAction(ActionCode act, int var1, int var2, int var3, Sprite? target)
+    internal int SpriteAction(ActionCode act, int var1, int var2, int var3)
     {
         var code = (ActionCode)((int)act & byte.MaxValue);
         switch (code)
         {
             case ActionCode.GetAmmo or ActionCode.AddAmmo:
-                return Owner?.Action(act, var1, var2, var3, target) ?? 0;
+                return Owner?.Action(act, var1, var2, var3) ?? 0;
             case ActionCode.Salut:
                 if (Animation != SpriteAnimation.Fight)
                 {
@@ -140,13 +140,13 @@ public partial class Sprite
             case ActionCode.GetSpeed:
                 return (int)(Speed * ScriptSpeedScale);
             case ActionCode.Attack:
-                Attack(target);
+                Attack(Map.FindSprite(var1));
                 break;
             case ActionCode.Move:
                 Move(Map.ConstructGoal(new Vector3(var1, var2, var3)));
                 break;
             case ActionCode.MoveTo:
-                Move(target);
+                Move(Map.FindSprite(var1));
                 break;
             case ActionCode.BuildUnit:
                 var buildOffset = new Point(var2, var3);
@@ -264,15 +264,16 @@ public partial class Sprite
                 Frame = LastFrame;
                 break;
             case ActionCode.BackupCommand:
-                ActionStack.Insert(new Act((int)Command << 8 | (int)ActionCode.RestoreCommand, Map.GetSpriteHandle(Goal), 0, 0, Goal));
+                ActionStack.Insert(new Act((int)Command << 8 | (int)ActionCode.RestoreCommand, Map.GetSpriteHandle(Goal), 0, 0));
                 Goal?.AddRef();
                 break;
             case ActionCode.RestoreCommand:
-                SetCommand((Command)((int)act >> 8 & byte.MaxValue), target);
+                var restored = Map.FindSprite(var1);
+                SetCommand((Command)((int)act >> 8 & byte.MaxValue), restored);
 
-                if (target is not null)
+                if (restored is not null)
                 {
-                    Map.Release(target);
+                    Map.Release(restored);
                 }
 
                 break;
@@ -284,16 +285,17 @@ public partial class Sprite
             case ActionCode.GetPercentHp:
                 return PercentHp() * 100 / 0xff;
             case ActionCode.CopyStackTo:
-                if (target is null || target == this)
+                var copy = Map.FindSprite(var1);
+                if (copy is null || copy == this)
                     break;
 
-                target.ClearOrders();
+                copy.ClearOrders();
                 foreach (var order in ActionStack.Items)
                 {
                     if (order.Value == Act.StopMarker)
                         break;
 
-                    target.ActionStack.Insert(order);
+                    copy.ActionStack.Insert(order);
                 }
 
                 break;
@@ -609,7 +611,7 @@ public partial class Sprite
 
         if (built is not null)
         {
-            Map.Action(this, ActionCode.CopyStackTo, target: built);
+            Map.Action(this, ActionCode.CopyStackTo, Map.GetSpriteHandle(built));
         }
     }
 
@@ -619,7 +621,7 @@ public partial class Sprite
         foreach (var action in stack)
         {
             ActionStack.Insert(Act.HasSpriteTarget(action.Code)
-                ? new Act(action.Act, action.Var1, action.Var2, action.Var3, Map.Relation.Decode(action.Var1))
+                ? new Act(action.Act, Map.GetSpriteHandle(Map.Relation.Decode(action.Var1)), action.Var2, action.Var3)
                 : Act.FromAction(action));
         }
 
@@ -653,9 +655,13 @@ public partial class Sprite
         {
             var order = ActionStack[i];
 
-            if (order is { Code: ActionCode.RestoreCommand, Target: not null })
+            if (order.Code != ActionCode.RestoreCommand)
+                continue;
+
+            var restored = Map.FindSprite(order.Var1);
+            if (restored is not null)
             {
-                Map.Release(order.Target);
+                Map.Release(restored);
             }
         }
 

@@ -13,7 +13,7 @@ public sealed class Registry
     private const int MaxStackText = 256;
     private const string RegPathSetting = "RegPath=";
 
-    private readonly Dictionary<string, string> _values = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, string> _values;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="Registry"/> class as an empty registry.
@@ -22,6 +22,18 @@ public sealed class Registry
     public Registry(string defaultPath)
     {
         DefaultPath = defaultPath;
+        _values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="Registry"/> class that reads and writes the values of another registry under a different path.
+    /// </summary>
+    /// <param name="path">The registry path.</param>
+    /// <param name="registry">The registry whose values are shared.</param>
+    public Registry(string path, Registry registry)
+    {
+        DefaultPath = path;
+        _values = registry._values;
     }
 
     /// <summary>
@@ -48,14 +60,13 @@ public sealed class Registry
     }
 
     /// <summary>
-    /// Gets the value stored under a name of a path.
+    /// Gets the value stored under a name of the path.
     /// </summary>
-    /// <param name="path">The registry path.</param>
     /// <param name="name">The value name.</param>
     /// <param name="defaultValue">The text to return if no value is stored.</param>
     /// <returns>The stored text, or <paramref name="defaultValue"/> if no value is stored.</returns>
     [EngineRoutine(0x0042cf70)]
-    public string Get(string path, string name, string defaultValue) => _values.GetValueOrDefault(GetKey(path, name), defaultValue);
+    public string Get(string name, string defaultValue) => _values.GetValueOrDefault(GetKey(name), defaultValue);
 
     /// <summary>
     /// Gets the value stored under a name of the default path, as a number.
@@ -66,27 +77,19 @@ public sealed class Registry
     [EngineRoutine(0x0042d130)]
     public int GetInt(string name, int fallback)
     {
-        string text = Get(DefaultPath, name, fallback.ToString(CultureInfo.InvariantCulture));
+        string text = Get(name, fallback.ToString(CultureInfo.InvariantCulture));
         var bytes = text.Length <= MaxStackText ? stackalloc byte[text.Length] : new byte[text.Length];
 
         return CRuntime.ParseInteger(bytes[..Encoding.ASCII.GetBytes(text, bytes)]);
     }
 
     /// <summary>
-    /// Stores a value under a name of the default path.
+    /// Stores a value under a name of the path.
     /// </summary>
-    /// <param name="name">The value name.</param>
-    /// <param name="value">The text to store.</param>
-    public void Set(string name, string value) => Set(DefaultPath, name, value);
-
-    /// <summary>
-    /// Stores a value under a name of a path.
-    /// </summary>
-    /// <param name="path">The registry path.</param>
     /// <param name="name">The value name.</param>
     /// <param name="value">The text to store.</param>
     [EngineRoutine(0x0042d1f0)]
-    public void Set(string path, string name, string value) => _values[GetKey(path, name)] = value;
+    public void Set(string name, string value) => _values[GetKey(name)] = value;
 
     /// <summary>
     /// Stores a number under a name of the default path.
@@ -97,12 +100,11 @@ public sealed class Registry
     public void SetNumber(string name, int value) => Set(name, value.ToString(CultureInfo.InvariantCulture));
 
     /// <summary>
-    /// Removes the value stored under a name of a path.
+    /// Removes the value stored under a name of the path.
     /// </summary>
-    /// <param name="path">The registry path.</param>
     /// <param name="name">The value name.</param>
     [EngineRoutine(0x0042d310)]
-    public void DeleteKey(string path, string name) => _values.Remove(GetKey(path, name));
+    public void DeleteKey(string name) => _values.Remove(GetKey(name));
 
-    private static string GetKey(string path, string name) => $"{path}\\{name}";
+    private string GetKey(string name) => $"{DefaultPath}\\{name}";
 }
