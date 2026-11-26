@@ -472,6 +472,18 @@ public partial class Sprite
         get => Link is not null && Link.Vid == Vid.LinkVid;
     }
 
+    internal bool IsBuiltByDepo
+    {
+        get => _flags.HasFlag(SpriteFlags.BuiltByDepo);
+        set => SetFlag(SpriteFlags.BuiltByDepo, value);
+    }
+
+    internal bool IsAttackReported
+    {
+        get => _flags.HasFlag(SpriteFlags.AttackReported);
+        set => SetFlag(SpriteFlags.AttackReported, value);
+    }
+
     internal ExtraSpriteData? ExtraData { get; private set; }
 
     internal Map Map { get; }
@@ -1553,6 +1565,18 @@ public partial class Sprite
         }
 
         ActionStack.InsertFirst(order);
+    }
+
+    [EngineRoutine(0x00445bb0)]
+    internal bool ActionStackHaveCommand(ActionCode command)
+    {
+        foreach (var act in ActionStack.Items)
+        {
+            if (act.Value == (int)command)
+                return true;
+        }
+
+        return false;
     }
 
     [EngineRoutine(0x00445fb0)]

@@ -58,6 +58,7 @@ public class Vid
     private const float BallisticDrop = 0.9f;
     private const int CoefficientScale = 16;
     private const int HpScale = 256;
+    private const int MillisecondsPerSecond = 1000;
 
     private static readonly Vector3 DefaultSize = new(24, 16, 20);
 
@@ -1146,6 +1147,13 @@ public class Vid
                 }
             }
         }
+    }
+
+    [EngineRoutine(0x004147f0)]
+    internal int GetBuildTime()
+    {
+        var link = LinkVid;
+        return (link is not null && link.WeaponIndex != 0 ? link : this).Weapon.BuildTime / MillisecondsPerSecond;
     }
 
     [EngineRoutine(0x0043a1c0)]

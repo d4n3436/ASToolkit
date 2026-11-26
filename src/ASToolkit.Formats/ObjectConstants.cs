@@ -64,6 +64,12 @@ public readonly struct ObjectConstants
     public readonly int HoverDelay;
 
     /// <summary>
+    /// The hit points that depots heal each second.
+    /// </summary>
+    [FieldOffset(56)]
+    public readonly int DepoHpPerSecond;
+
+    /// <summary>
     /// The hit points that sprites of object ID 104 heal each second.
     /// </summary>
     [FieldOffset(60)]

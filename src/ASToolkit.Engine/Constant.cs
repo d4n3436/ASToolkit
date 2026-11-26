@@ -22,6 +22,8 @@ public sealed class Constant
         ScrollSpeed = record.ScrollSpeed * Vid.PerMillisecond;
         Gravitation = record.Gravitation * Vid.PerMillisecondSquared;
         Gravitation2 = record.Gravitation2 * Vid.PerMillisecondSquared;
+        BuildTimeFactor = record.BuildTimeFactor;
+        DepoHpPerSecond = record.DepoHpPerSecond;
         HpPerSecond = record.HpPerSecond;
         HoverDelay = record.HoverDelay;
         SelectedGamma = record.SelectedGamma;
@@ -48,6 +50,16 @@ public sealed class Constant
     /// Gets the time in milliseconds the cursor must rest before a mouse tip shows.
     /// </summary>
     public int HoverDelay { get; }
+
+    /// <summary>
+    /// Gets the factor on a unit's build time in seconds.
+    /// </summary>
+    public int BuildTimeFactor { get; }
+
+    /// <summary>
+    /// Gets the hit points that depots heal each second.
+    /// </summary>
+    public int DepoHpPerSecond { get; }
 
     /// <summary>
     /// Gets the hit points that sprites of object ID 104 heal each second.

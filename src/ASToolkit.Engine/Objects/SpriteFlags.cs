@@ -4,6 +4,8 @@ namespace ASToolkit.Engine;
 internal enum SpriteFlags
 {
     None = 0,
+    BuiltByDepo = 1 << 0,
+    AttackReported = 1 << 1,
     Command = ((1 << 5) - 1) << 2,
     Moving = 1 << 7,
     Removed = 1 << 8,
