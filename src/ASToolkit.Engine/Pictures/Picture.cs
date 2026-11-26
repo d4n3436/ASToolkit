@@ -13,18 +13,18 @@ public partial class Picture : IDisposable
     /// <summary>
     /// Initializes a new instance of the <see cref="Picture"/> class.
     /// </summary>
-    /// <param name="gameFolder">The game folder the picture files are in.</param>
-    public Picture(string gameFolder)
-        : this(gameFolder, null)
+    /// <param name="fileSystem">The file system the picture files are in.</param>
+    public Picture(IGameFileSystem fileSystem)
+        : this(fileSystem, null)
     {
     }
 
     [EngineRoutine(0x004125b0)]
-    internal Picture(string gameFolder, MyError? error)
+    internal Picture(IGameFileSystem fileSystem, MyError? error)
     {
-        Colors = new PictureChannel(gameFolder, error);
-        Alpha = new PictureChannel(gameFolder, error);
-        Depth = new PictureChannel(gameFolder, error);
+        Colors = new PictureChannel(fileSystem, error);
+        Alpha = new PictureChannel(fileSystem, error);
+        Depth = new PictureChannel(fileSystem, error);
     }
 
     /// <summary>

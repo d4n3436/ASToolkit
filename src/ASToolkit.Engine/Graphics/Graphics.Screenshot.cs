@@ -9,9 +9,9 @@ public sealed partial class Graphics
     private const int TrueColorPixelSize = 3;
 
     [EngineRoutine(0x00430fc0)]
-    internal void SaveScreen(IGameFileSystem fileSystem, string path, Rectangle area)
+    internal void SaveScreen(string path, Rectangle area)
     {
-        var picture = new PictureImage(string.Empty, Error);
+        var picture = new PictureImage(_session.Map!.FileSystem, Error);
         picture.Resize(area.Size, TrueColorPixelSize);
         for (int y = 0; y < area.Height; y++)
         {
@@ -37,6 +37,6 @@ public sealed partial class Graphics
             }
         }
 
-        picture.SaveTga(fileSystem, path, new Rectangle(0, 0, -1, -1));
+        picture.SaveTga(path, new Rectangle(0, 0, -1, -1));
     }
 }

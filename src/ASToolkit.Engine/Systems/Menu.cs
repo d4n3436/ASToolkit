@@ -169,9 +169,9 @@ internal sealed class Menu : SpriteList
 
     private bool TryOpen(ReadOnlySpan<byte> name, out Resource reader, out MenuHeader header)
     {
-        reader = new Resource(_map.Session.Error);
+        reader = new Resource(_map.Session.Error, _map.FileSystem);
         header = default;
-        if (reader.Open(_map.FileSystem, name, "MENU"u8) != 0)
+        if (reader.Open(name, "MENU"u8) != 0)
         {
             _map.Session.Error.Error(MenuLogTag, LogError.Open, 0, name);
             return false;

@@ -129,7 +129,7 @@ public partial class Map
             }
         }
 
-        var objectsFile = new Resource(Session.Error);
+        var objectsFile = new Resource(Session.Error, FileSystem);
         if (OpenObjects(FileSystem, ref objectsFile) != 0)
         {
             Session.Error.Error(MapLogTag, LogError.Open, 0, "resource file"u8);
@@ -287,7 +287,7 @@ public partial class Map
 
     private ReadOnlyMemory<byte> ConvertPicture(string path, bool isText, MyError? error)
     {
-        using var picture = isText ? new FontPicture(_gameFolder, error) : new Picture(_gameFolder, error);
+        using var picture = isText ? new FontPicture(FileSystem, error) : new Picture(FileSystem, error);
         return picture.Load(path, string.Empty, string.Empty) ? picture.Convert() : default;
     }
 
@@ -445,7 +445,7 @@ public partial class Map
             else if (path.Contains(TgaImage.Extension, StringComparison.Ordinal) || path.Contains(BmpImage.Extension, StringComparison.Ordinal) || path.Contains(AnimationExtension, StringComparison.Ordinal))
             {
                 bool isText = gameObject.SpriteClass == SpriteClass.Text;
-                var key = (Path.GetFullPath(Path.Combine(_gameFolder, path)), isText);
+                var key = (path, isText);
                 if (!Session.ConvertedPictures.TryGetValue(key, out data))
                 {
                     data = ConvertPicture(path, isText, null);
@@ -466,7 +466,7 @@ public partial class Map
 
         if (file is null)
         {
-            new Resource(Session.Error).Open(new GameFolder(_gameFolder), Encoding.ASCII.GetBytes(path), Resource.AnyTag);
+            new Resource(Session.Error, FileSystem).Open(Encoding.ASCII.GetBytes(path), Resource.AnyTag);
 
             LogUnopened(path);
             return null;

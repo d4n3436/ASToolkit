@@ -14,6 +14,13 @@ public interface IGameFileSystem
     bool TryRead(string path, out ReadOnlyMemory<byte> data);
 
     /// <summary>
+    /// Determines whether a file exists.
+    /// </summary>
+    /// <param name="path">The path of the file, relative to the game folder.</param>
+    /// <returns><see langword="true"/> if the file exists; otherwise, <see langword="false"/>.</returns>
+    bool Exists(string path) => TryRead(path, out _);
+
+    /// <summary>
     /// Opens a file for writing and creates it if it doesn't exist.
     /// </summary>
     /// <param name="path">The path of the file, relative to the game folder.</param>

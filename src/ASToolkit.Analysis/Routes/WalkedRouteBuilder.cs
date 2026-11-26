@@ -1,4 +1,5 @@
 using ASToolkit.Engine;
+using ASToolkit.Engine.IO;
 using ASToolkit.Formats;
 using ASToolkit.Analysis.Scripting;
 
@@ -30,7 +31,7 @@ public static class WalkedRouteBuilder
             return null;
         }
 
-        var world = new WalkWorld(map, logic, new SpritePartReader(gameFolder, objects));
+        var world = new WalkWorld(map, logic, new SpritePartReader(new GameFolder(gameFolder), objects));
         return new RouteWalk(world, map, objects, logic, playerObject, start.Position).Run();
     }
 }

@@ -134,7 +134,7 @@ public partial class VidSoftware : Vid
     internal override void Load(in VidResource file, ReadOnlyMemory<byte> data)
     {
         var resource = default(Resource);
-        resource.Open(data.Span, Resource.AnyTag);
+        resource.Open(data, Resource.AnyTag);
         resource.GoBegin("HEAD"u8);
         resource.Read(stackalloc byte[HeadFieldsSize]);
         var coder = FileType.HasFlag(VidType.RangeCoded) ? new RangeCoder(1) : null;

@@ -106,7 +106,7 @@ public sealed class VidLight : Vid
     internal override void Load(in VidResource file, ReadOnlyMemory<byte> data)
     {
         var resource = new Resource(_map.Session.Error);
-        resource.Open(data.Span, Resource.AnyTag);
+        resource.Open(data, Resource.AnyTag);
         resource.GoBegin("HEAD"u8);
         resource.Read(stackalloc byte[HeadFieldsSize]);
         if (resource.GoNext("DATA"u8) != Resource.Found)

@@ -42,8 +42,8 @@ public static class LevelScriptReader
 
     private static Script Compile(ReadOnlyMemory<byte> data, string gameFolder, string name, ScriptVersion version)
     {
-        var script = new Script(version);
-        script.Load(new MarkedScriptSource(new GameFolder(gameFolder), data), name);
+        var script = new Script(version, new MarkedScriptSource(new GameFolder(gameFolder), data));
+        script.Load(name);
 
         return script;
     }
@@ -174,68 +174,13 @@ public static class LevelScriptReader
             };
         }
 
-        private ReadOnlyMemory<ScriptInstruction> Decode(int start, int end)
-        {
-            var code = _script.Code;
-            var instructions = new List<ScriptInstruction>();
-            for (int offset = start; offset < end;)
-            {
-                var instruction = ScriptInstruction.Read(code, offset, _script.Version);
-                instructions.Add(instruction);
-                offset = instruction.End;
-            }
-
-            return instructions.ToArray();
-        }
-
-
-        private int GetVariable(ReadOnlySpan<byte> name)
-        {
-            int found = _script.Objects.Location(name);
-
-            return found >= 0 && _script.Objects[found].Kind == ScriptObjectKind.Variable ? _script.Objects[found].Address : -1;
-        }
-
         private static bool IsNumber(ReadOnlySpan<ScriptInstruction> code, int index) =>
             index >= 0 && index < code.Length && code[index].Opcode == ScriptOpcode.PushNumber;
 
         private static bool IsNumber(ReadOnlySpan<ScriptInstruction> code, int index, int value) => IsNumber(code, index) && code[index].Operand == value;
 
-
         private static bool HasOpcode(ReadOnlySpan<ScriptInstruction> code, int index, ScriptOpcode opcode) =>
             index >= 0 && index < code.Length && code[index].Opcode == opcode;
-
-
-
-        private bool IsDistanceCheck(ReadOnlySpan<ScriptInstruction> code, int index, out TriggerArea area, out ReadOnlySpan<ScriptInstruction> body)
-        {
-            body = default;
-            if (!IsPlayerWithin(code, index, out area, out int end) || !HasOpcode(code, end, ScriptOpcode.JumpIfFalseOnce))
-                return false;
-
-            body = GetBody(code, end);
-
-            return true;
-        }
-
-        private bool IsPlayer(ReadOnlySpan<ScriptInstruction> code, int index) => IsNumber(code, index, 0) && _flagman.IsExternAt(code, index + 1);
-
-        private bool IsPlayerWithin(ReadOnlySpan<ScriptInstruction> code, int index, out TriggerArea area, out int end)
-        {
-            area = default;
-            end = -1;
-            if (!IsPlayer(code, index) || !IsNumber(code, index + 2) || !IsNumber(code, index + 3))
-                return false;
-
-            int call = _sizeTo.SkipDefaults(code, index + 4);
-            if (!_sizeTo.IsExternAt(code, call) || !IsNumber(code, call + 1) || code[call + 1].Operand < 0 || !HasOpcode(code, call + 2, ScriptOpcode.Less))
-                return false;
-
-            area = new TriggerArea(new Point(code[index + 2].Operand, code[index + 3].Operand), code[call + 1].Operand);
-            end = call + 3;
-
-            return true;
-        }
 
         private static ReadOnlySpan<ScriptInstruction> GetBody(ReadOnlySpan<ScriptInstruction> code, int jump)
         {
@@ -291,17 +236,6 @@ public static class LevelScriptReader
             return false;
         }
 
-        private ScriptTrigger ReadTrigger(TriggerArea area, ReadOnlySpan<ScriptInstruction> body, uint? lightOff, bool shouldWin)
-        {
-            int? fixedX = FindAssignedNumber(body, _startX);
-            int? fixedY = FindAssignedNumber(body, _startY);
-            var respawn = fixedX is not null && fixedY is not null ? ScriptRespawn.Fixed : RespawnsAtPlayer(body) ? ScriptRespawn.Player : ScriptRespawn.None;
-            var point = respawn == ScriptRespawn.Fixed ? new Point(fixedX!.Value, fixedY!.Value) : Point.Empty;
-
-            return new ScriptTrigger(area, respawn, point, AssignsNumber(body, _doorsOpen, 0), lightOff, Math.Max(FindFirstArgument(body, _earthQuake) ?? 0, 0),
-                ShouldSwapKeypads(body), shouldWin, ReadKills(body));
-        }
-
         private static int? FindAssignedNumber(ReadOnlySpan<ScriptInstruction> body, int variable)
         {
             for (int i = 1; i < body.Length; i++)
@@ -322,6 +256,82 @@ public static class LevelScriptReader
             }
 
             return false;
+        }
+
+        private static bool EndsStatement(ScriptOpcode opcode) =>
+            opcode is ScriptOpcode.EndStatement or ScriptOpcode.JumpIfFalse or ScriptOpcode.JumpIfFalseOnce or ScriptOpcode.Jump or ScriptOpcode.Return;
+
+        private static bool IsAnyCalledIn(ScriptCallee[] callees, ReadOnlySpan<ScriptInstruction> code)
+        {
+            foreach (var callee in callees)
+            {
+                if (callee.IsCalledIn(code))
+                    return true;
+            }
+
+            return false;
+        }
+
+        private ReadOnlyMemory<ScriptInstruction> Decode(int start, int end)
+        {
+            var code = _script.Code;
+            var instructions = new List<ScriptInstruction>();
+            for (int offset = start; offset < end;)
+            {
+                var instruction = ScriptInstruction.Read(code, offset, _script.Version);
+                instructions.Add(instruction);
+                offset = instruction.End;
+            }
+
+            return instructions.ToArray();
+        }
+
+        private int GetVariable(ReadOnlySpan<byte> name)
+        {
+            int found = _script.Objects.Location(name);
+
+            return found >= 0 && _script.Objects[found].Kind == ScriptObjectKind.Variable ? _script.Objects[found].Address : -1;
+        }
+
+        private bool IsDistanceCheck(ReadOnlySpan<ScriptInstruction> code, int index, out TriggerArea area, out ReadOnlySpan<ScriptInstruction> body)
+        {
+            body = default;
+            if (!IsPlayerWithin(code, index, out area, out int end) || !HasOpcode(code, end, ScriptOpcode.JumpIfFalseOnce))
+                return false;
+
+            body = GetBody(code, end);
+
+            return true;
+        }
+
+        private bool IsPlayer(ReadOnlySpan<ScriptInstruction> code, int index) => IsNumber(code, index, 0) && _flagman.IsExternAt(code, index + 1);
+
+        private bool IsPlayerWithin(ReadOnlySpan<ScriptInstruction> code, int index, out TriggerArea area, out int end)
+        {
+            area = default;
+            end = -1;
+            if (!IsPlayer(code, index) || !IsNumber(code, index + 2) || !IsNumber(code, index + 3))
+                return false;
+
+            int call = _sizeTo.SkipDefaults(code, index + 4);
+            if (!_sizeTo.IsExternAt(code, call) || !IsNumber(code, call + 1) || code[call + 1].Operand < 0 || !HasOpcode(code, call + 2, ScriptOpcode.Less))
+                return false;
+
+            area = new TriggerArea(new Point(code[index + 2].Operand, code[index + 3].Operand), code[call + 1].Operand);
+            end = call + 3;
+
+            return true;
+        }
+
+        private ScriptTrigger ReadTrigger(TriggerArea area, ReadOnlySpan<ScriptInstruction> body, uint? lightOff, bool shouldWin)
+        {
+            int? fixedX = FindAssignedNumber(body, _startX);
+            int? fixedY = FindAssignedNumber(body, _startY);
+            var respawn = fixedX is not null && fixedY is not null ? ScriptRespawn.Fixed : RespawnsAtPlayer(body) ? ScriptRespawn.Player : ScriptRespawn.None;
+            var point = respawn == ScriptRespawn.Fixed ? new Point(fixedX!.Value, fixedY!.Value) : Point.Empty;
+
+            return new ScriptTrigger(area, respawn, point, AssignsNumber(body, _doorsOpen, 0), lightOff, Math.Max(FindFirstArgument(body, _earthQuake) ?? 0, 0),
+                ShouldSwapKeypads(body), shouldWin, ReadKills(body));
         }
 
         private bool RespawnsAtPlayer(ReadOnlySpan<ScriptInstruction> body)
@@ -458,9 +468,6 @@ public static class LevelScriptReader
             return blocks.ToArray();
         }
 
-        private static bool EndsStatement(ScriptOpcode opcode) =>
-            opcode is ScriptOpcode.EndStatement or ScriptOpcode.JumpIfFalse or ScriptOpcode.JumpIfFalseOnce or ScriptOpcode.Jump or ScriptOpcode.Return;
-
         private List<IfStatement> FindIfs()
         {
             var code = _code.Span;
@@ -589,19 +596,6 @@ public static class LevelScriptReader
                 assignments.ToArray());
         }
 
-        private static bool IsAnyCalledIn(ScriptCallee[] callees, ReadOnlySpan<ScriptInstruction> code)
-        {
-            foreach (var callee in callees)
-            {
-                if (callee.IsCalledIn(code))
-                    return true;
-            }
-
-            return false;
-        }
-
-        private readonly record struct IfStatement(int Start, int Jump, int BodyEnd, int End);
-
         private ScriptCrowdRule[] ReadCrowdRules(ReadOnlySpan<ScriptInstruction> code)
         {
             var rules = new List<ScriptCrowdRule>();
@@ -642,6 +636,8 @@ public static class LevelScriptReader
 
             return rules.ToArray();
         }
+
+        private readonly record struct IfStatement(int Start, int Jump, int BodyEnd, int End);
 
     }
 }

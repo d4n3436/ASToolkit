@@ -14,16 +14,16 @@ public sealed class FontPicture : Picture
     /// <summary>
     /// Initializes a new instance of the <see cref="FontPicture"/> class.
     /// </summary>
-    /// <param name="gameFolder">The game folder the picture files are in.</param>
-    public FontPicture(string gameFolder)
-        : this(gameFolder, null)
+    /// <param name="fileSystem">The file system the picture files are in.</param>
+    public FontPicture(IGameFileSystem fileSystem)
+        : this(fileSystem, null)
     {
     }
 
-    internal FontPicture(string gameFolder, MyError? error)
-        : base(gameFolder, error)
+    internal FontPicture(IGameFileSystem fileSystem, MyError? error)
+        : base(fileSystem, error)
     {
-        Source = new Picture(gameFolder, error);
+        Source = new Picture(fileSystem, error);
     }
 
     /// <summary>

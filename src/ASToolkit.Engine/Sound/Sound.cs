@@ -165,7 +165,7 @@ public sealed class Sound
     /// <returns>The sound system.</returns>
     public static Sound Create(IGameFileSystem fileSystem, GameSession session, ISoundDevice? device = null, bool isDisabled = false, bool isHighQuality = false, nint window = 0)
     {
-        var resource = new Resource();
+        var resource = new Resource(null, fileSystem);
         Map.OpenObjects(fileSystem, ref resource);
 
         return new Sound(ref resource, fileSystem, session, device, isDisabled, isHighQuality, window);
@@ -690,8 +690,8 @@ public sealed class Sound
         if (_deviceState != DeviceReady)
             return default;
 
-        resource = new Resource(Error);
-        if (resource.Open(_fileSystem, path, Resource.AnyTag) != 0)
+        resource = new Resource(Error, _fileSystem);
+        if (resource.Open(path, Resource.AnyTag) != 0)
             return default;
 
         if (resource.GoBegin("fmt "u8) != 0)

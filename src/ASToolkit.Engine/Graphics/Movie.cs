@@ -11,11 +11,11 @@ internal sealed class Movie
     private static readonly int MediaControlResult = 0;
     private static readonly int RenderFileResult = 0;
 
-    private readonly MyError _error;
+    private readonly GameSession _session;
 
-    public Movie(MyError error)
+    public Movie(GameSession session)
     {
-        _error = error;
+        _session = session;
     }
 
     public bool IsOpen { get; private set; }
@@ -23,27 +23,27 @@ internal sealed class Movie
     private static ReadOnlySpan<byte> MovieLogTag => "MOVIE"u8;
 
     [EngineRoutine(0x00434480)]
-    public void Open(IGameFileSystem fileSystem, ReadOnlySpan<byte> path)
+    public void Open(ReadOnlySpan<byte> path)
     {
         Release();
 
         if (GraphBuilderResult < 0)
         {
-            _error.Error(MovieLogTag, LogError.Create, GraphBuilderResult, "GraphBuilder"u8);
+            _session.Error.Error(MovieLogTag, LogError.Create, GraphBuilderResult, "GraphBuilder"u8);
             return;
         }
 
         if (MediaControlResult < 0)
         {
-            _error.Error(MovieLogTag, LogError.Create, MediaControlResult, "MediaControl"u8);
+            _session.Error.Error(MovieLogTag, LogError.Create, MediaControlResult, "MediaControl"u8);
             Release();
             return;
         }
 
-        int rendered = fileSystem.TryRead(Encoding.ASCII.GetString(path), out _) ? RenderFileResult : FileNotFound;
+        int rendered = _session.Map!.FileSystem.Exists(Encoding.ASCII.GetString(path)) ? RenderFileResult : FileNotFound;
         if (rendered < 0)
         {
-            _error.Error(MovieLogTag, LogError.Invalid, rendered, "RenderFile"u8);
+            _session.Error.Error(MovieLogTag, LogError.Invalid, rendered, "RenderFile"u8);
             Release();
             return;
         }

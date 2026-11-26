@@ -21,14 +21,14 @@ public sealed class BmpImage : PictureImage
     /// <summary>
     /// Initializes a new instance of the <see cref="BmpImage"/> class.
     /// </summary>
-    /// <param name="gameFolder">The game folder the picture files are in.</param>
-    public BmpImage(string gameFolder)
-        : this(gameFolder, null)
+    /// <param name="fileSystem">The file system the picture files are in.</param>
+    public BmpImage(IGameFileSystem fileSystem)
+        : this(fileSystem, null)
     {
     }
 
-    internal BmpImage(string gameFolder, MyError? error)
-        : base(gameFolder, error)
+    internal BmpImage(IGameFileSystem fileSystem, MyError? error)
+        : base(fileSystem, error)
     {
     }
 
@@ -50,7 +50,7 @@ public sealed class BmpImage : PictureImage
         string stem = name.EndsWith(Extension, StringComparison.Ordinal) ? name[..^Extension.Length] : name;
         if (stem.Length != 0 && IsDigit(stem[^1]))
         {
-            while (GamePath.Resolve(GameFolder, GetFrameName(name, FrameCount)) is not null)
+            while (Exists(GetFrameName(name, FrameCount)))
             {
                 FrameCount++;
             }

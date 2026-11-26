@@ -58,7 +58,7 @@ public sealed class VidSoftwareTests
         Assert.Equal(new int[file.FrameCount], vid.FrameOffsets);
     }
 
-    private static Map CreateMap(GameSession session) => new MapSteam(TestGameFolder.RequireFolder(), TestGameFolder.Objects, new GameFolder(TestGameFolder.RequireFolder()), session);
+    private static Map CreateMap(GameSession session) => new MapSteam(TestGameFolder.Objects, new GameFolder(TestGameFolder.RequireFolder()), session);
 
     private static string[] ReadLog(MemoryWriteOverlay fileSystem)
     {

@@ -51,9 +51,9 @@ public class ExecFuncTests
         Assert.True(map.IsPaused);
         Assert.True(map.CurrentTime > pausedAt);
 
-        var fileSystem = new MemoryWriteOverlay(new GameFolder(TestGameFolder.RequireFolder()));
+        var fileSystem = (MemoryWriteOverlay)map.FileSystem;
         fileSystem.Set(ScriptPath, "#include \"maps\\export.lgc\"\nmain()\n{\n  Pause(0);\n}\n"u8.ToArray());
-        Assert.True(script.Load(fileSystem, ScriptPath));
+        Assert.True(script.Load(ScriptPath));
         script.CallFunction(-1, 0, 0, 0);
 
         Assert.False(map.IsPaused);
@@ -426,9 +426,9 @@ public class ExecFuncTests
 
     private static Script Compile(Map map, string text)
     {
-        var fileSystem = new MemoryWriteOverlay(new GameFolder(TestGameFolder.RequireFolder()));
+        var fileSystem = (MemoryWriteOverlay)map.FileSystem;
         fileSystem.Set(ScriptPath, Encoding.ASCII.GetBytes("#include \"maps\\export.lgc\"\n" + text));
-        Assert.True(map.Script.Load(fileSystem, ScriptPath));
+        Assert.True(map.Script.Load(ScriptPath));
 
         return map.Script;
     }

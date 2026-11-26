@@ -7,24 +7,24 @@ namespace ASToolkit.Engine;
 /// </summary>
 public sealed class PictureChannel : IDisposable
 {
-    private readonly string _gameFolder;
+    private readonly IGameFileSystem _fileSystem;
     private readonly MyError? _error;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="PictureChannel"/> class with an empty image.
     /// </summary>
-    /// <param name="gameFolder">The game folder the picture files are in.</param>
-    public PictureChannel(string gameFolder)
-        : this(gameFolder, null)
+    /// <param name="fileSystem">The file system the picture files are in.</param>
+    public PictureChannel(IGameFileSystem fileSystem)
+        : this(fileSystem, null)
     {
     }
 
     [EngineRoutine(0x00428a80)]
-    internal PictureChannel(string gameFolder, MyError? error)
+    internal PictureChannel(IGameFileSystem fileSystem, MyError? error)
     {
-        _gameFolder = gameFolder;
+        _fileSystem = fileSystem;
         _error = error;
-        Image = new PictureImage(gameFolder, error);
+        Image = new PictureImage(fileSystem, error);
     }
 
     /// <summary>
@@ -67,22 +67,22 @@ public sealed class PictureChannel : IDisposable
         if (HasExtension(path, TgaImage.Extension))
         {
             Format = PictureFormat.Tga;
-            Image = new TgaImage(_gameFolder, _error);
+            Image = new TgaImage(_fileSystem, _error);
         }
         else if (HasExtension(path, ZImage.Extension))
         {
             Format = PictureFormat.Z;
-            Image = new ZImage(_gameFolder, _error);
+            Image = new ZImage(_fileSystem, _error);
         }
         else if (HasExtension(path, FlcImage.Extension))
         {
             Format = PictureFormat.Flc;
-            Image = new FlcImage(_gameFolder, _error);
+            Image = new FlcImage(_fileSystem, _error);
         }
         else if (HasExtension(path, BmpImage.Extension))
         {
             Format = PictureFormat.Bmp;
-            Image = new BmpImage(_gameFolder, _error);
+            Image = new BmpImage(_fileSystem, _error);
         }
         else
         {
@@ -92,7 +92,7 @@ public sealed class PictureChannel : IDisposable
             }
 
             Format = PictureFormat.None;
-            Image = new PictureImage(_gameFolder, _error);
+            Image = new PictureImage(_fileSystem, _error);
         }
 
         return Format != PictureFormat.None && Image.Load(path);

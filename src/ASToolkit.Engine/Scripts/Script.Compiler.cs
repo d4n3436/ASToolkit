@@ -17,7 +17,6 @@ public sealed partial class Script
 
     private readonly NamedList<ReadOnlyMemory<byte>> _defines = new();
     private readonly byte[] _name = new byte[MaxNameLength + 1];
-    private IGameFileSystem? _fileSystem;
     private byte[] _text = [];
     private int _position;
     private int _end;
@@ -41,16 +40,15 @@ public sealed partial class Script
     /// <summary>
     /// Loads a script file by compiling its source or reading its compiled form.
     /// </summary>
-    /// <param name="fileSystem">The file system that holds the script and its includes.</param>
     /// <param name="path">The path of the script file.</param>
     /// <returns><see langword="true"/> when the file was opened; otherwise, <see langword="false"/>.</returns>
     /// <exception cref="InvalidDataException">The source doesn't compile and the script isn't an Alien Shooter 2 script. Alien Shooter 2 scripts record the error in <see cref="CompileError"/> instead.</exception>
     [EngineRoutine(0x0041f7d0)]
-    public bool Load(IGameFileSystem fileSystem, string path)
+    public bool Load(string path)
     {
         Release();
         FileName = path;
-        if (!fileSystem.TryRead(path, out var file))
+        if (!_fileSystem.TryRead(path, out var file))
         {
             LogScriptError(7, "");
 
@@ -61,7 +59,7 @@ public sealed partial class Script
         file.Span[..Math.Min(file.Length, head.Length)].CopyTo(head);
         if (head[^1] != 0)
         {
-            LoadLgc(fileSystem, path, file.Span);
+            LoadLgc(path, file.Span);
             return true;
         }
 
@@ -103,11 +101,10 @@ public sealed partial class Script
         name.StartsWith("ScriptEvent"u8) && name.Length > 11 && !name[11..].ContainsAnyExceptInRange((byte)'0', (byte)'9');
 
     [EngineRoutine(0x0041f450)]
-    private void LoadLgc(IGameFileSystem fileSystem, string path, ReadOnlySpan<byte> file)
+    private void LoadLgc(string path, ReadOnlySpan<byte> file)
     {
         Release();
         FileName = path;
-        _fileSystem = fileSystem;
         _codeBuffer = ArrayPool<byte>.Shared.Rent(CodeCapacity);
         _codeSize = 0;
         _stack.Expand(MinCapacity);
@@ -148,7 +145,6 @@ public sealed partial class Script
         {
             ArrayPool<byte>.Shared.Return(_codeBuffer);
             _codeBuffer = [];
-            _fileSystem = null;
         }
     }
 
@@ -1548,7 +1544,7 @@ public sealed partial class Script
             }
 
             string path = Decode(_text.AsSpan(start, _position++ - start));
-            if (!_fileSystem!.TryRead(path, out var file))
+            if (!_fileSystem.TryRead(path, out var file))
                 throw ReportError(7, path);
 
             (byte[] saved, int position, int end, int line, int depth) = (_text, _position, _end, _line, _ifDepth);

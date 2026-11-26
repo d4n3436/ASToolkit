@@ -94,8 +94,8 @@ public sealed class GameTable
 
     private static GameTable Read(ReadOnlyMemory<byte> text)
     {
-        var script = new Script();
-        script.Load(new MarkedScriptSource(null, text), TableName);
+        var script = new Script(new MarkedScriptSource(null, text));
+        script.Load(TableName);
         var arrays = new Dictionary<string, int[]>(StringComparer.Ordinal);
         foreach (var (entryName, entry) in script.Objects.Items)
         {

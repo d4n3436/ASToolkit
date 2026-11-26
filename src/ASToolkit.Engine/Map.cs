@@ -63,7 +63,6 @@ public partial class Map : IDisposable
     private const int ReleaseWindDirection = 200;
 
     private static readonly SizeF StartMapSize = new(640, 480);
-    private readonly string _gameFolder;
     private readonly Group _groupHead = new(null, null);
     private readonly Vid?[] _vids = new Vid?[VidTableSize];
     private readonly Dictionary<int, ScriptFile> _scriptFiles = [];
@@ -103,12 +102,11 @@ public partial class Map : IDisposable
     /// <summary>
     /// Initializes a new instance of the <see cref="Map"/> class with no level loaded.
     /// </summary>
-    /// <param name="gameFolder">The game folder that holds the sprite files of the object IDs.</param>
     /// <param name="objects">The object table.</param>
     /// <param name="fileSystem">The file system that holds the game's files.</param>
     /// <param name="session">The session the map belongs to, or null to start one.</param>
     [EngineRoutine(0x00408ff0)]
-    protected Map(string gameFolder, ObjectTable objects, IGameFileSystem fileSystem, GameSession? session = null)
+    protected Map(ObjectTable objects, IGameFileSystem fileSystem, GameSession? session = null)
     {
         _mouseTips = new MouseTips(this);
         Menu = new Menu(this);
@@ -128,9 +126,9 @@ public partial class Map : IDisposable
         Session.Graphics.CreateDeviceFont(font, new Size(fontWidth, fontHeight), DefaultMaxTextureSize);
         _hasWindow = true;
         FileSystem = fileSystem;
-        _gameFolder = gameFolder;
+        Script = new Script(fileSystem);
         _objects = objects;
-        Parts = new SpritePartReader(gameFolder, objects);
+        Parts = new SpritePartReader(fileSystem, objects);
         Session.Random.Seed(StartRandomState);
         Script.Error = Session.Error;
         Script.Host = this;
@@ -141,7 +139,7 @@ public partial class Map : IDisposable
         _speed = NormalSpeed;
         Size = StartMapSize;
         ResetGroundZ();
-        var objectsFile = new Resource(Session.Error);
+        var objectsFile = new Resource(Session.Error, fileSystem);
         if (OpenObjects(fileSystem, ref objectsFile) != 0)
         {
             Session.Error.Error(MapLogTag, LogError.Open, 0, "resource file"u8);
@@ -160,7 +158,7 @@ public partial class Map : IDisposable
         EmptyVid.SetWeapons(_weapons!);
         Sprites = new SpriteCollector(Size, Vids, this);
         Mouse = new Mouse(EmptyVid, new Vector3(Session.Graphics.ScreenSize.ToVector2() * HalfShare, 0), default, null, this);
-        Mouse.Enable(fileSystem);
+        Mouse.Enable();
         Session.Controls = ControlSettings.Read(fileSystem);
         Input = new Input(Session.Controls, this);
         for (int slot = 0; slot < ASToolkit.Engine.Vid.ArmyCount; slot++)
@@ -273,7 +271,7 @@ public partial class Map : IDisposable
     /// <summary>
     /// Gets the level script.
     /// </summary>
-    public Script Script { get; } = new();
+    public Script Script { get; }
 
     /// <summary>
     /// Gets the input of the current frame.
@@ -377,8 +375,8 @@ public partial class Map : IDisposable
         _livingCharges.Clear();
         if (_demoFile is null)
         {
-            var demo = new Resource(Session.Error);
-            if (demo.Open(FileSystem, name, "DEMO"u8) == 0)
+            var demo = new Resource(Session.Error, FileSystem);
+            if (demo.Open(name, "DEMO"u8) == 0)
             {
                 FileSystem.TryRead(Encoding.ASCII.GetString(name), out var data);
                 name = demo.ReadText();
@@ -387,8 +385,8 @@ public partial class Map : IDisposable
             }
         }
 
-        var reader = new Resource(Session.Error);
-        if (reader.Open(FileSystem, name, "MAP "u8) != 0)
+        var reader = new Resource(Session.Error, FileSystem);
+        if (reader.Open(name, "MAP "u8) != 0)
         {
             Session.Error.Window($"!!!ERROR!!!LOAD: Invalid map file {MyError.Decode(name)}");
             return;
@@ -553,16 +551,16 @@ public partial class Map : IDisposable
         ShowLoadingStep("Load script file"u8);
         string stem = GameTextEncoding.Cyrillic.GetString(name.BeforeLast("."u8));
         string scriptPath = stem + ScriptExtension;
-        if (!FileSystem.TryRead(scriptPath, out _))
+        if (!FileSystem.Exists(scriptPath))
         {
             string compiledPath = stem + CompiledScriptExtension;
-            if (FileSystem.TryRead(compiledPath, out _))
+            if (FileSystem.Exists(compiledPath))
             {
                 scriptPath = compiledPath;
             }
         }
 
-        Script.Load(FileSystem, scriptPath);
+        Script.Load(scriptPath);
         ShowLoadingStep("Connect script function with VID"u8);
         var objects = Script.Objects;
         for (int i = 0; i < objects.Count; i++)
@@ -732,7 +730,7 @@ public partial class Map : IDisposable
 
         if (!IsPlayingDemo)
         {
-            Mouse.Enable(FileSystem);
+            Mouse.Enable();
         }
 
         ShowLoadingStep([]);
@@ -963,7 +961,7 @@ public partial class Map : IDisposable
 
     internal static int OpenObjects(IGameFileSystem fileSystem, ref Resource resource)
     {
-        return resource.Open(fileSystem, GetObjectsFileName(fileSystem).Span, "DATA"u8);
+        return resource.Open(GetObjectsFileName(fileSystem).Span, "DATA"u8);
     }
 
     internal static ReadOnlyMemory<byte> GetObjectsFileName(IGameFileSystem fileSystem)
@@ -1043,7 +1041,7 @@ public partial class Map : IDisposable
         Session.Graphics.SetEnvironment((MapEnvironment)(-1));
         if (IsPlayingDemo)
         {
-            Mouse.Enable(FileSystem);
+            Mouse.Enable();
         }
 
         _playedDemo = null;

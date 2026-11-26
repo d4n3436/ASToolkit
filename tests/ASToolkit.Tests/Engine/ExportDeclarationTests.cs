@@ -14,10 +14,10 @@ public class ExportDeclarationTests
     public void ScriptFunction_EveryMember_MatchesAnExternOfExport()
     {
         const string scriptPath = "Maps\\export_test.lgc";
-        var script = new Script();
         var fileSystem = new MemoryWriteOverlay(new GameFolder(TestGameFolder.RequireFolder()));
+        var script = new Script(fileSystem);
         fileSystem.Set(scriptPath, "#include \"maps\\export.lgc\"\nmain()\n{\n}\n"u8.ToArray());
-        Assert.True(script.Load(fileSystem, scriptPath));
+        Assert.True(script.Load(scriptPath));
         var externs = new Dictionary<int, string>();
         foreach (var (nameName, name) in script.Objects.Items)
         {

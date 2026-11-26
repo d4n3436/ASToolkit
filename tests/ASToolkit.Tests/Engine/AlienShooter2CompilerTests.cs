@@ -30,7 +30,7 @@ public class AlienShooter2CompilerTests
         var code = Decode(script, "main");
 
         Assert.Equal([ScriptOpcode.Load, ScriptOpcode.PushNumber, ScriptOpcode.Add, ScriptOpcode.Assign], code.Take(4).Select(instruction => instruction.Opcode));
-        Assert.Throws<InvalidDataException>(() => new Script().Load(CreateSource(text), ScriptPath));
+        Assert.Throws<InvalidDataException>(() => new Script(CreateSource(text)).Load(ScriptPath));
     }
 
     [Fact]
@@ -67,9 +67,9 @@ public class AlienShooter2CompilerTests
     [Fact]
     public void Load_CompileError_LeavesTheScriptEmptyWithTheError()
     {
-        var script = new Script(ScriptVersion.AlienShooter2);
+        var script = new Script(ScriptVersion.AlienShooter2, CreateSource("!!!!not used any more\nmain()\n{\n}\n"));
 
-        Assert.True(script.Load(CreateSource("!!!!not used any more\nmain()\n{\n}\n"), ScriptPath));
+        Assert.True(script.Load(ScriptPath));
         Assert.True(script.Code.IsEmpty);
         Assert.Equal(-1, script.MainIndex);
         Assert.NotNull(script.CompileError);
@@ -104,8 +104,8 @@ public class AlienShooter2CompilerTests
         Assert.NotEmpty(levels);
         foreach (string level in levels)
         {
-            var script = new Script(ScriptVersion.AlienShooter2);
-            Assert.True(script.Load(fileSystem, "maps\\" + level));
+            var script = new Script(ScriptVersion.AlienShooter2, fileSystem);
+            Assert.True(script.Load("maps\\" + level));
             Assert.Null(script.CompileError);
             Assert.False(script.Code.IsEmpty, level);
         }
@@ -121,8 +121,8 @@ public class AlienShooter2CompilerTests
 
     private static Script Compile(string text)
     {
-        var script = new Script(ScriptVersion.AlienShooter2);
-        Assert.True(script.Load(CreateSource(text), ScriptPath));
+        var script = new Script(ScriptVersion.AlienShooter2, CreateSource(text));
+        Assert.True(script.Load(ScriptPath));
 
         return script;
     }

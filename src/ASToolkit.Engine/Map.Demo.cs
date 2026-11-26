@@ -50,7 +50,7 @@ public partial class Map
                 {
                     _playedDemo = null;
                     _flags &= ~MapFlags.PlayingDemo;
-                    Mouse.Enable(FileSystem);
+                    Mouse.Enable();
                     RequestLoad(mapName);
                 }
 

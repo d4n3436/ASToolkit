@@ -14,12 +14,14 @@ public sealed partial class Script
 
     private readonly MyList<ScriptStack> _stack = new();
     private readonly NamedList<ScriptObject> _objects = new();
+    private readonly IGameFileSystem _fileSystem;
     private byte[]? _code;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="Script"/> class as an empty script in Alien Shooter's version of the script language.
     /// </summary>
-    public Script() : this(ScriptVersion.AlienShooter)
+    /// <param name="fileSystem">The file system that holds the script and its includes.</param>
+    public Script(IGameFileSystem fileSystem) : this(ScriptVersion.AlienShooter, fileSystem)
     {
     }
 
@@ -27,9 +29,11 @@ public sealed partial class Script
     /// Initializes a new instance of the <see cref="Script"/> class as an empty script in a version of the script language.
     /// </summary>
     /// <param name="version">The version of the script language the script is compiled in.</param>
-    public Script(ScriptVersion version)
+    /// <param name="fileSystem">The file system that holds the script and its includes.</param>
+    public Script(ScriptVersion version, IGameFileSystem fileSystem)
     {
         Version = version;
+        _fileSystem = fileSystem;
     }
 
     /// <summary>

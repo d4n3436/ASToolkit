@@ -21,14 +21,14 @@ public sealed class TgaImage : PictureImage
     /// <summary>
     /// Initializes a new instance of the <see cref="TgaImage"/> class.
     /// </summary>
-    /// <param name="gameFolder">The game folder the picture files are in.</param>
-    public TgaImage(string gameFolder)
-        : this(gameFolder, null)
+    /// <param name="fileSystem">The file system the picture files are in.</param>
+    public TgaImage(IGameFileSystem fileSystem)
+        : this(fileSystem, null)
     {
     }
 
-    internal TgaImage(string gameFolder, MyError? error)
-        : base(gameFolder, error)
+    internal TgaImage(IGameFileSystem fileSystem, MyError? error)
+        : base(fileSystem, error)
     {
     }
 
@@ -55,7 +55,7 @@ public sealed class TgaImage : PictureImage
         string stem = Name.EndsWith(Extension, StringComparison.Ordinal) ? Name[..^Extension.Length] : Name;
         if (stem.Length != 0 && IsDigit(stem[^1]))
         {
-            while (GamePath.Resolve(GameFolder, GetFrameName(Name, FrameCount)) is not null)
+            while (Exists(GetFrameName(Name, FrameCount)))
             {
                 FrameCount++;
             }

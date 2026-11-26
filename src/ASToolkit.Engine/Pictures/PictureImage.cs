@@ -33,25 +33,20 @@ public class PictureImage : IDisposable
     /// <summary>
     /// Initializes a new instance of the <see cref="PictureImage"/> class without pixels.
     /// </summary>
-    /// <param name="gameFolder">The game folder the picture files are in.</param>
-    public PictureImage(string gameFolder)
-        : this(gameFolder, null)
+    /// <param name="fileSystem">The file system the picture files are in.</param>
+    public PictureImage(IGameFileSystem fileSystem)
+        : this(fileSystem, null)
     {
     }
 
     [EngineRoutine(0x00426dd0)]
-    internal PictureImage(string gameFolder, MyError? error)
+    internal PictureImage(IGameFileSystem fileSystem, MyError? error)
     {
-        GameFolder = gameFolder;
+        FileSystem = fileSystem;
         Error = error;
         Name = string.Empty;
         Speed = DefaultSpeed;
     }
-
-    /// <summary>
-    /// Gets the game folder the picture files are in.
-    /// </summary>
-    public string GameFolder { get; }
 
     /// <summary>
     /// Gets the path of the first picture file, in lower case.
@@ -101,9 +96,14 @@ public class PictureImage : IDisposable
     internal MyError? Error { get; }
 
     /// <summary>
+    /// Gets the file system the picture files are read from and written to.
+    /// </summary>
+    protected IGameFileSystem FileSystem { get; }
+
+    /// <summary>
     /// Gets or sets the open picture file.
     /// </summary>
-    protected FileStream? Input { get; set; }
+    protected Stream? Input { get; set; }
 
     /// <summary>
     /// Gets or sets the offset of the pixels in the open picture file.
@@ -156,11 +156,10 @@ public class PictureImage : IDisposable
     /// <summary>
     /// Writes an area of the picture to a TGA file, as 24-bit colors or as 32-bit colors when the picture has four bytes per pixel.
     /// </summary>
-    /// <param name="fileSystem">The file system the file is written to.</param>
     /// <param name="path">The path of the file.</param>
     /// <param name="area">The area to write. A width or height of -1 means the rest of the picture.</param>
     [EngineRoutine(0x00426f90)]
-    public void SaveTga(IGameFileSystem fileSystem, string path, Rectangle area)
+    public void SaveTga(string path, Rectangle area)
     {
         if (!HasPixels)
         {
@@ -184,7 +183,7 @@ public class PictureImage : IDisposable
             return;
         }
 
-        var file = path.Length == 0 ? null : fileSystem.OpenWrite(path, false);
+        var file = path.Length == 0 ? null : FileSystem.OpenWrite(path, false);
         if (file is null)
         {
             Report(LogError.Open, Encoding.ASCII.GetBytes(path));
@@ -449,11 +448,20 @@ public class PictureImage : IDisposable
     /// </summary>
     /// <param name="name">The path of the picture file, relative to the game folder.</param>
     /// <returns>The open file, or <see langword="null"/> if the file doesn't exist.</returns>
-    protected FileStream? OpenFile(string name)
+    protected Stream? OpenFile(string name)
     {
-        string? path = GamePath.Resolve(GameFolder, name);
-        return path is null ? null : new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 1);
+        if (!FileSystem.TryRead(name, out var data))
+            return null;
+
+        return MemoryMarshal.TryGetArray(data, out var segment) ? new MemoryStream(segment.Array!, segment.Offset, segment.Count, false) : new MemoryStream(data.ToArray(), false);
     }
+
+    /// <summary>
+    /// Determines whether a picture file exists.
+    /// </summary>
+    /// <param name="name">The path of the picture file, relative to the game folder.</param>
+    /// <returns><see langword="true"/> if the file exists; otherwise, <see langword="false"/>.</returns>
+    protected bool Exists(string name) => FileSystem.Exists(name);
 
     private protected static bool IsDigit(char character) => character <= byte.MaxValue && CRuntime.IsDigit((byte)character);
 }

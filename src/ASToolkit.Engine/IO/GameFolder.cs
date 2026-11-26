@@ -29,6 +29,14 @@ public sealed class GameFolder : IGameFileSystem
     }
 
     /// <inheritdoc/>
+    public bool Exists(string path)
+    {
+        string? file = GamePath.Resolve(_gameFolder, path);
+
+        return file is not null && File.Exists(file);
+    }
+
+    /// <inheritdoc/>
     public Stream? OpenWrite(string path, bool append)
     {
         string? file = ResolveForWrite(path);

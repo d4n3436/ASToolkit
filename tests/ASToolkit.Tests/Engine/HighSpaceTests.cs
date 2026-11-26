@@ -17,9 +17,9 @@ public class HighSpaceTests
     [Fact]
     public void Load_HighSpaceBetweenTokens_SkipsItAsBlank()
     {
-        var script = new Script();
+        var script = new Script(CreateSource(HighSpace));
 
-        Assert.True(script.Load(CreateSource(HighSpace), ScriptPath));
+        Assert.True(script.Load(ScriptPath));
         Assert.True(script.Objects.Location("b"u8) >= 0);
     }
 
@@ -28,9 +28,9 @@ public class HighSpaceTests
     [InlineData(EnLetter)]
     public void Load_LetterBetweenTokens_IsNotSkipped(byte letter)
     {
-        var script = new Script();
+        var script = new Script(CreateSource(letter));
 
-        Assert.Throws<InvalidDataException>(() => script.Load(CreateSource(letter), ScriptPath));
+        Assert.Throws<InvalidDataException>(() => script.Load(ScriptPath));
     }
 
     [Theory]
@@ -38,31 +38,29 @@ public class HighSpaceTests
     [InlineData(ElLetter)]
     public void Load_HighLetterInName_ContinuesTheName(byte letter)
     {
-        var script = new Script();
-
         var fileSystem = new MemoryWriteOverlay(new GameFolder(AppContext.BaseDirectory));
+        var script = new Script(fileSystem);
         fileSystem.Set(ScriptPath, Join("int a"u8, letter, ";\nmain() { }"u8));
-        Assert.True(script.Load(fileSystem, ScriptPath));
+        Assert.True(script.Load(ScriptPath));
         Assert.True(script.Objects.Location([(byte)'a', letter]) >= 0);
     }
 
     [Fact]
     public void Load_HighDigitInEscape_ReadsAThreeDigitCode()
     {
-        var script = new Script();
-
         var fileSystem = new MemoryWriteOverlay(new GameFolder(AppContext.BaseDirectory));
+        var script = new Script(fileSystem);
         fileSystem.Set(ScriptPath, Join("string s = \"\\1"u8, ElLetter, "3\";\nmain() { }"u8));
-        Assert.True(script.Load(fileSystem, ScriptPath));
+        Assert.True(script.Load(ScriptPath));
         Assert.Equal([0x1b], script.GetSlot(script.Objects[script.Objects.Location("s"u8)].Address).Text.ToArray());
     }
 
     [Fact]
     public void Load_HighSpaceInAlienShooter2_IsNotSkipped()
     {
-        var script = new Script(ScriptVersion.AlienShooter2);
+        var script = new Script(ScriptVersion.AlienShooter2, CreateSource(HighSpace));
 
-        script.Load(CreateSource(HighSpace), ScriptPath);
+        script.Load(ScriptPath);
 
         Assert.NotNull(script.CompileError);
     }
@@ -74,9 +72,9 @@ public class HighSpaceTests
     public void Action_NextCommand_SkipsOnlyHighSpaces(byte character, int visibleCount)
     {
         var map = EngineTestMap.CreateMap();
-        var source = new MemoryWriteOverlay(new GameFolder(TestGameFolder.RequireFolder()));
+        var source = (MemoryWriteOverlay)map.FileSystem;
         source.Set(ScriptPath, "#include \"maps\\export.lgc\"\nmain() { MenuLoad(\"maps\\\\gamemenu.men\"); }"u8.ToArray());
-        Assert.True(map.Script.Load(source, ScriptPath));
+        Assert.True(map.Script.Load(ScriptPath));
         map.Script.CallFunction(-1, 0, 0, 0);
         var text = Enumerable.Range(0, 17).SelectMany(map.GetLayer).OfType<SText>().First();
         text.Shown = new byte[] { (byte)'a', character, (byte)'b', (byte)'c' };

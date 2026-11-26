@@ -29,14 +29,14 @@ public sealed class FlcImage : PictureImage
     /// <summary>
     /// Initializes a new instance of the <see cref="FlcImage"/> class.
     /// </summary>
-    /// <param name="gameFolder">The game folder the picture files are in.</param>
-    public FlcImage(string gameFolder)
-        : this(gameFolder, null)
+    /// <param name="fileSystem">The file system the picture files are in.</param>
+    public FlcImage(IGameFileSystem fileSystem)
+        : this(fileSystem, null)
     {
     }
 
-    internal FlcImage(string gameFolder, MyError? error)
-        : base(gameFolder, error)
+    internal FlcImage(IGameFileSystem fileSystem, MyError? error)
+        : base(fileSystem, error)
     {
     }
 

@@ -45,7 +45,7 @@ public partial class Map
             case MenuCommand.Screenshot:
                 string path = $"{ScreenshotFolder}{MyLib.GetDateString(Session.Time)} {MyLib.GetTimeString(Session.Time)}{ScreenshotExtension}";
                 path = path.ReplaceFirst(':', 'h').ReplaceFirst(':', 'm').ReplaceFirst(':', 's');
-                Session.Graphics.SaveScreen(FileSystem, path, new Rectangle(Point.Empty, System.Drawing.Size.Truncate(Session.Graphics.ScreenSize)));
+                Session.Graphics.SaveScreen(path, new Rectangle(Point.Empty, System.Drawing.Size.Truncate(Session.Graphics.ScreenSize)));
                 break;
         }
     }
@@ -72,7 +72,7 @@ public partial class Map
                 if (_flags.HasFlag(MapFlags.WindowActive))
                 {
                     Sound.Resume();
-                    Mouse.Enable(FileSystem);
+                    Mouse.Enable();
                 }
                 else
                 {

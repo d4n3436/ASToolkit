@@ -77,7 +77,7 @@ public class MapLoadTests
         files.Set("maps\\old.lgc", script);
         files.Set(OldMapPath, CreateOldMap());
         var registry = new Registry("");
-        var map = new MapSteam(TestGameFolder.RequireFolder(), TestGameFolder.Objects, files, new GameSession(registry, time: new SteppedClock()));
+        var map = new MapSteam(TestGameFolder.Objects, files, new GameSession(registry, time: new SteppedClock()));
 
         map.LoadAt("maps\\old.map"u8, EngineTestMap.StartRealTime);
 
@@ -101,7 +101,7 @@ public class MapLoadTests
         files.Set(ExtraMapPath, map.Build());
         files.Set("maps\\extra.lgc", script);
         var registry = new Registry("");
-        var steam = new MapSteam(TestGameFolder.RequireFolder(), TestGameFolder.Objects, files, new GameSession(registry, time: new SteppedClock()));
+        var steam = new MapSteam(TestGameFolder.Objects, files, new GameSession(registry, time: new SteppedClock()));
 
         steam.LoadAt("maps\\extra.map"u8, EngineTestMap.StartRealTime);
         var extra = steam.FindVid(ExtraId);

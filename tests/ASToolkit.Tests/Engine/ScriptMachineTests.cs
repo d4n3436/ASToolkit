@@ -139,10 +139,10 @@ public class ScriptMachineTests
 
     private static (Script Script, NoteHost Host) Compile(string text)
     {
-        var script = new Script();
         var fileSystem = new MemoryWriteOverlay(new GameFolder(AppContext.BaseDirectory));
+        var script = new Script(fileSystem);
         fileSystem.Set(ScriptPath, Encoding.ASCII.GetBytes(text));
-        Assert.True(script.Load(fileSystem, ScriptPath));
+        Assert.True(script.Load(ScriptPath));
 
         var host = new NoteHost();
         script.Host = host;

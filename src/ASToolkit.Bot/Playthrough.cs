@@ -51,7 +51,7 @@ public sealed class Playthrough
         _fileSystem = new GameFolder(gameFolder);
         _files = new MemoryWriteOverlay(_fileSystem);
         _objects = objects;
-        _map = new MapSteam(gameFolder, objects, _fileSystem);
+        _map = new MapSteam(objects, _fileSystem);
         _shop = new ShopBot(objects, _map, table);
     }
 
@@ -100,7 +100,7 @@ public sealed class Playthrough
         files.Set(mapPath, File.ReadAllBytes(mapFile));
         files.Set(scriptPath, File.Exists(scriptFile) ? File.ReadAllBytes(scriptFile) : DefaultLevelScript.ToArray());
         var profile = CreateProfile(gameFolder);
-        var map = new MapSteam(gameFolder, objects, files, new GameSession(profile, time: new SteppedClock()));
+        var map = new MapSteam(objects, files, new GameSession(profile, time: new SteppedClock()));
         map.Input.PostMessage(WindowMessageId.ActivateApp, 1, 0);
         map.RequestLoad(Encoding.ASCII.GetBytes(mapPath));
         map.TactAt(ViewSeed);
@@ -205,59 +205,6 @@ public sealed class Playthrough
         return PlayCampaign(levels, endMoney, seed, state, record, recordedLevel, null, ref map);
     }
 
-    private CampaignResult PlayCampaign(IReadOnlyList<RouteAnalysis> levels, IReadOnlyList<int> endMoney, int seed,
-        CampaignState? state, bool record, int? recordedLevel, (int Level, int Attempt)? stop, ref Map? map)
-    {
-        var results = new List<PlaythroughResult>();
-        bool shouldShopFirst = state is not null;
-        state ??= CampaignState.CreateInitial();
-        for (int level = 0; level < levels.Count; level++)
-        {
-            int money = state.Money;
-            int reward = level < endMoney.Count ? endMoney[level] : 0;
-            int firstSeed = (seed * SeedLevels + level) * MaxAttempts;
-            var loadout = (level > 0 || shouldShopFirst
-                ? _shop.Shop(ref money, state.Loadout.Ammo, state.Loadout.Implants, state.Loadout.Items, reward)
-                : state.Loadout) with { Money = money };
-            bool recordLevel = record && (recordedLevel is null || recordedLevel == level);
-            if (stop == (level, 0))
-                return new CampaignResult(results, state, false);
-
-            var result = Run(levels[level], loadout, firstSeed, recordLevel, ref map);
-            for (int attempt = 1; attempt < MaxAttempts && !result.Survived; attempt++)
-            {
-                if (stop == (level, attempt))
-                    return new CampaignResult(results, state, false);
-
-                result = Run(levels[level], loadout, firstSeed + attempt, recordLevel, ref map) with { Attempt = attempt };
-            }
-
-            results.Add(result);
-
-            if (!result.Survived)
-            {
-                break;
-            }
-
-            var items = result.Items;
-
-            if (items.ContainsKey(KnownObject.Dynamite))
-            {
-                var carriedItems = items.ToDictionary();
-                carriedItems.Remove(KnownObject.Dynamite);
-                items = carriedItems;
-            }
-
-            state = new CampaignState(result.Money + reward,
-                new PlayerLoadout(0, result.Ammo, result.Implants) { Items = items });
-        }
-
-        return new CampaignResult(
-            Levels: results,
-            State: state,
-            IsCompleted: results.Count == levels.Count && results.All(result => result.Survived));
-    }
-
     internal PlaySession Start(RouteAnalysis analysis, PlayerLoadout loadout, int seed, bool record = false, Map? map = null)
     {
         var setup = GetSetup(analysis);
@@ -265,7 +212,7 @@ public sealed class Playthrough
         if (map is null)
         {
             var registry = CreateRegistry(_gameFolder, analysis.Name, loadout);
-            map = new MapSteam(_gameFolder, _objects, _files, new GameSession(registry, time: new SteppedClock()));
+            map = new MapSteam(_objects, _files, new GameSession(registry, time: new SteppedClock()));
             map.Input.PostMessage(WindowMessageId.ActivateApp, 1, 0);
         }
         else
@@ -365,6 +312,59 @@ public sealed class Playthrough
         }
     }
 
+    private CampaignResult PlayCampaign(IReadOnlyList<RouteAnalysis> levels, IReadOnlyList<int> endMoney, int seed,
+        CampaignState? state, bool record, int? recordedLevel, (int Level, int Attempt)? stop, ref Map? map)
+    {
+        var results = new List<PlaythroughResult>();
+        bool shouldShopFirst = state is not null;
+        state ??= CampaignState.CreateInitial();
+        for (int level = 0; level < levels.Count; level++)
+        {
+            int money = state.Money;
+            int reward = level < endMoney.Count ? endMoney[level] : 0;
+            int firstSeed = (seed * SeedLevels + level) * MaxAttempts;
+            var loadout = (level > 0 || shouldShopFirst
+                ? _shop.Shop(ref money, state.Loadout.Ammo, state.Loadout.Implants, state.Loadout.Items, reward)
+                : state.Loadout) with { Money = money };
+            bool recordLevel = record && (recordedLevel is null || recordedLevel == level);
+            if (stop == (level, 0))
+                return new CampaignResult(results, state, false);
+
+            var result = Run(levels[level], loadout, firstSeed, recordLevel, ref map);
+            for (int attempt = 1; attempt < MaxAttempts && !result.Survived; attempt++)
+            {
+                if (stop == (level, attempt))
+                    return new CampaignResult(results, state, false);
+
+                result = Run(levels[level], loadout, firstSeed + attempt, recordLevel, ref map) with { Attempt = attempt };
+            }
+
+            results.Add(result);
+
+            if (!result.Survived)
+            {
+                break;
+            }
+
+            var items = result.Items;
+
+            if (items.ContainsKey(KnownObject.Dynamite))
+            {
+                var carriedItems = items.ToDictionary();
+                carriedItems.Remove(KnownObject.Dynamite);
+                items = carriedItems;
+            }
+
+            state = new CampaignState(result.Money + reward,
+                new PlayerLoadout(0, result.Ammo, result.Implants) { Items = items });
+        }
+
+        return new CampaignResult(
+            Levels: results,
+            State: state,
+            IsCompleted: results.Count == levels.Count && results.All(result => result.Survived));
+    }
+
     private Map LoadReplay(RouteAnalysis analysis, PlayerLoadout loadout, DemoResource demo, Map? map)
     {
         GetSetup(analysis);
@@ -373,7 +373,7 @@ public sealed class Playthrough
         if (map is null)
         {
             var registry = CreateRegistry(_gameFolder, analysis.Name, loadout);
-            map = new MapSteam(_gameFolder, _objects, _files, new GameSession(registry, time: new SteppedClock()));
+            map = new MapSteam(_objects, _files, new GameSession(registry, time: new SteppedClock()));
             map.Input.PostMessage(WindowMessageId.ActivateApp, 1, 0);
         }
         else

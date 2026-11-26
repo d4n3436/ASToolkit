@@ -56,7 +56,7 @@ internal static class EngineTestMap
     {
         var files = CreateFiles(sprites, environment, script, ambient, placePlayer, camera);
 
-        var map = new MapSteam(TestGameFolder.RequireFolder(), TestGameFolder.Objects, files, session ?? new GameSession(CreateRegistry(loadout, blood), time: new SteppedClock()));
+        var map = new MapSteam(TestGameFolder.Objects, files, session ?? new GameSession(CreateRegistry(loadout, blood), time: new SteppedClock()));
         map.Pace([frameTime]);
         map.Input.PostMessage(WindowMessageId.ActivateApp, 1, 0);
         if (recordDemo)

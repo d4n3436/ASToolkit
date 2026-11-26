@@ -42,7 +42,7 @@ public sealed partial class Graphics
     internal Graphics(GameSession session)
     {
         _session = session;
-        Movie = new Movie(session.Error);
+        Movie = new Movie(session);
     }
 
     /// <summary>
@@ -309,7 +309,7 @@ public sealed partial class Graphics
     }
 
     [EngineRoutine(0x004343e0)]
-    internal void PlayMovie(IGameFileSystem fileSystem, ReadOnlySpan<byte> path) => Movie.Open(fileSystem, path);
+    internal void PlayMovie(ReadOnlySpan<byte> path) => Movie.Open(path);
 
     private static Rectangle ToViewportRectangle(RectangleF viewport) => Rectangle.FromLTRB((int)viewport.Left, (int)viewport.Top, (int)viewport.Right, (int)viewport.Bottom);
 }

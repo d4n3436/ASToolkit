@@ -16,10 +16,10 @@ public class ScriptCompilerTests
         var fileSystem = new GameFolder(TestGameFolder.RequireFolder());
         var demo = new DemoResource(File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "Fixtures", "addon2-level1-walk.dem")));
         string path = Path.ChangeExtension(GameTextEncoding.Cyrillic.GetString(demo.MapName), ".lgc");
-        var compiled = new Script();
-        var recorded = new Script();
-        Assert.True(compiled.Load(fileSystem, path));
-        Assert.True(recorded.Load(fileSystem, path));
+        var compiled = new Script(fileSystem);
+        var recorded = new Script(fileSystem);
+        Assert.True(compiled.Load(path));
+        Assert.True(recorded.Load(path));
 
         int offset = recorded.LoadVar(demo.Body);
         while (demo.TryReadFrame(ref offset, out _))

@@ -1,5 +1,6 @@
 using System.Drawing;
 using System.Numerics;
+using ASToolkit.Engine.IO;
 using ASToolkit.Formats;
 
 namespace ASToolkit.Engine;
@@ -16,7 +17,7 @@ public sealed class SpritePartReader
     private const int DepthShift = 3;
     private const int DepthBias = 0x80;
 
-    private readonly string _gameFolder;
+    private readonly IGameFileSystem _fileSystem;
     private readonly ObjectTable _objects;
     private readonly Dictionary<string, VidResource?> _files = new(StringComparer.OrdinalIgnoreCase);
 
@@ -25,11 +26,11 @@ public sealed class SpritePartReader
     /// <summary>
     /// Initializes a new instance of the <see cref="SpritePartReader"/> class.
     /// </summary>
-    /// <param name="gameFolder">The game folder.</param>
+    /// <param name="fileSystem">The file system that holds the sprite files.</param>
     /// <param name="objects">The object table of the game.</param>
-    public SpritePartReader(string gameFolder, ObjectTable objects)
+    public SpritePartReader(IGameFileSystem fileSystem, ObjectTable objects)
     {
-        _gameFolder = gameFolder;
+        _fileSystem = fileSystem;
         _objects = objects;
     }
 
@@ -130,7 +131,7 @@ public sealed class SpritePartReader
         if (!path.EndsWith(BmpImage.Extension, StringComparison.OrdinalIgnoreCase))
             return 0;
 
-        if (GamePath.Resolve(_gameFolder, path) is null)
+        if (!_fileSystem.Exists(path))
             return 1;
 
         string stem = path[..^BmpImage.Extension.Length];
@@ -141,7 +142,7 @@ public sealed class SpritePartReader
 
         var prefix = stem.AsSpan()[..^digits];
         int frames = 1;
-        while (GamePath.Resolve(_gameFolder, $"{prefix}{frames}{BmpImage.Extension}") is not null)
+        while (_fileSystem.Exists($"{prefix}{frames}{BmpImage.Extension}"))
         {
             frames++;
         }
@@ -155,8 +156,7 @@ public sealed class SpritePartReader
     {
         if (!_files.TryGetValue(path, out var file))
         {
-            string? resolved = GamePath.Resolve(_gameFolder, path);
-            file = resolved is not null && resolved.EndsWith(SpriteFileExtension, StringComparison.OrdinalIgnoreCase) ? new VidResource(File.ReadAllBytes(resolved)) : null;
+            file = path.EndsWith(SpriteFileExtension, StringComparison.OrdinalIgnoreCase) && _fileSystem.TryRead(path, out var data) ? new VidResource(data) : null;
             _files[path] = file;
         }
 

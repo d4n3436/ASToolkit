@@ -29,12 +29,11 @@ public sealed class MapSteam : Map
     /// <summary>
     /// Initializes a new instance of the <see cref="MapSteam"/> class with no level loaded.
     /// </summary>
-    /// <param name="gameFolder">The game folder that holds the sprite files of the object IDs.</param>
     /// <param name="objects">The object table.</param>
     /// <param name="fileSystem">The file system that holds the game's files.</param>
     /// <param name="session">The session the map belongs to, or null to start one.</param>
-    public MapSteam(string gameFolder, ObjectTable objects, IGameFileSystem fileSystem, GameSession? session = null)
-        : base(gameFolder, objects, fileSystem, session)
+    public MapSteam(ObjectTable objects, IGameFileSystem fileSystem, GameSession? session = null)
+        : base(objects, fileSystem, session)
     {
     }
 

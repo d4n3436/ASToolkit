@@ -50,6 +50,14 @@ public sealed class MemoryWriteOverlay : IGameFileSystem
     }
 
     /// <inheritdoc/>
+    public bool Exists(string path)
+    {
+        string key = Normalize(path);
+
+        return _written.ContainsKey(key) || !_deleted.Contains(key) && _fileSystem is not null && _fileSystem.Exists(path);
+    }
+
+    /// <inheritdoc/>
     public DateTime? GetWriteTime(string path) => _written.ContainsKey(Normalize(path)) || _deleted.Contains(Normalize(path)) ? null : _fileSystem?.GetWriteTime(path);
 
     /// <inheritdoc/>
@@ -72,7 +80,7 @@ public sealed class MemoryWriteOverlay : IGameFileSystem
     /// <inheritdoc/>
     public bool Delete(string path)
     {
-        if (!TryRead(path, out _))
+        if (!Exists(path))
             return false;
 
         string key = Normalize(path);
@@ -85,7 +93,7 @@ public sealed class MemoryWriteOverlay : IGameFileSystem
     /// <inheritdoc/>
     public bool Move(string source, string destination)
     {
-        if (TryRead(destination, out _) || !TryRead(source, out var data))
+        if (Exists(destination) || !TryRead(source, out var data))
             return false;
 
         Delete(source);

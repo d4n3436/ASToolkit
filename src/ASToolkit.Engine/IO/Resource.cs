@@ -15,6 +15,7 @@ internal ref struct Resource
     private const int FirstRecordOffset = 0x18;
 
     private readonly MyError? _error;
+    private readonly IGameFileSystem? _fileSystem;
     private ReadOnlySpan<byte> _data;
     private ReadOnlySpan<byte> _name;
     private bool _isOpen;
@@ -29,9 +30,10 @@ internal ref struct Resource
     private int _recordLength;
     private int _recordCount;
 
-    public Resource(MyError? error)
+    public Resource(MyError? error, IGameFileSystem? fileSystem = null)
     {
         _error = error;
+        _fileSystem = fileSystem;
     }
 
     public static ReadOnlySpan<byte> AnyTag => "ANY "u8;
@@ -73,9 +75,9 @@ internal ref struct Resource
     public ReadOnlySpan<byte> ReadText() => ReadText(_data, ref _position);
 
     [EngineRoutine(0x00407870)]
-    public int Open(ReadOnlySpan<byte> data, ReadOnlySpan<byte> kind)
+    public int Open(ReadOnlyMemory<byte> data, ReadOnlySpan<byte> kind)
     {
-        _data = data;
+        _data = data.Span;
         _isOpen = true;
         _position = 0;
         _start = _position;
@@ -118,13 +120,13 @@ internal ref struct Resource
     }
 
     [EngineRoutine(0x00407a40)]
-    public int Open(IGameFileSystem fileSystem, ReadOnlySpan<byte> name, ReadOnlySpan<byte> kind)
+    public int Open(ReadOnlySpan<byte> name, ReadOnlySpan<byte> kind)
     {
         _isOpen = false;
-        if (!name.IsEmpty && fileSystem.TryRead(Encoding.ASCII.GetString(name), out var data))
+        if (!name.IsEmpty && _fileSystem!.TryRead(Encoding.ASCII.GetString(name), out var data))
         {
             _name = name;
-            return Open(data.Span, kind);
+            return Open(data, kind);
         }
 
         Log(LogError.Open, 0, name);

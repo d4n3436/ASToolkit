@@ -22,14 +22,14 @@ public sealed class ZImage : PictureImage
     /// <summary>
     /// Initializes a new instance of the <see cref="ZImage"/> class.
     /// </summary>
-    /// <param name="gameFolder">The game folder the picture files are in.</param>
-    public ZImage(string gameFolder)
-        : this(gameFolder, null)
+    /// <param name="fileSystem">The file system the picture files are in.</param>
+    public ZImage(IGameFileSystem fileSystem)
+        : this(fileSystem, null)
     {
     }
 
-    internal ZImage(string gameFolder, MyError? error)
-        : base(gameFolder, error)
+    internal ZImage(IGameFileSystem fileSystem, MyError? error)
+        : base(fileSystem, error)
     {
     }
 

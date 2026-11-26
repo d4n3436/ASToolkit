@@ -88,9 +88,8 @@ public sealed class Mouse : Sprite
     /// <summary>
     /// Loads the cursor and, if it's a system cursor, the system cursor of each animation.
     /// </summary>
-    /// <param name="fileSystem">The file system that holds the cursor files.</param>
     [EngineRoutine(0x00446d90)]
-    public void Enable(IGameFileSystem fileSystem)
+    public void Enable()
     {
         if (IsCursorLoaded)
             return;
@@ -103,7 +102,7 @@ public sealed class Mouse : Sprite
         for (int i = 0; i < CursorNames.Length; i++)
         {
             string path = CursorFolder + CursorNames[i] + CursorExtension;
-            _cursors[i] = fileSystem.TryRead(path, out var data) ? new CursorImage(data) : default;
+            _cursors[i] = Map.FileSystem.TryRead(path, out var data) ? new CursorImage(data) : default;
         }
 
         ShownCursor = (int)Animation;
@@ -138,7 +137,7 @@ public sealed class Mouse : Sprite
         Disable();
         ReplaceVid(Map.EmptyVid);
         IsHardwareCursor = true;
-        Enable(Map.FileSystem);
+        Enable();
     }
 
     /// <summary>
@@ -156,7 +155,7 @@ public sealed class Mouse : Sprite
         base.ChangeAnimation(state == SpriteAnimation.Stand ? SpriteAnimation.StopMove : SpriteAnimation.Stand);
         base.ChangeAnimation(state);
         IsHardwareCursor = false;
-        Enable(Map.FileSystem);
+        Enable();
     }
 
     /// <summary>

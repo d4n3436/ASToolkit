@@ -684,7 +684,7 @@ public partial class Map : IScriptFunctionHost
 
                 if (!Mouse.IsCursorLoaded)
                 {
-                    Mouse.Enable(FileSystem);
+                    Mouse.Enable();
                 }
 
                 Mouse.ChangeAnimation((SpriteAnimation)cursorType);
@@ -767,7 +767,7 @@ public partial class Map : IScriptFunctionHost
                 break;
 
             case ScriptFunction.PlayMovie:
-                Session.Graphics.PlayMovie(FileSystem, PopText().Span);
+                Session.Graphics.PlayMovie(PopText().Span);
                 break;
             case ScriptFunction.IsPlayMovie:
                 PushInt(Session.Graphics.Movie.IsOpen ? 1 : 0);
