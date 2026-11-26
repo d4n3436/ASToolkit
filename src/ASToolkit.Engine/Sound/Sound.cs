@@ -54,23 +54,22 @@ public sealed class Sound
     private const int ExtensionLength = 4;
     private const float MillisecondsPerSecond = 1000;
 
-    private readonly IGameFileSystem _fileSystem;
-    private readonly ISoundDevice? _device;
-    private readonly GameSession _session;
-    private readonly SoundBuffer[] _duplicates = new SoundBuffer[VoiceCount];
     private readonly SfxRequest[] _requests = new SfxRequest[RequestCount];
-    private readonly SfxBuffer[] _voices = new SfxBuffer[VoiceCount];
-    private readonly Dictionary<string, MusicTrackFormat> _trackFormats = [];
     private readonly nint _window;
+    private readonly ISoundDevice? _device;
+    private readonly SfxBuffer[] _voices = new SfxBuffer[VoiceCount];
+    private readonly SoundBuffer[] _duplicates = new SoundBuffer[VoiceCount];
+    private readonly IGameFileSystem _fileSystem;
+    private readonly GameSession _session;
+    private readonly Dictionary<string, MusicTrackFormat> _trackFormats = [];
     private Sfx[] _sfx = [];
+    private int _deviceState = DeviceReleased;
     private int _soundVolume = FullVolume;
     private int _musicVolume = NoSound;
     private int _fade;
     private int _loop;
-    private ReadOnlyMemory<byte> _trackName;
     private OggMusic? _music;
-    private uint _fadeStartedAt;
-    private int _deviceState = DeviceReleased;
+    private ReadOnlyMemory<byte> _trackName;
 
     [EngineRoutine(0x0041cba0)]
     internal Sound(ref Resource resource, IGameFileSystem fileSystem, GameSession session, ISoundDevice? device = null, bool isDisabled = false, bool isHighQuality = false, nint window = 0)
@@ -149,9 +148,9 @@ public sealed class Sound
 
     private static ReadOnlySpan<byte> SfxTag => "SFX "u8;
 
-    private int PlayToState { get; set; } = NoSound;
-
     private int PlayToPosition { get; set; } = NoSound;
+
+    private int PlayToState { get; set; } = NoSound;
 
     /// <summary>
     /// Creates the sound system with the sounds of the game's object resource and loads the samples of every sound.
@@ -354,19 +353,19 @@ public sealed class Sound
 
             if (_fade < 0)
             {
-                if (_fadeStartedAt == 0 || RealTime - _fadeStartedAt > FadeWindow)
+                if (_session.FadeStartedAt == 0 || RealTime - _session.FadeStartedAt > FadeWindow)
                 {
-                    _fadeStartedAt = RealTime;
+                    _session.FadeStartedAt = RealTime;
                 }
 
                 music.SetVolume(_fade + (_musicVolume >= 0 ? (_musicVolume - FullVolume) * VolumeScale : 0));
-                _fade -= (int)((RealTime - _fadeStartedAt) / 2);
+                _fade -= (int)((RealTime - _session.FadeStartedAt) / 2);
                 isNextTrack = _fade < QuietestVolume;
 
                 if (isNextTrack)
                 {
                     _fade = 0;
-                    _fadeStartedAt = 0;
+                    _session.FadeStartedAt = 0;
                 }
             }
             else

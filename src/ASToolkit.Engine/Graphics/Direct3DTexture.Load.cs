@@ -13,9 +13,7 @@ public readonly ref partial struct Direct3DTexture
     private const ushort HighColorAlpha = 0x8000;
     private const int PaletteEntries = 256;
 
-    private static uint KeyOpaqueBlack(uint texel, uint colorKey) => texel == colorKey ? 0 : texel;
-
-    internal int LoadTexels(Rectangle destination, ReadOnlySpan<byte> data, VidPixelFormat format, int pitch, Size sourceSize, Rectangle source, uint filter, uint colorKey, ReadOnlySpan<uint> sourcePalette = default)
+    internal int LoadTexels(Rectangle destination, ReadOnlySpan<byte> data, VidPixelFormat format, int pitch, Size sourceSize, Rectangle source, uint filter, uint colorKey, ReadOnlySpan<PaletteEntry> sourcePalette = default)
     {
         if (source.Left < 0 || sourceSize.Width < source.Right || source.Right < source.Left || source.Top < 0 || sourceSize.Height < source.Bottom || source.Bottom < source.Top)
             return InvalidCall;
@@ -53,7 +51,7 @@ public readonly ref partial struct Direct3DTexture
                 switch (format, Format)
                 {
                     case (VidPixelFormat.P8, VidPixelFormat.A8R8G8B8):
-                        _texels32[start + x] = KeyOpaqueBlack(sourcePalette[row[column]], colorKey);
+                        _texels32[start + x] = KeyOpaqueBlack(sourcePalette[row[column]].ToColor(), colorKey);
                         break;
                     case (VidPixelFormat.R8G8B8, VidPixelFormat.A8R8G8B8):
                         _texels32[start + x] = KeyOpaqueBlack(OpaqueKey | (uint)(row[column * 3 + 2] << 16 | row[column * 3 + 1] << 8 | row[column * 3]), colorKey);
@@ -83,6 +81,8 @@ public readonly ref partial struct Direct3DTexture
 
         return 0;
     }
+
+    private static uint KeyOpaqueBlack(uint texel, uint colorKey) => texel == colorKey ? 0 : texel;
 
     private void CopyTexels(Rectangle destination, ReadOnlySpan<byte> data, VidPixelFormat format, int pitch, Rectangle source)
     {

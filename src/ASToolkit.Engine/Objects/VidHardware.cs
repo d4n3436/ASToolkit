@@ -48,24 +48,26 @@ public sealed class VidHardware : Vid
     /// </summary>
     /// <param name="map">The map.</param>
     /// <param name="id">The object ID.</param>
-    /// <param name="gameObject">The object record.</param>
     /// <param name="weapons">The weapon table.</param>
     /// <param name="file">The sprite file.</param>
-    /// <param name="totalFrames">The frame count of the sprite file.</param>
     /// <param name="format">The layout of the 16-bit colors that palette surfaces are converted to.</param>
-    public VidHardware(Map map, KnownObject id, in GameObject gameObject, AlienShooterWeaponRecord[] weapons, in VidResource file, int totalFrames, HighColorFormat format)
-        : base(map, id, gameObject, weapons, file, totalFrames)
+    public VidHardware(Map map, KnownObject id, AlienShooterWeaponRecord[] weapons, in VidResource file, HighColorFormat format)
+        : base(map, id, weapons, file)
     {
         _format = format;
     }
 
     [EngineRoutine(0x00419750)]
     internal VidHardware(Map map, KnownObject id, Size size, AlienShooterWeaponRecord[] weapons)
-        : base(map, id, new GameObject(SpriteClass.Primitive, GroundObjectSize), weapons, Map.DefaultSpriteSpeed, 0, ObjectLayer.Ground, null)
+        : base(map, weapons)
     {
+        Size = GroundObjectSize;
+        Id = id;
+        RecordId = id;
         Name = GroundName;
         FileType = GroundType;
         FrameSize = size;
+        Layer = ObjectLayer.Ground;
         _format = HighColorFormat.Rgb565;
 
         int i = 0;
@@ -346,6 +348,7 @@ public sealed class VidHardware : Vid
         bool hasDepth = FileType.HasFlag(VidType.ZBuffer);
         for (int i = 0; i < SurfaceCount; i++)
         {
+            _map.Session.Graphics.DrawLoadBar(_map.Vid(0));
             if (i >= surfaces.Length)
             {
                 Report(LogError.Create, 0, TextureText);

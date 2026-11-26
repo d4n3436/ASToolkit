@@ -93,19 +93,34 @@ public sealed partial class Graphics
 
     internal VidPixelFormat DisplayFormat { get; private set; }
 
-    internal int DepthWidth { get; private set; }
+    internal Texture LightTexture
+    {
+        get
+        {
+            EnsureBuffers();
+            return LightBuffer!;
+        }
+    }
 
-    internal DeviceBuffers Buffers { get; } = new();
+    internal Texture HighTexture
+    {
+        get
+        {
+            EnsureBuffers();
+            return HighBuffer!;
+        }
+    }
 
-    internal Texture LightTexture => EnsureBuffers().Light!;
+    internal Texture AlphaTexture
+    {
+        get
+        {
+            EnsureBuffers();
+            return AlphaBuffer!;
+        }
+    }
 
-    internal Texture HighTexture => EnsureBuffers().High!;
-
-    internal Texture AlphaTexture => EnsureBuffers().Alpha!;
-
-    internal Texture LightPhaseTexture => LightPhase == 0 ? LightTexture : HighTexture;
-
-    internal int LightPhase { get; set; }
+    internal Texture LightPhaseTexture => _session.LightPhase == 0 ? LightTexture : HighTexture;
 
     internal TextureStage DeviceStage { get; private set; } = DefaultStage;
 
@@ -249,13 +264,13 @@ public sealed partial class Graphics
     [EngineRoutine(0x00430650)]
     internal void ReloadPalettes()
     {
-        var light = Buffers.Light;
+        var light = LightBuffer;
         if (light is null || light.IsEmpty || light.Format != VidPixelFormat.P8)
             return;
 
         light.Destruct();
-        Buffers.Light = CreateBufferTexture(VidPixelFormat.P8);
-        if (Buffers.Light.IsEmpty)
+        LightBuffer = CreateBufferTexture(VidPixelFormat.P8);
+        if (LightBuffer.IsEmpty)
         {
             Error?.Error(GraphicsLogTag, LogError.Create, 0, "Light at RelodPalette()"u8);
         }
@@ -358,26 +373,25 @@ public sealed partial class Graphics
         return table;
     }
 
-    private DeviceBuffers EnsureBuffers()
+    private void EnsureBuffers()
     {
-        if (Buffers.IsCreated)
-            return Buffers;
+        if (_areBuffersCreated)
+            return;
 
-        Buffers.IsCreated = true;
-        Buffers.Light = CreateBufferTexture(VidPixelFormat.P8, "light buffer"u8);
-        if (Buffers.Light.IsEmpty)
-            return Buffers;
+        _areBuffersCreated = true;
+        LightBuffer = CreateBufferTexture(VidPixelFormat.P8, "light buffer"u8);
+        if (LightBuffer.IsEmpty)
+            return;
 
-        Buffers.High = CreateBufferTexture(VidPixelFormat.R5G6B5, "hiBuffer"u8);
-        if (Buffers.High.IsEmpty)
-            return Buffers;
+        HighBuffer = CreateBufferTexture(VidPixelFormat.R5G6B5, "hiBuffer"u8);
+        if (HighBuffer.IsEmpty)
+            return;
 
-        Buffers.Alpha = CreateBufferTexture(VidPixelFormat.A4R4G4B4, "alphaBuffer"u8);
-        if (Buffers.Alpha.IsEmpty)
-            return Buffers;
+        AlphaBuffer = CreateBufferTexture(VidPixelFormat.A4R4G4B4, "alphaBuffer"u8);
+        if (AlphaBuffer.IsEmpty)
+            return;
 
-        Buffers.ColorTable = CreateColorTable(Buffers.High.Format == VidPixelFormat.R5G6B5 ? HighColorFormat.Rgb565 : HighColorFormat.Rgb555);
-        return Buffers;
+        CreateColorTable(HighBuffer.Format == VidPixelFormat.R5G6B5 ? HighColorFormat.Rgb565 : HighColorFormat.Rgb555).CopyTo(_colorTable, 0);
     }
 
     private Texture CreateBufferTexture(VidPixelFormat format, ReadOnlySpan<byte> name)

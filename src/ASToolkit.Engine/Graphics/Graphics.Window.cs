@@ -14,16 +14,20 @@ public sealed partial class Graphics
     /// </summary>
     public Point ClientPosition { get; set; }
 
-    /// <summary>
-    /// Gets or sets the device that frames are drawn on, or <see langword="null"/> to draw without one.
-    /// </summary>
-    public IGraphicsDevice? Device { get; set; }
-
     internal bool IsMenuLoopActive => Flags.HasFlag(GraphicsFlags.MenuLoop);
 
     [EngineRoutine(0x004335f0)]
-    internal void BeginPause() => Flags |= GraphicsFlags.MenuLoop;
+    internal void BeginPause()
+    {
+        Flags |= GraphicsFlags.MenuLoop;
+        FlipToGdi();
+        Movie.Pause();
+    }
 
     [EngineRoutine(0x00433660)]
-    internal void EndPause() => Flags &= ~GraphicsFlags.MenuLoop;
+    internal void EndPause()
+    {
+        Flags &= ~GraphicsFlags.MenuLoop;
+        Movie.Resume();
+    }
 }

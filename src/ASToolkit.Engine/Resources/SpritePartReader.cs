@@ -121,35 +121,6 @@ public sealed class SpritePartReader
         return points;
     }
 
-    internal int CountFrames(string path)
-    {
-        var file = GetFile(path);
-
-        if (file is not null)
-            return file.Value.FrameCount;
-
-        if (!path.EndsWith(BmpImage.Extension, StringComparison.OrdinalIgnoreCase))
-            return 0;
-
-        if (!_fileSystem.Exists(path))
-            return 1;
-
-        string stem = path[..^BmpImage.Extension.Length];
-        int digits = stem.Length - stem.AsSpan().TrimEnd("0123456789").Length;
-
-        if (digits == 0)
-            return 1;
-
-        var prefix = stem.AsSpan()[..^digits];
-        int frames = 1;
-        while (_fileSystem.Exists($"{prefix}{frames}{BmpImage.Extension}"))
-        {
-            frames++;
-        }
-
-        return frames;
-    }
-
     internal ReadOnlyMemory<byte> GetBytes(string path) => GetFile(path)?.Data ?? default;
 
     internal VidResource? GetFile(string path)

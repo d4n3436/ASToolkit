@@ -15,23 +15,6 @@ public sealed partial class Script
     private const int UnsizedArray = 999999;
     private const int ErrorContextLength = 60;
 
-    private readonly NamedList<ReadOnlyMemory<byte>> _defines = new();
-    private readonly byte[] _name = new byte[MaxNameLength + 1];
-    private byte[] _text = [];
-    private int _position;
-    private int _end;
-    private int _line;
-    private int _ifDepth;
-    private bool _isSubstitutionOff;
-    private byte[] _codeBuffer = [];
-    private int _codeSize;
-    private int _nameLength;
-
-    /// <summary>
-    /// Gets the path of the script file.
-    /// </summary>
-    public string FileName { get; private set; } = "";
-
     /// <summary>
     /// Gets the error that kept an Alien Shooter 2 script from compiling and left it empty, or null if there wasn't one.
     /// </summary>

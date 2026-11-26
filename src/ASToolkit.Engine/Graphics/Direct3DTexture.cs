@@ -24,7 +24,7 @@ public readonly ref partial struct Direct3DTexture
 
     private readonly Span<ushort> _texels;
     private readonly Span<uint> _texels32;
-    private readonly ReadOnlySpan<uint> _palette;
+    private readonly ReadOnlySpan<PaletteEntry> _palette;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="Direct3DTexture"/> structure.
@@ -32,8 +32,8 @@ public readonly ref partial struct Direct3DTexture
     /// <param name="texels">The texels of the texture.</param>
     /// <param name="size">The size of the texture, in texels.</param>
     /// <param name="format">The layout of the texels.</param>
-    /// <param name="palette">The colors of a P8 texture, packed as 0xAARRGGBB.</param>
-    public Direct3DTexture(Span<ushort> texels, Size size, VidPixelFormat format, ReadOnlySpan<uint> palette = default)
+    /// <param name="palette">The palette entries of a P8 texture.</param>
+    internal Direct3DTexture(Span<ushort> texels, Size size, VidPixelFormat format, ReadOnlySpan<PaletteEntry> palette = default)
     {
         _texels = texels;
         _texels32 = Is32Bit(format) ? MemoryMarshal.Cast<ushort, uint>(texels) : default;
@@ -138,6 +138,10 @@ public readonly ref partial struct Direct3DTexture
             RasterizeTriangle(screen, vertices, projected, indexes.Slice(i, 3), blend, factor, alphaReference);
         }
     }
+
+    internal static bool IsDxt(VidPixelFormat format) => format is VidPixelFormat.Dxt1 or VidPixelFormat.Dxt2 or VidPixelFormat.Dxt3 or VidPixelFormat.Dxt4 or VidPixelFormat.Dxt5;
+
+    internal static bool Is32Bit(VidPixelFormat format) => format is VidPixelFormat.A8R8G8B8 or VidPixelFormat.X8R8G8B8 or VidPixelFormat.R8G8B8 or VidPixelFormat.X8L8V8U8 or VidPixelFormat.Q8W8V8U8 or VidPixelFormat.V16U16 or VidPixelFormat.W11V11U10;
 
     internal void BlitQuad(Screen screen, Rectangle destination, Rectangle source, Gamma gamma, QuadBlend blend, bool isDoubled, bool isAlphaModulated, int minimumAlpha)
     {
@@ -349,7 +353,7 @@ public readonly ref partial struct Direct3DTexture
         }
 
         if (Format == VidPixelFormat.P8)
-            return value < _palette.Length ? _palette[value] : OpaqueBlack;
+            return value < _palette.Length ? _palette[value].ToColor() : OpaqueBlack;
 
         if (Format == VidPixelFormat.A4R4G4B4)
             return (uint)((value >> 12) * NibbleScale) << 24 | (uint)((value >> 8 & 0xf) * NibbleScale) << RedShift | (uint)((value >> 4 & 0xf) * NibbleScale) << GreenShift | (uint)((value & 0xf) * NibbleScale);
@@ -369,8 +373,4 @@ public readonly ref partial struct Direct3DTexture
         uint lowerRight = Fetch(isWrapped ? Wrap(new Point(corner.X + 1, corner.Y + 1)) : new Point(corner.X + 1, corner.Y + 1));
         return Filter(upperLeft, upperRight, lowerLeft, lowerRight, point.X - corner.X, point.Y - corner.Y);
     }
-
-    internal static bool IsDxt(VidPixelFormat format) => format is VidPixelFormat.Dxt1 or VidPixelFormat.Dxt2 or VidPixelFormat.Dxt3 or VidPixelFormat.Dxt4 or VidPixelFormat.Dxt5;
-
-    internal static bool Is32Bit(VidPixelFormat format) => format is VidPixelFormat.A8R8G8B8 or VidPixelFormat.X8R8G8B8 or VidPixelFormat.R8G8B8 or VidPixelFormat.X8L8V8U8 or VidPixelFormat.Q8W8V8U8 or VidPixelFormat.V16U16 or VidPixelFormat.W11V11U10;
 }

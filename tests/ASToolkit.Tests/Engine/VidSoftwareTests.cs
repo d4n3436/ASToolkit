@@ -69,7 +69,7 @@ public sealed class VidSoftwareTests
 
     private static VidSoftware LoadSoftware(VidResource file, byte[] data, Map map)
     {
-        var vid = new VidSoftware(map, KnownObject.None, new GameObject(SpriteClass.Primitive, new Vector3(24, 16, 20)), [default], file, file.FrameCount, HighColorFormat.Rgb565);
+        var vid = new VidSoftware(map, KnownObject.None, [default], file, HighColorFormat.Rgb565);
         vid.Load(file, data);
 
         return vid;

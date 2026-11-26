@@ -702,7 +702,7 @@ public partial class Map : IScriptFunctionHost
                 break;
             case ScriptFunction.MessageText:
                 var messageTarget = PopPoint();
-                _players[ControlledPlayer].Messages.Put(PopText(), messageTarget);
+                _players[ControlledPlayer].PutMessage(PopText(), messageTarget);
                 break;
             case ScriptFunction.SetPosition:
                 SetShiftCoordinates(PopPoint(), ShiftMove.None);

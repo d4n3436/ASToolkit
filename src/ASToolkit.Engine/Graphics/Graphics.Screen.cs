@@ -19,25 +19,9 @@ public sealed partial class Graphics
     private const uint OpaqueBlack = 0xff000000;
     private const uint TextColor = 0xff00ff00;
 
-    private int _loadingFrame;
-    private uint _loadingDrawnAt;
-
     private bool _isBlendEnabled;
 
     private QuadBlend _blendFactors = QuadBlend.None;
-
-    /// <summary>
-    /// Gets the line of text displayed on the loading screen.
-    /// </summary>
-    /// <remarks>The text is empty unless the game is running in debug mode.</remarks>
-    public ReadOnlyMemory<byte> LoadingText { get; private set; }
-
-    /// <summary>
-    /// Gets the font that the device draws text with, or <see langword="null"/> if the font hasn't been created yet.
-    /// </summary>
-    public D3DFont? DeviceFont { get; private set; }
-
-    internal bool IsDepthLocked { get; private set; }
 
     internal QuadBlend Blend => _isBlendEnabled ? _blendFactors : QuadBlend.None;
 
@@ -213,6 +197,15 @@ public sealed partial class Graphics
         Flags &= ~GraphicsFlags.PreTact;
     }
 
+    [EngineRoutine(0x00402ad0)]
+    internal void FlipToGdi()
+    {
+        if (Flags.HasFlag(GraphicsFlags.FullScreen))
+        {
+            PostTact(true);
+        }
+    }
+
     [EngineRoutine(0x00402c40)]
     internal void DrawDeviceText(Vector2 position, uint color, ReadOnlySpan<byte> text)
     {
@@ -363,7 +356,7 @@ public sealed partial class Graphics
         var map = _session.Map!;
         uint realTime = map.Session.TimeGetTime();
         map.Session.RealCurrentTime = realTime;
-        if (vid is null || (uint)vid.SpriteSpeed >= realTime - _loadingDrawnAt)
+        if (vid is null || (uint)vid.SpriteSpeed >= realTime - _session.LoadingDrawnAt)
             return;
 
         PreTact();
@@ -373,15 +366,15 @@ public sealed partial class Graphics
         }
 
         var screen = ScreenSize;
-        DrawVid(vid, _loadingFrame, new Vector3(screen.Width * Map.HalfShare, screen.Height * Map.HalfShare + 1, LoadingDepth));
+        DrawVid(vid, _session.LoadingFrame, new Vector3(screen.Width * Map.HalfShare, screen.Height * Map.HalfShare + 1, LoadingDepth));
         UpdateEffects(true);
         DrawText(new Vector2(LoadingTextLeft, Viewport.Top + LoadingTextTop), LoadingText, TextColor);
         PostTact(true);
-        _loadingDrawnAt = realTime;
-        _loadingFrame++;
-        if (_loadingFrame >= vid.FileFrameCount)
+        _session.LoadingDrawnAt = realTime;
+        _session.LoadingFrame++;
+        if (_session.LoadingFrame >= vid.FileFrameCount)
         {
-            _loadingFrame = 0;
+            _session.LoadingFrame = 0;
         }
     }
 

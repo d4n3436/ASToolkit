@@ -101,23 +101,23 @@ public sealed partial class Graphics
         SetRenderState(RenderState.DepthFunction, 7);
         Error.Log(DescribeTextureStage());
         Error.Log(Texture.SetDeviceCapabilities(_session));
-        Buffers.IsCreated = true;
-        Buffers.Light = CreateBufferTexture(VidPixelFormat.P8);
-        if (Buffers.Light.IsEmpty)
+        _areBuffersCreated = true;
+        LightBuffer = CreateBufferTexture(VidPixelFormat.P8);
+        if (LightBuffer.IsEmpty)
         {
             Error.Error("GRAPH"u8, LogError.Create, 0, "light buffer"u8);
             return 1;
         }
 
-        Buffers.High = CreateBufferTexture(VidPixelFormat.R5G6B5);
-        if (Buffers.High.IsEmpty)
+        HighBuffer = CreateBufferTexture(VidPixelFormat.R5G6B5);
+        if (HighBuffer.IsEmpty)
         {
             Error.Error("GRAPH"u8, LogError.Create, 0, "hiBuffer"u8);
             return 1;
         }
 
-        Buffers.Alpha = CreateBufferTexture(VidPixelFormat.A4R4G4B4);
-        if (Buffers.Alpha.IsEmpty)
+        AlphaBuffer = CreateBufferTexture(VidPixelFormat.A4R4G4B4);
+        if (AlphaBuffer.IsEmpty)
         {
             Error.Error("GRAPH"u8, LogError.Create, 0, "alphaBuffer"u8);
             return 1;
@@ -129,13 +129,13 @@ public sealed partial class Graphics
         }
 
         CreateDeviceFont(SetupFont, SetupFontSize, Map.DefaultMaxTextureSize);
-        var highColor = Buffers.High!.Format == VidPixelFormat.R5G6B5 ? HighColorFormat.Rgb565 : HighColorFormat.Rgb555;
+        var highColor = HighBuffer!.Format == VidPixelFormat.R5G6B5 ? HighColorFormat.Rgb565 : HighColorFormat.Rgb555;
         int index = 0;
         for (int top = ColorTableGroup; top <= byte.MaxValue + 1; top += ColorTableGroup)
         {
             for (int i = 0; i < ColorTableGroup; i++)
             {
-                Buffers.ColorTable[index++] = highColor.Pack(PackColor(top + ColorTableOffsets[i * 3], top + ColorTableOffsets[i * 3 + 1], top + ColorTableOffsets[i * 3 + 2]));
+                _colorTable[index++] = highColor.Pack(PackColor(top + ColorTableOffsets[i * 3], top + ColorTableOffsets[i * 3 + 1], top + ColorTableOffsets[i * 3 + 2]));
             }
         }
 

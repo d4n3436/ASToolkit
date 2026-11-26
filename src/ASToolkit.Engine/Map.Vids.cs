@@ -394,8 +394,10 @@ public partial class Map
         var format = screen?.Format ?? HighColorFormat.Rgb565;
         string name = GameTextEncoding.Cyrillic.GetString(resource.ReadText());
         var gameObject = _objects.ReadObject(resource.Read<byte>(_objects.ObjectSize));
-        string path = Encoding.ASCII.GetString(resource.ReadText());
-        var temporary = ASToolkit.Engine.Vid.CreateEmpty(this, KnownObject.None, gameObject, DefaultSpriteSpeed, ObjectLayer.Menu);
+        byte[] pathBytes = resource.ReadText().ToArray();
+        CRuntime.ToLowerInPlace(pathBytes);
+        string path = Encoding.ASCII.GetString(pathBytes);
+        var temporary = ASToolkit.Engine.Vid.CreateDefault(this);
         temporary.LoadParameters(gameObject);
         Vid? source = null;
         bool isBuiltTerrain = temporary.Class == SpriteClass.BuiltTerrain;
@@ -429,94 +431,80 @@ public partial class Map
             return mirror;
         }
 
-        var file = Parts.GetFile(path);
+        bool isFont = path.Contains(FontExtension, StringComparison.Ordinal) || path.Contains(TrueTypeExtension, StringComparison.Ordinal);
         ReadOnlyMemory<byte> data = default;
-        if (file is null)
+        if (path.Contains(TgaImage.Extension, StringComparison.Ordinal) || path.Contains(BmpImage.Extension, StringComparison.Ordinal) || path.Contains(AnimationExtension, StringComparison.Ordinal))
         {
-            if (path.Contains(FontExtension, StringComparison.Ordinal) || path.Contains(TrueTypeExtension, StringComparison.Ordinal))
+            bool isText = gameObject.SpriteClass == SpriteClass.Text;
+            var key = (path, isText);
+            if (!Session.ConvertedPictures.TryGetValue(key, out data))
             {
-                var font = new VidFont(this, id, gameObject, _weapons!, DefaultMaxTextureSize);
-                PrepareVid(font, gameObject, name, path);
-                font.Load(default, default);
-                font.SetLayer();
-                return font;
+                data = ConvertPicture(path, isText, null);
+                Session.ConvertedPictures.Add(key, data);
             }
-            else if (path.Contains(TgaImage.Extension, StringComparison.Ordinal) || path.Contains(BmpImage.Extension, StringComparison.Ordinal) || path.Contains(AnimationExtension, StringComparison.Ordinal))
+
+            if (data.IsEmpty)
             {
-                bool isText = gameObject.SpriteClass == SpriteClass.Text;
-                var key = (path, isText);
-                if (!Session.ConvertedPictures.TryGetValue(key, out data))
-                {
-                    data = ConvertPicture(path, isText, null);
-                    Session.ConvertedPictures.Add(key, data);
-                }
-                if (data.IsEmpty)
-                {
-                    ConvertPicture(path, isText, Session.Error);
-                    LogUnopened(path);
-                }
+                ConvertPicture(path, isText, Session.Error);
+                Session.Graphics.FlipToGdi();
+                LogUnopened(path);
             }
         }
 
-        if (!data.IsEmpty)
+        if (isFont)
         {
-            file = new VidResource(data);
+            var font = new VidFont(this, id, _weapons!, DefaultMaxTextureSize);
+            PrepareVid(font, gameObject, name, path);
+            font.Load(default, default);
+            font.SetLayer();
+            return font;
         }
 
+        var file = data.IsEmpty ? Parts.GetFile(path) : new VidResource(data);
         if (file is null)
         {
             new Resource(Session.Error, FileSystem).Open(Encoding.ASCII.GetBytes(path), Resource.AnyTag);
-
+            Session.Graphics.FlipToGdi();
             LogUnopened(path);
             return null;
         }
 
         var sprite = file.Value;
-
-        int totalFrames = data.IsEmpty ? Parts.CountFrames(path) : sprite.FrameCount;
         var type = sprite.Type;
         Vid vid;
         ReadOnlyMemory<byte> bytes = default;
         if (type.HasFlag(VidType.HardwareLayer))
         {
-            vid = new VidHardwareLayer(this, id, gameObject, _weapons!, sprite, totalFrames);
+            vid = new VidHardwareLayer(this, id, _weapons!, sprite);
         }
         else if (type.HasFlag(VidType.Light))
         {
             bytes = data.IsEmpty ? GetVidBytes(path) : data;
-            vid = new VidLight(this, id, gameObject, _weapons!, sprite, totalFrames);
+            vid = new VidLight(this, id, _weapons!, sprite);
         }
         else if (type.HasFlag(VidType.Hardware) && !(type.HasFlag(VidType.Blended) && type.HasFlag(VidType.ZBuffer)))
         {
-            vid = new VidHardware(this, id, gameObject, _weapons!, sprite, totalFrames, format);
+            vid = new VidHardware(this, id, _weapons!, sprite, format);
         }
         else
         {
             bytes = data.IsEmpty ? GetVidBytes(path) : data;
             if (type.HasFlag(VidType.Hardware))
             {
-                vid = new VidDepthFaded(this, id, gameObject, _weapons!, sprite, totalFrames, format);
+                vid = new VidDepthFaded(this, id, _weapons!, sprite, format);
             }
             else if (gameObject.SpriteClass == SpriteClass.BuiltTerrain || !isTrueColor)
             {
-                vid = new VidHighColor(this, id, gameObject, _weapons!, sprite, totalFrames, format);
+                vid = new VidHighColor(this, id, _weapons!, sprite, format);
             }
             else
             {
-                vid = new VidSoftware(this, id, gameObject, _weapons!, sprite, totalFrames, format);
+                vid = new VidSoftware(this, id, _weapons!, sprite, format);
             }
         }
 
         PrepareVid(vid, gameObject, name, path);
         vid.Load(sprite, bytes);
-        if (vid is VidHardware hardware)
-        {
-            for (int surface = 0; surface < hardware.SurfaceCount; surface++)
-            {
-                Session.Graphics.DrawLoadBar(Vid(0));
-            }
-        }
-
         vid.SetLayer();
         return vid;
     }

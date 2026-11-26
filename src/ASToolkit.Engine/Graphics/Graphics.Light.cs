@@ -31,7 +31,7 @@ public sealed partial class Graphics
     [EngineRoutine(0x00433670)]
     public void DrawLightSource(Screen screen, Vector3 position, Vector2 size, uint color)
     {
-        LightPhase ^= 1;
+        _session.LightPhase ^= 1;
         if ((color & ColorMask) == 0)
             return;
 
@@ -71,7 +71,8 @@ public sealed partial class Graphics
         }
 
         var format = lightTexture.Format;
-        ushort[] colors = EnsureBuffers().ColorTable;
+        EnsureBuffers();
+        ushort[] colors = _colorTable;
         bool isPalette = format == VidPixelFormat.P8;
         int originX = (int)x;
         int originY = (int)y;

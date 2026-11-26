@@ -27,11 +27,6 @@ public sealed partial class Graphics
     private const int GammaChannels = 4;
     private const int CaptureTileSize = 256;
 
-    /// <summary>
-    /// Gets the copy of the screen that an alpha appearance fades from, or <see langword="null"/> until one has started.
-    /// </summary>
-    public Screen? Capture { get; private set; }
-
     [EngineRoutine(0x00414fd0)]
     internal static uint PackColor(int red, int green, int blue) => PackColor(byte.MaxValue, red, green, blue);
 

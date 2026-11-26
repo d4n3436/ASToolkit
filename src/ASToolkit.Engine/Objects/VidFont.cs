@@ -16,12 +16,14 @@ public sealed class VidFont : Vid
     /// </summary>
     /// <param name="map">The map.</param>
     /// <param name="id">The object ID.</param>
-    /// <param name="gameObject">The object record.</param>
     /// <param name="weapons">The weapon table.</param>
     /// <param name="maxTextureSize">The largest texture width and height the device accepts.</param>
-    public VidFont(Map map, KnownObject id, in GameObject gameObject, AlienShooterWeaponRecord[] weapons, int maxTextureSize)
-        : base(map, id, gameObject, weapons, Map.DefaultSpriteSpeed, GlyphCount, ObjectLayer.Ground, null)
+    public VidFont(Map map, KnownObject id, AlienShooterWeaponRecord[] weapons, int maxTextureSize)
+        : base(map, weapons)
     {
+        Id = id;
+        RecordId = id;
+        FileFrameCount = GlyphCount;
         MaxTextureSize = maxTextureSize;
     }
 

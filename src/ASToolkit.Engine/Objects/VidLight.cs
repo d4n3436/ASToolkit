@@ -22,12 +22,10 @@ public sealed class VidLight : Vid
     /// </summary>
     /// <param name="map">The map.</param>
     /// <param name="id">The object ID.</param>
-    /// <param name="gameObject">The object record.</param>
     /// <param name="weapons">The weapon table.</param>
     /// <param name="file">The sprite file.</param>
-    /// <param name="totalFrames">The frame count of the sprite file.</param>
-    public VidLight(Map map, KnownObject id, in GameObject gameObject, AlienShooterWeaponRecord[] weapons, in VidResource file, int totalFrames)
-        : base(map, id, gameObject, weapons, file, totalFrames)
+    public VidLight(Map map, KnownObject id, AlienShooterWeaponRecord[] weapons, in VidResource file)
+        : base(map, id, weapons, file)
     {
     }
 

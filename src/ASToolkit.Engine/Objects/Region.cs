@@ -281,7 +281,7 @@ public sealed class Region : Sprite
     {
         var graphics = Map.Session.Graphics;
         var ramp = graphics.ColorTable;
-        bool isPalettized = (graphics.Screen is not null ? graphics.LightTexture : graphics.Buffers.Light)?.Format == VidPixelFormat.P8;
+        bool isPalettized = (graphics.Screen is not null ? graphics.LightTexture : graphics.LightBuffer)?.Format == VidPixelFormat.P8;
         FogFar = far;
         FogNear = near;
         FogColor = color;

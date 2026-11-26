@@ -37,14 +37,12 @@ public partial class VidSoftware : Vid
     /// </summary>
     /// <param name="map">The map.</param>
     /// <param name="id">The object ID.</param>
-    /// <param name="gameObject">The object record.</param>
     /// <param name="weapons">The weapon table.</param>
     /// <param name="file">The sprite file.</param>
-    /// <param name="totalFrames">The frame count of the sprite file.</param>
     /// <param name="format">The channel layout of the 16-bit back buffer.</param>
     [EngineRoutine(0x00415410)]
-    public VidSoftware(Map map, KnownObject id, in GameObject gameObject, AlienShooterWeaponRecord[] weapons, in VidResource file, int totalFrames, HighColorFormat format)
-        : base(map, id, gameObject, weapons, file, totalFrames)
+    public VidSoftware(Map map, KnownObject id, AlienShooterWeaponRecord[] weapons, in VidResource file, HighColorFormat format)
+        : base(map, id, weapons, file)
     {
         Format = format;
     }

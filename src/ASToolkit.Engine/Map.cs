@@ -43,6 +43,7 @@ public partial class Map : IDisposable
 
     private protected MapFlags _flags;
     private protected int _stepCount;
+    private const string ConfigExtension = ".cfg";
     private const string DefaultFont = "Arial";
     private const int DefaultFontWidth = 0;
     private const int DefaultFontHeight = 8;
@@ -106,8 +107,9 @@ public partial class Map : IDisposable
     /// <param name="objects">The object table.</param>
     /// <param name="fileSystem">The file system that holds the game's files.</param>
     /// <param name="session">The session the map belongs to, or null to start one.</param>
+    /// <param name="commandLine">The game's command line.</param>
     [EngineRoutine(0x00408ff0)]
-    protected Map(ObjectTable objects, IGameFileSystem fileSystem, GameSession? session = null)
+    protected Map(ObjectTable objects, IGameFileSystem fileSystem, GameSession? session = null, string commandLine = "")
     {
         _mouseTips = new MouseTips(this);
         Menu = new Menu(this);
@@ -121,6 +123,11 @@ public partial class Map : IDisposable
         _flags |= MapFlags.PlayerControlled | MapFlags.DrawFlagman | MapFlags.DrawSoundCount | MapFlags.MouseTips;
         var config = new Profile(fileSystem);
         config.Load(ConfigFile);
+        if (commandLine.Contains(ConfigExtension, StringComparison.Ordinal))
+        {
+            config.Load(commandLine);
+        }
+
         int fontHeight = config.GetInt(GraphSection, "FontSizeY"u8, DefaultFontHeight);
         int fontWidth = config.GetInt(GraphSection, "FontSizeX"u8, DefaultFontWidth);
         string font = config.TryGetString(GraphSection, "Font"u8, out var fontName) ? Encoding.ASCII.GetString(fontName.Span) : DefaultFont;
@@ -165,7 +172,7 @@ public partial class Map : IDisposable
         Input = new Input(Session.Controls, this);
         for (int slot = 0; slot < ASToolkit.Engine.Vid.ArmyCount; slot++)
         {
-            _players[slot] = new Player(Session, slot);
+            _players[slot] = new PlayerArcade(Session, slot);
         }
 
         _flags |= MapFlags.Initialized;
@@ -1059,11 +1066,6 @@ public partial class Map : IDisposable
 
         Session.Error.Log("Sprite release"u8);
         // TODO: Port the trains; the release sets the flag (DAT_005da58c) that makes the Engine destructors (0x44e9f0, 0x450e20) skip their scripts while it destroys the sprites
-        foreach (var player in _players)
-        {
-            player.Messages.Clear();
-        }
-
         DeleteAll();
 
         Session.Error.Log("Menu   release"u8);
@@ -1155,6 +1157,7 @@ public partial class Map : IDisposable
     [EngineRoutine(0x0040b180)]
     private protected virtual void Destruct()
     {
+        Session.Strings = null;
         for (int i = _vidCount - 1; i >= 0; i--)
         {
             if (_vids[i] is not null)

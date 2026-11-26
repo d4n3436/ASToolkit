@@ -9,11 +9,11 @@ namespace ASToolkit.Engine;
 public sealed partial class Graphics
 {
     internal const int FogDepthPerLevel = 8;
-    private const int MaxSnowflakes = 1000;
-    private const int SnowflakeVertexCount = 6;
-    private const int MaxRaindrops = 250;
-    private const int RaindropVertexCount = 2;
-    private const float NoWind = 99999;
+    internal const int MaxSnowflakes = 1000;
+    internal const int SnowflakeVertexCount = 6;
+    internal const int MaxRaindrops = 250;
+    internal const int RaindropVertexCount = 2;
+    internal const float NoWind = 99999;
     private const int SnowGrowthShift = 7;
     private const int SnowAgeLimit = 0x100;
     private const int SnowfallSpawnRows = 0x32;
@@ -51,19 +51,6 @@ public sealed partial class Graphics
     private const int FogDepthOffset = 0x3fe;
     private const float FogDepthScale = 1.5258789e-05f;
 
-    private readonly WeatherVertex[] _snowflakes = new WeatherVertex[MaxSnowflakes * SnowflakeVertexCount];
-    private readonly WeatherVertex[] _raindrops = new WeatherVertex[MaxRaindrops * RaindropVertexCount];
-    private int _snowflakeCount;
-    private int _raindropCount;
-    private int _groundSnowStart;
-    private int _groundSnowAge;
-    private float _snowWind;
-    private Vector2 _snowShift;
-    private byte _snowWindDirection;
-    private float _snowWindSpeed = NoWind;
-    private float _rainWind;
-    private byte _rainWindDirection;
-    private float _rainWindSpeed = NoWind;
 
     [EngineRoutine(0x00431e40)]
     internal void DrawFog(Screen screen, Vector2 topLeft, Vector2 bottomRight, int near, int far, uint color, ReadOnlySpan<ushort> table, int level, bool isLight)
@@ -160,14 +147,14 @@ public sealed partial class Graphics
 
         if (!Environment.HasFlag(MapEnvironment.GroundSnow))
         {
-            _groundSnowStart = map.CurrentTime;
-            _groundSnowAge = 0;
+            _session.GroundSnowStart = map.CurrentTime;
+            _session.GroundSnowAge = 0;
             return;
         }
 
-        if (_groundSnowAge < SnowAgeLimit)
+        if (_session.GroundSnowAge < SnowAgeLimit)
         {
-            _groundSnowAge = (map.CurrentTime - _groundSnowStart) >>> SnowGrowthShift;
+            _session.GroundSnowAge = (map.CurrentTime - _session.GroundSnowStart) >>> SnowGrowthShift;
         }
 
         if (Screen is null)
@@ -175,7 +162,8 @@ public sealed partial class Graphics
 
         var size = Screen.Size;
         var start = new Point(-(int)map.Shift.X & SnowCellMask, -(int)map.Shift.Y & SnowCellMask);
-        ushort[] ramp = EnsureBuffers().ColorTable;
+        EnsureBuffers();
+        ushort[] ramp = _colorTable;
         var light = LightTexture;
         var texture = light.Lock(null, out _);
         if (texture.IsEmpty)
@@ -200,11 +188,11 @@ public sealed partial class Graphics
                 if (up > SnowEdgeReach)
                 {
                     int down = Math.Abs(depth[index] - depth[index + SnowCell * depthWidth]);
-                    level = down < SnowEdgeReach + 1 ? (SnowEdgeReach - down) * _groundSnowAge >> SnowAgeShift : -1;
+                    level = down < SnowEdgeReach + 1 ? (SnowEdgeReach - down) * _session.GroundSnowAge >> SnowAgeShift : -1;
                 }
                 else
                 {
-                    level = (SnowEdgeReach - up) * _groundSnowAge >> SnowAgeShift;
+                    level = (SnowEdgeReach - up) * _session.GroundSnowAge >> SnowAgeShift;
                 }
 
                 int column = x >> 2;
@@ -226,7 +214,7 @@ public sealed partial class Graphics
         var map = _session.Map!;
         if (!Environment.HasFlag(MapEnvironment.StopRain) && !Environment.HasFlag(MapEnvironment.BornRain))
         {
-            _raindropCount = 0;
+            _session.RaindropCount = 0;
 
             return;
         }
@@ -237,15 +225,15 @@ public sealed partial class Graphics
         var view = map.Session.Graphics.Viewport;
         float screenWidth = ScreenSize.Width;
         float screenBottom = view.Bottom;
-        var drops = _raindrops.AsSpan();
+        var drops = _session.Raindrops.AsSpan();
 
-        if (_rainWindDirection != WindDirection.Value || !_rainWindSpeed.IsExactly(WindSpeed))
+        if (_session.RainWindDirection != WindDirection.Value || !_session.RainWindSpeed.IsExactly(WindSpeed))
         {
             float wind = WindDirection.Sine * WindSpeed * WindScale;
-            if (0 < _raindropCount)
+            if (0 < _session.RaindropCount)
             {
-                float change = wind - _rainWind;
-                for (int i = 0; i < _raindropCount; i++)
+                float change = wind - _session.RainWind;
+                for (int i = 0; i < _session.RaindropCount; i++)
                 {
                     var drop = drops.Slice(i * RaindropVertexCount, RaindropVertexCount);
                     var tail = drop[1].Position;
@@ -253,15 +241,15 @@ public sealed partial class Graphics
                 }
             }
 
-            _rainWind = wind;
-            _rainWindDirection = WindDirection.Value;
-            _rainWindSpeed = WindSpeed;
+            _session.RainWind = wind;
+            _session.RainWindDirection = WindDirection.Value;
+            _session.RainWindSpeed = WindSpeed;
         }
 
-        _raindropCount = StepCount(_raindropCount, MaxRaindrops, MapEnvironment.Rain, MapEnvironment.BornRain, MapEnvironment.StopRain);
+        _session.RaindropCount = StepCount(_session.RaindropCount, MaxRaindrops, MapEnvironment.Rain, MapEnvironment.BornRain, MapEnvironment.StopRain);
 
         int spawned = 0;
-        for (int i = 0; i < _raindropCount; i++)
+        for (int i = 0; i < _session.RaindropCount; i++)
         {
             var drop = drops.Slice(i * RaindropVertexCount, RaindropVertexCount);
 
@@ -269,7 +257,7 @@ public sealed partial class Graphics
             {
                 spawned++;
                 float length = map.Random.Next() % RaindropLengthRange + 15f;
-                float slant = _rainWind * length;
+                float slant = _session.RainWind * length;
                 float x = map.Random.Next() * (view.Right - 1f) * GameRandom.UnitScale;
                 float reach = spawned < SnowfallSpawnRows ? SpawnBand : screenBottom;
                 float y = map.Random.Next() * reach * GameRandom.UnitScale;
@@ -281,7 +269,7 @@ public sealed partial class Graphics
             }
 
             float fall = (drop[1].Position.Z - drop[0].Position.Z) * map.FrameTime * RainFallRate;
-            float shift = _rainWind * fall * RainSlant;
+            float shift = _session.RainWind * fall * RainSlant;
             if (shift + drop[0].Position.X < 0f)
             {
                 shift += screenWidth;
@@ -303,7 +291,7 @@ public sealed partial class Graphics
 
         if (Screen is not null)
         {
-            ScreenPrimitives.DrawLines(Screen, _raindrops.AsSpan(0, _raindropCount * RaindropVertexCount));
+            ScreenPrimitives.DrawLines(Screen, _session.Raindrops.AsSpan(0, _session.RaindropCount * RaindropVertexCount));
         }
     }
 
@@ -313,7 +301,7 @@ public sealed partial class Graphics
         var map = _session.Map!;
         if (!Environment.HasFlag(MapEnvironment.StopSnow) && !Environment.HasFlag(MapEnvironment.BornSnow))
         {
-            _snowflakeCount = 0;
+            _session.SnowflakeCount = 0;
 
             return;
         }
@@ -324,19 +312,19 @@ public sealed partial class Graphics
         var view = map.Session.Graphics.Viewport;
         float screenRight = view.Right;
         float screenBottom = view.Bottom;
-        var flakes = _snowflakes.AsSpan();
+        var flakes = _session.Snowflakes.AsSpan();
 
-        if (_snowWindDirection != WindDirection.Value || !_snowWindSpeed.IsExactly(WindSpeed))
+        if (_session.SnowWindDirection != WindDirection.Value || !_session.SnowWindSpeed.IsExactly(WindSpeed))
         {
-            _snowWind = WindDirection.Sine * WindSpeed * WindScale;
-            _snowWindDirection = WindDirection.Value;
-            _snowWindSpeed = WindSpeed;
+            _session.SnowWind = WindDirection.Sine * WindSpeed * WindScale;
+            _session.SnowWindDirection = WindDirection.Value;
+            _session.SnowWindSpeed = WindSpeed;
         }
 
-        _snowflakeCount = StepCount(_snowflakeCount, MaxSnowflakes, MapEnvironment.Snow, MapEnvironment.BornSnow, MapEnvironment.StopSnow);
+        _session.SnowflakeCount = StepCount(_session.SnowflakeCount, MaxSnowflakes, MapEnvironment.Snow, MapEnvironment.BornSnow, MapEnvironment.StopSnow);
 
         int spawned = 0;
-        for (int i = 0; i < _snowflakeCount; i++)
+        for (int i = 0; i < _session.SnowflakeCount; i++)
         {
             var flake = flakes.Slice(i * SnowflakeVertexCount, SnowflakeVertexCount);
 
@@ -361,7 +349,7 @@ public sealed partial class Graphics
             }
 
             float fall = (flake[1].Position.Z - flake[0].Position.Z - DepthPerLength) * map.FrameTime * SnowFallRate;
-            var offset = new Vector2((_snowWind * fall + 50f - map.Random.Next() % DriftRange) * SnowDrift, fall) - (_snowShift + map.Shift);
+            var offset = new Vector2((_session.SnowWind * fall + 50f - map.Random.Next() % DriftRange) * SnowDrift, fall) - (_session.SnowShift + map.Shift);
             float dz = fall * DepthPerLength;
 
             if (offset.X + flake[0].Position.X < view.Left - WrapMargin)
@@ -391,10 +379,10 @@ public sealed partial class Graphics
             }
         }
 
-        _snowShift = -map.Shift;
+        _session.SnowShift = -map.Shift;
 
         int slot = 0;
-        for (int i = 0; i < _snowflakeCount; i++)
+        for (int i = 0; i < _session.SnowflakeCount; i++)
         {
             if (map.Random.Next() % TwinkleOdds != 0)
                 continue;
@@ -415,7 +403,7 @@ public sealed partial class Graphics
 
         if (Screen is not null)
         {
-            ScreenPrimitives.DrawLines(Screen, _snowflakes.AsSpan(0, _snowflakeCount * 2));
+            ScreenPrimitives.DrawLines(Screen, _session.Snowflakes.AsSpan(0, _session.SnowflakeCount * 2));
         }
     }
 

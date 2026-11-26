@@ -14,8 +14,19 @@ public sealed partial class Script
 
     private readonly MyList<ScriptStack> _stack = new();
     private readonly NamedList<ScriptObject> _objects = new();
+    private readonly NamedList<ReadOnlyMemory<byte>> _defines = new();
     private readonly IGameFileSystem _fileSystem;
+    private readonly byte[] _name = new byte[MaxNameLength + 1];
     private byte[]? _code;
+    private byte[] _codeBuffer = [];
+    private int _codeSize;
+    private int _position;
+    private int _end;
+    private byte[] _text = [];
+    private int _line;
+    private int _ifDepth;
+    private bool _isSubstitutionOff;
+    private int _nameLength;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="Script"/> class as an empty script in Alien Shooter's version of the script language.
@@ -37,14 +48,19 @@ public sealed partial class Script
     }
 
     /// <summary>
-    /// Gets the version of the script language the script is compiled in.
+    /// Gets the path of the script file.
     /// </summary>
-    public ScriptVersion Version { get; }
+    public string FileName { get; private set; } = "";
 
     /// <summary>
     /// Gets the index of the object named <c>main</c>, or -1 if the script doesn't have one.
     /// </summary>
     public int MainIndex { get; private set; } = -1;
+
+    /// <summary>
+    /// Gets the version of the script language the script is compiled in.
+    /// </summary>
+    public ScriptVersion Version { get; }
 
     /// <summary>
     /// Gets the number of variable slots, or the stack height while the script runs.

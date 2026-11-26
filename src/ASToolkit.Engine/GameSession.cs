@@ -9,8 +9,13 @@ namespace ASToolkit.Engine;
 /// </summary>
 public sealed class GameSession : IDisposable
 {
+    internal readonly WeatherVertex[] Snowflakes = new WeatherVertex[Graphics.MaxSnowflakes * Graphics.SnowflakeVertexCount];
+    internal readonly WeatherVertex[] Raindrops = new WeatherVertex[Graphics.MaxRaindrops * Graphics.RaindropVertexCount];
     internal bool IsTexturePowerOfTwoRequired = true;
     internal Size TextureMaxSize = new(256, 256);
+    internal float SquallBaseSpeed = Graphics.NoSquall;
+    internal float RainWindSpeed = Graphics.NoWind;
+    internal float SnowWindSpeed = Graphics.NoWind;
     internal int TexturePaletteCount;
     internal int TextureMemoryInUse;
     internal bool IsTextureSquareRequired;
@@ -33,6 +38,19 @@ public sealed class GameSession : IDisposable
     internal int VidMemoryInUse;
     internal ControlSettings? Controls;
     internal GameRandom Random = new(0);
+    internal byte SnowWindDirection;
+    internal byte RainWindDirection;
+    internal float RainWind;
+    internal float SnowWind;
+    internal int LoadingFrame;
+    internal uint LoadingDrawnAt;
+    internal int SquallStart;
+    internal int GroundSnowStart;
+    internal int GroundSnowAge;
+    internal int RaindropCount;
+    internal Vector2 SnowShift;
+    internal int SnowflakeCount;
+    internal int LightPhase;
     private const long MillisecondsPerSecond = 1000;
     private const string ScreenWidthValue = "ScreenX";
     private const string ScreenHeightValue = "ScreenY";
@@ -73,7 +91,6 @@ public sealed class GameSession : IDisposable
         Graphics = new Graphics(this)
         {
             ScreenSize = screenSize,
-            IsFullScreen = isFullScreen,
         };
         Graphics.SetUpSettings(HasAppMenu, isVSync, isColor32, isFullScreen);
         var screen = Size.Ceiling(Graphics.ScreenSize);
@@ -112,6 +129,8 @@ public sealed class GameSession : IDisposable
 
     internal MyError Error { get; }
 
+    internal uint FadeStartedAt { get; set; }
+
     internal Registry Registry { get; }
 
     internal uint MouseTipMovedAt { get; set; }
@@ -119,6 +138,8 @@ public sealed class GameSession : IDisposable
     internal Vector2 MouseTipCursor { get; set; }
 
     internal ReadOnlyMemory<byte> MouseTipText { get; set; }
+
+    internal bool IsTurningLegs { get; set; }
 
     internal Dictionary<(string Path, bool IsText), ReadOnlyMemory<byte>> ConvertedPictures { get; } = [];
 

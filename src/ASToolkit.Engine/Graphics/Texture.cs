@@ -12,6 +12,7 @@ namespace ASToolkit.Engine;
 /// </summary>
 public sealed class Texture
 {
+    private const int PaletteSize = 256;
     private const int PaletteTexelBytes = 1;
     private const int ColorTexelBytes = 2;
     private const int BlockSize = 4;
@@ -32,9 +33,22 @@ public sealed class Texture
     {
         _session = session;
         Create(size, format, flags);
+        Span<PaletteEntry> entries = stackalloc PaletteEntry[PaletteSize];
+        scoped ReadOnlySpan<PaletteEntry> converted = default;
+        if (!palette.IsEmpty)
+        {
+            int count = Math.Min(palette.Length, PaletteSize);
+            for (int i = 0; i < count; i++)
+            {
+                entries[i] = new PaletteEntry(palette[i]);
+            }
+
+            converted = entries[..count];
+        }
+
         if (Format == VidPixelFormat.P8)
         {
-            SetPalette(palette);
+            SetPalette(converted);
         }
 
         uint colorKey = Flags.HasFlag(TextureFlags.AlphaPalette) ? 0 : Direct3DTexture.OpaqueKey;
@@ -49,7 +63,7 @@ public sealed class Texture
             VidPixelFormat.Dxt2 or VidPixelFormat.Dxt3 or VidPixelFormat.Dxt4 or VidPixelFormat.Dxt5 => 8 * size.Width >> 1,
             _ => 0
         };
-        View.LoadTexels(area, source, format, sourcePitch, size, area, 1, colorKey, palette);
+        View.LoadTexels(area, source, format, sourcePitch, size, area, 1, colorKey, converted);
     }
 
     /// <summary>
@@ -73,11 +87,6 @@ public sealed class Texture
     public TextureFlags Flags { get; private set; }
 
     /// <summary>
-    /// Gets the colors a P8 texture indexes, packed as 0xAARRGGBB, or an empty array.
-    /// </summary>
-    public uint[] Palette { get; private set; } = [];
-
-    /// <summary>
     /// Gets the texels, where a texel of a 32-bit layout takes two elements and the blocks of a compressed layout are packed.
     /// </summary>
     public Span<ushort> Texels => _deviceTexels.Length != 0 ? _deviceTexels : _systemTexels;
@@ -91,6 +100,8 @@ public sealed class Texture
     /// Gets a view of the texture for drawing.
     /// </summary>
     public Direct3DTexture View => new(Texels, Size, Format, Palette);
+
+    internal PaletteEntry[] Palette { get; private set; } = [];
 
     internal Graphics Graphics => _session.Graphics;
 
@@ -249,7 +260,7 @@ public sealed class Texture
     }
 
     [EngineRoutine(0x004040c0)]
-    internal void SetPalette(ReadOnlySpan<uint> colors)
+    internal void SetPalette(ReadOnlySpan<PaletteEntry> entries)
     {
         if (_deviceTexels.Length == 0)
         {
@@ -263,8 +274,20 @@ public sealed class Texture
             return;
         }
 
-        Palette = colors.ToArray();
+        Palette = entries.ToArray();
         PaletteNumber = _session.TexturePaletteCount++;
+    }
+
+    [EngineRoutine(0x00404180)]
+    internal void SetPalette(ReadOnlySpan<uint> colors)
+    {
+        Span<PaletteEntry> entries = stackalloc PaletteEntry[PaletteSize];
+        for (int i = 0; i < PaletteSize; i++)
+        {
+            entries[i] = new PaletteEntry(colors[i]);
+        }
+
+        SetPalette(entries);
     }
 
     private static int GetTexelBytes(VidPixelFormat format) => format == VidPixelFormat.P8 ? PaletteTexelBytes : ColorTexelBytes;

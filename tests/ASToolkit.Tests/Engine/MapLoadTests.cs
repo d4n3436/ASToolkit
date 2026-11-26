@@ -120,10 +120,10 @@ public class MapLoadTests
         var map = EngineTestMap.CreateMap();
         var device = new RecordingGraphicsDevice();
         map.Session.Graphics.Device = device;
+        map.Constant.IsDebugMode = true;
 
         map.LoadAt(EngineTestMap.MapName, EngineTestMap.StartRealTime);
 
-        Assert.True(map.Constant.IsDebugMode);
         Assert.Equal(14, device.Presented.Count);
         Assert.Equal(device.Scenes, device.EndedScenes);
         Assert.Empty(map.Session.Graphics.LoadingText.ToArray());

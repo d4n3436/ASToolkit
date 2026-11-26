@@ -26,6 +26,7 @@ internal sealed class Movie
     public void Open(ReadOnlySpan<byte> path)
     {
         Release();
+        _session.Graphics.FlipToGdi();
 
         if (GraphBuilderResult < 0)
         {
@@ -58,5 +59,15 @@ internal sealed class Movie
     public void Release()
     {
         IsOpen = false;
+    }
+
+    [EngineRoutine(0x004346e0)]
+    public void Pause()
+    {
+    }
+
+    [EngineRoutine(0x004346f0)]
+    public void Resume()
+    {
     }
 }

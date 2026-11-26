@@ -91,66 +91,58 @@ public class Vid
     /// <param name="gameObject">The object record.</param>
     /// <param name="weapons">The weapon table.</param>
     /// <param name="spriteSpeed">The frame duration of the sprite file.</param>
-    /// <param name="totalFrames">The frame count of the sprite file.</param>
     /// <param name="layer">The update list of sprites of the object ID.</param>
     /// <exception cref="InvalidDataException">The record doesn't have any directions.</exception>
-    public Vid(Map map, KnownObject id, in GameObject gameObject, AlienShooterWeaponRecord[] weapons, int spriteSpeed, int totalFrames = 0, ObjectLayer layer = ObjectLayer.Ground)
-        : this(map, id, gameObject, weapons, spriteSpeed, totalFrames, layer, null)
+    public Vid(Map map, KnownObject id, in GameObject gameObject, AlienShooterWeaponRecord[] weapons, int spriteSpeed, ObjectLayer layer = ObjectLayer.Ground)
+        : this(map, weapons)
     {
+        Id = id;
+        RecordId = id;
+        SpriteSpeed = spriteSpeed;
+        Layer = layer;
         LoadParameters(gameObject);
     }
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="Vid"/> class from an object record and the header of its sprite file, without loading its parameters.
+    /// Initializes a new instance of the <see cref="Vid"/> class from the header of its sprite file, without loading its parameters.
     /// </summary>
     /// <param name="map">The map.</param>
     /// <param name="id">The object ID.</param>
-    /// <param name="gameObject">The object record.</param>
     /// <param name="weapons">The weapon table.</param>
     /// <param name="file">The sprite file.</param>
-    /// <param name="totalFrames">The frame count of the sprite file.</param>
-    protected Vid(Map map, KnownObject id, in GameObject gameObject, AlienShooterWeaponRecord[] weapons, in VidResource file, int totalFrames)
-        : this(map, id, gameObject, weapons, file.Speed, totalFrames, ObjectLayer.Ground, file)
+    protected Vid(Map map, KnownObject id, AlienShooterWeaponRecord[] weapons, in VidResource file)
+        : this(map, weapons)
     {
-    }
-
-    /// <summary>
-    /// Initializes a new instance of the <see cref="Vid"/> class from an object record without loading its parameters.
-    /// </summary>
-    /// <param name="map">The map.</param>
-    /// <param name="id">The object ID.</param>
-    /// <param name="gameObject">The object record.</param>
-    /// <param name="weapons">The weapon table.</param>
-    /// <param name="spriteSpeed">The frame duration of the sprite file.</param>
-    /// <param name="totalFrames">The frame count of the sprite file.</param>
-    /// <param name="layer">The update list of sprites of the object ID.</param>
-    /// <param name="file">The sprite file, or <see langword="null"/> without one.</param>
-    [EngineRoutine(0x00413710)]
-    protected Vid(Map map, KnownObject id, in GameObject gameObject, AlienShooterWeaponRecord[] weapons, int spriteSpeed, int totalFrames, ObjectLayer layer, VidResource? file)
-    {
-        _map = map;
         Id = id;
         RecordId = id;
-        Identity = this;
-        NextMirror = this;
+        FileType = file.Type;
+        SpriteSpeed = file.Speed;
+        FileFrameCount = file.FrameCount;
+        FrameSize = file.Size;
+    }
+
+    [EngineRoutine(0x00413710)]
+    private protected Vid(Map map, AlienShooterWeaponRecord[] weapons)
+    {
+        _map = map;
         _weapons = weapons;
-        TotalFrames = totalFrames;
-        CopyRecord(gameObject);
-
-        SpriteSpeed = spriteSpeed;
-        Layer = layer;
-        if (file is not null)
-        {
-            FileType = file.Value.Type;
-            FrameSize = file.Value.Size;
-            FileFrameCount = file.Value.FrameCount;
-        }
-
+        Id = KnownObject.None;
+        RecordId = KnownObject.None;
+        Class = SpriteClass.Primitive;
+        Size = DefaultSize;
+        Directions = 1;
+        Array.Fill(_durations, Map.DefaultSpriteSpeed);
+        Scale = Vector3.One;
+        SpriteSpeed = Map.DefaultSpriteSpeed;
+        Half = DefaultSize.AsVector2() * 0.5f;
+        Layer = ObjectLayer.Menu;
+        NextMirror = this;
+        Identity = this;
         ResetSprites();
     }
 
     private protected Vid(Vid source)
-        : this(source._map, KnownObject.None, new GameObject(SpriteClass.Primitive, DefaultSize), source._weapons, Map.DefaultSpriteSpeed, source.TotalFrames, ObjectLayer.Menu, null)
+        : this(source._map, source._weapons)
     {
         NextMirror = source.NextMirror;
         source.NextMirror = this;
@@ -194,7 +186,7 @@ public class Vid
     /// <summary>
     /// Gets the size of a sprite of this object ID.
     /// </summary>
-    public Vector3 Size { get; private set; }
+    public Vector3 Size { get; private protected set; }
 
     /// <summary>
     /// Gets or sets the health of a new sprite of this object ID.
@@ -605,8 +597,6 @@ public class Vid
 
     internal int Directions { get; private set; }
 
-    internal int TotalFrames { get; }
-
     internal int DirectionOffset { get; private set; }
 
     internal bool CanMove { get; private set; }
@@ -838,17 +828,7 @@ public class Vid
     [EngineRoutine(0x00442e00)]
     public Angle GetFrameDirection(Angle direction) => Directions != 0 ? direction.GetFrameDirection(Directions) : direction;
 
-    internal static Vid CreateEmpty(Map map, KnownObject id, in GameObject gameObject, int spriteSpeed, ObjectLayer layer)
-    {
-        var vid = new Vid(map, id, gameObject, [default], spriteSpeed, 0, layer, null);
-        vid.Half = new Vector2(gameObject.Size.X * 0.5f, gameObject.Size.Y * 0.5f);
-        vid.Scale = Vector3.One;
-        Array.Fill(vid._durations, spriteSpeed);
-
-        return vid;
-    }
-
-    internal static Vid CreateDefault(Map map) => CreateEmpty(map, KnownObject.None, new GameObject(SpriteClass.Primitive, DefaultSize), Map.DefaultSpriteSpeed, ObjectLayer.Menu);
+    internal static Vid CreateDefault(Map map) => new(map, [default]);
 
     [EngineRoutine(0x00413860)]
     internal virtual Vid CreateMirror()
@@ -919,7 +899,7 @@ public class Vid
 
         Half = Size.AsVector2() * 0.5f;
         DirectionOffset = Angle.HalfTurn / Directions;
-        int frames = (short)TotalFrames;
+        int frames = FileFrameCount;
         if (frames == 0)
         {
             Report(LogError.Invalid, 0, "noCadr==0"u8);
@@ -1095,6 +1075,13 @@ public class Vid
         }
     }
 
+    [EngineRoutine(0x004147f0)]
+    internal int GetBuildTime()
+    {
+        var vid = LinkVid is not null && LinkVid.WeaponIndex != 0 ? LinkVid : this;
+        return vid.Weapon.BuildTime / MillisecondsPerSecond;
+    }
+
     [EngineRoutine(0x00414890)]
     internal void SetHpCoeff(int army, int percent)
     {
@@ -1149,13 +1136,6 @@ public class Vid
         }
     }
 
-    [EngineRoutine(0x004147f0)]
-    internal int GetBuildTime()
-    {
-        var link = LinkVid;
-        return (link is not null && link.WeaponIndex != 0 ? link : this).Weapon.BuildTime / MillisecondsPerSecond;
-    }
-
     [EngineRoutine(0x0043a1c0)]
     internal int RealDirection(Angle direction) => ((DirectionOffset + direction.Value) & 0xff) * Directions >> 8;
 
@@ -1180,9 +1160,9 @@ public class Vid
 
         if (!_heightFrameStarts.IsEmpty)
         {
-            start = frame < TotalFrames ? _heightFrameStarts.Span[frame] : 0;
+            start = frame < FileFrameCount ? _heightFrameStarts.Span[frame] : 0;
 
-            if (frame < TotalFrames - 1)
+            if (frame < FileFrameCount - 1)
             {
                 end = _heightFrameStarts.Span[frame + 1];
             }

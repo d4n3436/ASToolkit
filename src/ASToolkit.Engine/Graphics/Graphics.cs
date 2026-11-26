@@ -26,18 +26,19 @@ public sealed partial class Graphics
     /// </summary>
     public const int EffectCount = 16;
 
+    internal const float NoSquall = -1;
     private const float ViewDepthOffset = 128f;
     private const float ProjectionDepthScale = 0.001f;
     private const float ProjectionRange = 2f;
     private const float WindPerSecond = 0.001f;
-    private const float NoSquall = -1;
+    private const byte StartWindDirection = 0xdc;
+    private const float StartWindSpeed = 20;
     private const float SquallGain = 0.001953125f;
     private const uint SquallRise = 0x800;
     private const uint SquallEnd = 0x1000;
+    private readonly ushort[] _colorTable = new ushort[ColorTableLength];
     private readonly GameSession _session;
-
-    private float _squallBaseSpeed = NoSquall;
-    private int _squallStart;
+    private bool _areBuffersCreated;
 
     internal Graphics(GameSession session)
     {
@@ -46,25 +47,41 @@ public sealed partial class Graphics
     }
 
     /// <summary>
+    /// Gets a value indicating whether the game is running full screen.
+    /// </summary>
+    /// <remarks>When running in a window, the screen size is limited to the desktop size.</remarks>
+    public bool IsFullScreen => Flags.HasFlag(GraphicsFlags.FullScreen);
+
+    /// <summary>
+    /// Gets the 16-bit colors of the brightness levels, in the layout of the device's textures.
+    /// </summary>
+    public ReadOnlySpan<ushort> ColorTable
+    {
+        get
+        {
+            if (Screen is not null)
+            {
+                EnsureBuffers();
+            }
+
+            return _areBuffersCreated ? _colorTable : DefaultColorTable;
+        }
+    }
+
+    /// <summary>
     /// Gets the size of the screen in pixels.
     /// </summary>
     public SizeF ScreenSize { get; internal set; }
 
     /// <summary>
-    /// Gets a value indicating whether the game is running full screen.
+    /// Gets the area of the back buffer the frame is drawn into.
     /// </summary>
-    /// <remarks>When running in a window, the screen size is limited to the desktop size.</remarks>
-    public bool IsFullScreen { get; internal set; }
+    public RectangleF Viewport { get; private set; }
 
     /// <summary>
-    /// Gets the real time each effect started at, or zero for an effect that isn't running.
+    /// Gets or sets the shift a scroll effect starts from.
     /// </summary>
-    public uint[] EffectStartTimes { get; } = new uint[EffectCount];
-
-    /// <summary>
-    /// Gets the length of each effect in milliseconds.
-    /// </summary>
-    public int[] EffectDurations { get; } = new int[EffectCount];
+    public Vector2 ScrollFrom { get; set; }
 
     /// <summary>
     /// Gets the first argument of each effect.
@@ -77,9 +94,14 @@ public sealed partial class Graphics
     public int[] EffectSecond { get; } = new int[EffectCount];
 
     /// <summary>
-    /// Gets or sets the shift a scroll effect starts from.
+    /// Gets the real time each effect started at, or zero for an effect that isn't running.
     /// </summary>
-    public Vector2 ScrollFrom { get; set; }
+    public uint[] EffectStartTimes { get; } = new uint[EffectCount];
+
+    /// <summary>
+    /// Gets the length of each effect in milliseconds.
+    /// </summary>
+    public int[] EffectDurations { get; } = new int[EffectCount];
 
     /// <summary>
     /// Gets or sets the gamma a gamma shift starts from.
@@ -87,39 +109,50 @@ public sealed partial class Graphics
     public Gamma GammaFrom { get; set; }
 
     /// <summary>
-    /// Gets the 16-bit colors of the brightness levels, in the layout of the device's textures.
-    /// </summary>
-    public ReadOnlySpan<ushort> ColorTable => Screen is not null ? EnsureBuffers().ColorTable : Buffers.IsCreated ? Buffers.ColorTable : DefaultColorTable;
-
-    /// <summary>
-    /// Gets the area of the back buffer the frame is drawn into.
-    /// </summary>
-    public RectangleF Viewport { get; private set; }
-
-    /// <summary>
-    /// Gets the matrix that maps the view onto the viewport.
-    /// </summary>
-    public Matrix4x4 Projection { get; private set; }
-
-    /// <summary>
     /// Gets the gamma the frame is drawn with.
     /// </summary>
     public Gamma Gamma { get; private set; }
 
     /// <summary>
+    /// Gets or sets the environment effects the map runs.
+    /// </summary>
+    public MapEnvironment Environment { get; set; }
+
+    /// <summary>
     /// Gets the direction of the wind.
     /// </summary>
-    public Angle WindDirection { get; private set; }
+    public Angle WindDirection { get; private set; } = new(StartWindDirection);
 
     /// <summary>
     /// Gets the speed of the wind in pixels per millisecond.
     /// </summary>
-    public float WindSpeed { get; private set; }
+    public float WindSpeed { get; private set; } = StartWindSpeed;
 
     /// <summary>
-    /// Gets or sets the environment effects the map runs.
+    /// Gets or sets the device that frames are drawn on, or <see langword="null"/> to draw without one.
     /// </summary>
-    public MapEnvironment Environment { get; set; }
+    public IGraphicsDevice? Device { get; set; }
+
+    /// <summary>
+    /// Gets the copy of the screen that an alpha appearance fades from, or <see langword="null"/> until one has started.
+    /// </summary>
+    public Screen? Capture { get; private set; }
+
+    /// <summary>
+    /// Gets the font that the device draws text with, or <see langword="null"/> if the font hasn't been created yet.
+    /// </summary>
+    public D3DFont? DeviceFont { get; private set; }
+
+    /// <summary>
+    /// Gets the line of text displayed on the loading screen.
+    /// </summary>
+    /// <remarks>The text is empty unless the game is running in debug mode.</remarks>
+    public ReadOnlyMemory<byte> LoadingText { get; private set; }
+
+    /// <summary>
+    /// Gets the matrix that maps the view onto the viewport.
+    /// </summary>
+    public Matrix4x4 Projection { get; private set; }
 
     /// <summary>
     /// Gets or sets the screen that the frame is drawn into, or <see langword="null"/> to run without drawing.
@@ -138,7 +171,17 @@ public sealed partial class Graphics
 
     internal GraphicsFlags Flags { get; set; }
 
+    internal bool IsDepthLocked { get; private set; }
+
+    internal int DepthWidth { get; private set; }
+
     internal Movie Movie { get; }
+
+    internal Texture? LightBuffer { get; private set; }
+
+    internal Texture? HighBuffer { get; private set; }
+
+    internal Texture? AlphaBuffer { get; private set; }
 
     /// <summary>
     /// Creates the view transform that moves the shift to the top left of the viewport and raises points by their height.
@@ -213,39 +256,39 @@ public sealed partial class Graphics
 
         if (Environment.HasFlag(MapEnvironment.Squall))
         {
-            if (_squallBaseSpeed.IsExactly(NoSquall))
+            if (_session.SquallBaseSpeed.IsExactly(NoSquall))
             {
-                _squallBaseSpeed = WindSpeed;
+                _session.SquallBaseSpeed = WindSpeed;
             }
 
-            uint elapsed = (uint)(time - _squallStart);
+            uint elapsed = (uint)(time - _session.SquallStart);
 
             if (elapsed > SquallRise)
             {
                 if (elapsed > SquallEnd)
                 {
                     Environment &= ~MapEnvironment.Squall;
-                    WindSpeed = _squallBaseSpeed;
-                    _squallBaseSpeed = NoSquall;
+                    WindSpeed = _session.SquallBaseSpeed;
+                    _session.SquallBaseSpeed = NoSquall;
 
                     return;
                 }
 
-                elapsed = (uint)(_squallStart - time + SquallEnd);
+                elapsed = (uint)(_session.SquallStart - time + SquallEnd);
             }
 
-            WindSpeed = elapsed * _squallBaseSpeed * SquallGain + _squallBaseSpeed;
+            WindSpeed = elapsed * _session.SquallBaseSpeed * SquallGain + _session.SquallBaseSpeed;
 
             return;
         }
 
-        _squallStart = time;
+        _session.SquallStart = time;
 
-        if (_squallBaseSpeed.IsExactly(NoSquall))
+        if (_session.SquallBaseSpeed.IsExactly(NoSquall))
             return;
 
-        WindSpeed = _squallBaseSpeed;
-        _squallBaseSpeed = NoSquall;
+        WindSpeed = _session.SquallBaseSpeed;
+        _session.SquallBaseSpeed = NoSquall;
     }
 
     [EngineRoutine(0x00431cf0)]
