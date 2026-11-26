@@ -359,7 +359,7 @@ The `CNST` record is 104 bytes in every game. Speeds are stored in pixels per se
  +44    i32   120 in every game (unused)
  +48    i32   120 in every game (unused)
  +52    i32   milliseconds the cursor rests before its hint shows, repeated every 500 ms
- +56    i32   hit points a depot heals each second; 2 in every game
+ +56    i32   hit points that `B_DEPO` (24) objects heal each second; 2 in every game
  +60    i32   hit points that objects with ID 104 heal each second; 2 in every game
  +68    i32   2000 in every game, read by the train code
  +72    i32   3000 in every game (unused)
