@@ -34,7 +34,6 @@ public sealed class GameSession : IDisposable
     internal int DemoPacedTime;
     internal Profile? Strings;
     internal Map? Map;
-    internal uint FrameRateStartedAt;
     internal int VidMemoryInUse;
     internal ControlSettings? Controls;
     internal GameRandom Random = new(0);
@@ -111,6 +110,11 @@ public sealed class GameSession : IDisposable
     /// Gets or sets the tuning values of the game.
     /// </summary>
     public Constant? Constant { get; set; }
+
+    /// <summary>
+    /// Gets or sets the real time, in milliseconds, when the current frame rate measurement started.
+    /// </summary>
+    public uint FrameRateStartedAt { get; set; }
 
     /// <summary>
     /// Gets the graphics state that persists across levels.
