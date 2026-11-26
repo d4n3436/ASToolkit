@@ -109,7 +109,12 @@ public partial class Sprite
         if (bestFlies != candidateFlies)
             return candidateFlies;
 
-        float range = (ArmedLink?.Vid ?? Vid).Weapon.BattleRange;
+        float range = Vid.Weapon.BattleRange;
+        var armedLink = ArmedLink;
+        if (armedLink is not null && range.IsExactlyZero())
+        {
+            range = armedLink.Vid.Weapon.BattleRange;
+        }
 
         if (range < bestDistance && distance <= range)
             return true;

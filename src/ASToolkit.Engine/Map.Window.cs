@@ -44,7 +44,7 @@ public partial class Map
                 break;
             case MenuCommand.Screenshot:
                 string path = $"{ScreenshotFolder}{MyLib.GetDateString(Session.Time)} {MyLib.GetTimeString(Session.Time)}{ScreenshotExtension}";
-                path = path.ReplaceFirst(':', 'h').ReplaceFirst(':', 'm').ReplaceFirst(':', 's');
+                path = path.ReplaceFirst(":", "h").ReplaceFirst(":", "").ReplaceFirst(":", "");
                 Session.Graphics.SaveScreen(path, new Rectangle(Point.Empty, System.Drawing.Size.Truncate(Session.Graphics.ScreenSize)));
                 break;
         }

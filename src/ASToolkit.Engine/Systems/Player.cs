@@ -111,7 +111,11 @@ internal sealed class Player
     }
 
     [EngineRoutine(0x0043e9f0)]
-    public void Forget(Sprite removed) => ForgetSprite(removed);
+    public void Forget(Sprite removed)
+    {
+        Messages.DeletePointerToSprite(removed);
+        ForgetSprite(removed);
+    }
 
     [EngineRoutine(0x0043ea10)]
     public void Control(Input input)

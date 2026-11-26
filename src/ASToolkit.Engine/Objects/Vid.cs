@@ -767,7 +767,7 @@ public class Vid
     /// </summary>
     /// <returns><see langword="true"/> if sprites of this object ID are armed with a weapon of their own; otherwise, <see langword="false"/>.</returns>
     [EngineRoutine(0x0043a1e0)]
-    public bool CanFight() => FightChild != 0 && WeaponIndex != 0;
+    public bool CanFight() => ChildVids[(int)SpriteAnimation.Fight] is not null && WeaponIndex != 0;
 
     /// <summary>
     /// Returns the ammunition a sprite of this object ID holds when full.

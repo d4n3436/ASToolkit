@@ -166,7 +166,7 @@ public class Unit : Terrain
             case ActionCode.Damage:
                 int damageResult = base.Action(ActionCode.Damage, var1, var2, var3);
 
-                if (var1 >= 0 && Command == Command.None && !Vid.Speed.IsExactlyZero())
+                if (var1 >= 0 && Command == Command.None && !MaxSpeed.IsExactlyZero())
                 {
                     var wander = Position.AsVector2() + new Angle((byte)Map.Random.Next()).Vector * WanderReach;
                     var goal = Map.ConstructGoal(new Vector3(wander, Position.Z));

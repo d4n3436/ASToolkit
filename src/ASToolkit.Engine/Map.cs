@@ -1046,8 +1046,6 @@ public partial class Map : IDisposable
 
         _playedDemo = null;
         _playedOffset = 0;
-        Session.DemoPacedAt = 0;
-        Session.DemoPacedTime = 0;
         EndDemoRecording();
         _flags &= ~(MapFlags.RecordingDemo | MapFlags.PlayingDemo);
         _scrollType = ScrollType.FromBorder;

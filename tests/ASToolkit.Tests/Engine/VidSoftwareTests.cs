@@ -9,7 +9,7 @@ namespace ASToolkit.Tests.Engine;
 
 public sealed class VidSoftwareTests
 {
-    private const string LogPath = "logs\\error2026-01-01 12h00m00.log";
+    private const string LogPath = "logs\\error2026-01-01 12h0000.log";
     private static readonly DateTimeOffset StartTime = new(2026, 1, 1, 12, 0, 0, TimeSpan.Zero);
 
     [Fact]

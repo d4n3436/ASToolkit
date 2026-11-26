@@ -172,21 +172,21 @@ public sealed class TgaImage : PictureImage
         if (ImageType == TgaImageType.None)
         {
             Reset();
-            Report(LogError.Invalid, "not image in tga"u8);
+            Report(LogError.Text, "not image in tga"u8);
             return false;
         }
 
         if (tga.ColorMapType == ColorMapType)
         {
             Reset();
-            Report(LogError.Invalid, "not supported ColorMapType in tga"u8);
+            Report(LogError.Text, "not supported ColorMapType in tga"u8);
             return false;
         }
 
         if ((ImageType & TgaImageType.Grayscale) == TgaImageType.ColorMapped)
         {
             Reset();
-            Report(LogError.Invalid, "not supported ColorMap in tga"u8);
+            Report(LogError.Text, "not supported ColorMap in tga"u8);
             return false;
         }
 

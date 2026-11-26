@@ -63,6 +63,23 @@ internal sealed class Message
         }
     }
 
+    [EngineRoutine(0x0042e280)]
+    public void DeletePointerToSprite(Sprite removed)
+    {
+        for (int i = 0; i < _count; i++)
+        {
+            if (_markers[i] == removed)
+            {
+                _markers[i] = null;
+            }
+
+            if (_lines[i] == removed)
+            {
+                _lines[i] = null;
+            }
+        }
+    }
+
     [EngineRoutine(0x0042e2c0)]
     public void Tact()
     {
@@ -74,7 +91,7 @@ internal sealed class Message
 
             if ((uint)_map.FrameTime < (uint)message.Time)
             {
-                _pending[index] = message with { Time = message.Time - _map.CurrentTime + _map.FrameTime };
+                _pending[index] = message with { Time = message.Time - _map.CurrentTime + _map.Session.PreviousCurrentTime };
                 continue;
             }
 

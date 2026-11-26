@@ -25,7 +25,7 @@ internal sealed class MyError : IDisposable
     {
         _fileSystem = fileSystem;
         _time = time;
-        string path = $"{NamePrefix}{MyLib.GetDateString(time)} {MyLib.GetTimeString(time)}{NameExtension}".ReplaceFirst(':', 'h').ReplaceFirst(':', 'm');
+        string path = $"{NamePrefix}{MyLib.GetDateString(time)} {MyLib.GetTimeString(time)}{NameExtension}".ReplaceFirst(":", "h").ReplaceFirst(":", "");
         if (!isTimestamped)
         {
             path = LastPath;

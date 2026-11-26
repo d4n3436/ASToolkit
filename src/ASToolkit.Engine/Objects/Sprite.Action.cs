@@ -212,6 +212,7 @@ public partial class Sprite
                     break;
 
                 Map.DropLinks(this);
+                IsAwaitingSecondPulse = false;
                 Map.Sprites.DeleteFromHash(this);
                 RemoveFromUpdates();
                 var newAnimation = var2 < 0 ? Animation : (SpriteAnimation)var2;

@@ -68,11 +68,11 @@ internal static class MyLib
     extension(string text)
     {
         [EngineRoutine(0x00406c90)]
-        public string ReplaceFirst(char from, char to)
+        public string ReplaceFirst(string from, string to)
         {
-            int index = text.IndexOf(from);
+            int index = text.IndexOf(from, StringComparison.Ordinal);
 
-            return index < 0 ? text : string.Concat(text.AsSpan(0, index), new ReadOnlySpan<char>(in to), text.AsSpan(index + 1));
+            return index < 0 ? text : string.Concat(text.AsSpan(0, index), to, text.AsSpan(index + from.Length));
         }
 
         public string After(string delimiter)

@@ -11,7 +11,7 @@ namespace ASToolkit.Tests.Engine;
 
 public class WindowCommandTests
 {
-    private const string ScreenshotPath = "Screens\\2026-01-01 12h00m00.tga";
+    private const string ScreenshotPath = "Screens\\2026-01-01 12h0000.tga";
     private static readonly DateTimeOffset StartTime = new(2026, 1, 1, 12, 0, 0, TimeSpan.Zero);
 
     [Fact]
