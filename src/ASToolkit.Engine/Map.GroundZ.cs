@@ -187,8 +187,8 @@ public partial class Map
     [EngineRoutine(0x00410d70)]
     private void ResetGroundZ()
     {
-        _gridColumns = (int)Size.Width / GridZCellSize;
-        _gridRows = (int)Size.Height / GridZCellSize;
+        _gridColumns = (int)(Size.Width + (GridZCellSize - 1)) / GridZCellSize;
+        _gridRows = (int)(Size.Height + (GridZCellSize - 1)) / GridZCellSize;
         int cells = _gridColumns * _gridRows;
         _sceneryHeights = new short[cells];
         _objectHeights = new short[cells];
