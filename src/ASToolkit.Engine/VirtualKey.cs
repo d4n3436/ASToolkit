@@ -21,6 +21,21 @@ public enum VirtualKey
     RightButton = 0x2,
 
     /// <summary>
+    /// The Backspace key.
+    /// </summary>
+    Backspace = 0x8,
+
+    /// <summary>
+    /// The Tab key.
+    /// </summary>
+    Tab = 0x9,
+
+    /// <summary>
+    /// The Enter key.
+    /// </summary>
+    Enter = 0xD,
+
+    /// <summary>
     /// The Shift key.
     /// </summary>
     Shift = 0x10,
@@ -34,6 +49,21 @@ public enum VirtualKey
     /// The Alt key.
     /// </summary>
     Alt = 0x12,
+
+    /// <summary>
+    /// The Pause key.
+    /// </summary>
+    Pause = 0x13,
+
+    /// <summary>
+    /// The Caps Lock key.
+    /// </summary>
+    CapsLock = 0x14,
+
+    /// <summary>
+    /// The Esc key.
+    /// </summary>
+    Escape = 0x1B,
 
     /// <summary>
     /// The Spacebar.
@@ -79,6 +109,11 @@ public enum VirtualKey
     /// The Down Arrow key.
     /// </summary>
     Down = 0x28,
+
+    /// <summary>
+    /// The Print Screen key.
+    /// </summary>
+    PrintScreen = 0x2C,
 
     /// <summary>
     /// The Insert key.
@@ -281,6 +316,86 @@ public enum VirtualKey
     RightWindows = 0x5C,
 
     /// <summary>
+    /// The Applications key.
+    /// </summary>
+    Applications = 0x5D,
+
+    /// <summary>
+    /// The 0 key on the numeric keypad.
+    /// </summary>
+    Numpad0 = 0x60,
+
+    /// <summary>
+    /// The 1 key on the numeric keypad.
+    /// </summary>
+    Numpad1 = 0x61,
+
+    /// <summary>
+    /// The 2 key on the numeric keypad.
+    /// </summary>
+    Numpad2 = 0x62,
+
+    /// <summary>
+    /// The 3 key on the numeric keypad.
+    /// </summary>
+    Numpad3 = 0x63,
+
+    /// <summary>
+    /// The 4 key on the numeric keypad.
+    /// </summary>
+    Numpad4 = 0x64,
+
+    /// <summary>
+    /// The 5 key on the numeric keypad.
+    /// </summary>
+    Numpad5 = 0x65,
+
+    /// <summary>
+    /// The 6 key on the numeric keypad.
+    /// </summary>
+    Numpad6 = 0x66,
+
+    /// <summary>
+    /// The 7 key on the numeric keypad.
+    /// </summary>
+    Numpad7 = 0x67,
+
+    /// <summary>
+    /// The 8 key on the numeric keypad.
+    /// </summary>
+    Numpad8 = 0x68,
+
+    /// <summary>
+    /// The 9 key on the numeric keypad.
+    /// </summary>
+    Numpad9 = 0x69,
+
+    /// <summary>
+    /// The Multiply key on the numeric keypad.
+    /// </summary>
+    Multiply = 0x6A,
+
+    /// <summary>
+    /// The Add key on the numeric keypad.
+    /// </summary>
+    Add = 0x6B,
+
+    /// <summary>
+    /// The Subtract key on the numeric keypad.
+    /// </summary>
+    Subtract = 0x6D,
+
+    /// <summary>
+    /// The Decimal key on the numeric keypad.
+    /// </summary>
+    Decimal = 0x6E,
+
+    /// <summary>
+    /// The Divide key on the numeric keypad.
+    /// </summary>
+    Divide = 0x6F,
+
+    /// <summary>
     /// The F1 key.
     /// </summary>
     F1 = 0x70,
@@ -338,5 +453,70 @@ public enum VirtualKey
     /// <summary>
     /// The F12 key.
     /// </summary>
-    F12 = 0x7B
+    F12 = 0x7B,
+
+    /// <summary>
+    /// The Num Lock key.
+    /// </summary>
+    NumLock = 0x90,
+
+    /// <summary>
+    /// The Scroll Lock key.
+    /// </summary>
+    ScrollLock = 0x91,
+
+    /// <summary>
+    /// The ; key.
+    /// </summary>
+    Semicolon = 0xBA,
+
+    /// <summary>
+    /// The = key.
+    /// </summary>
+    Plus = 0xBB,
+
+    /// <summary>
+    /// The , key.
+    /// </summary>
+    Comma = 0xBC,
+
+    /// <summary>
+    /// The - key.
+    /// </summary>
+    Minus = 0xBD,
+
+    /// <summary>
+    /// The . key.
+    /// </summary>
+    Period = 0xBE,
+
+    /// <summary>
+    /// The / key.
+    /// </summary>
+    Slash = 0xBF,
+
+    /// <summary>
+    /// The ` key.
+    /// </summary>
+    Backquote = 0xC0,
+
+    /// <summary>
+    /// The [ key.
+    /// </summary>
+    LeftBracket = 0xDB,
+
+    /// <summary>
+    /// The \ key.
+    /// </summary>
+    Backslash = 0xDC,
+
+    /// <summary>
+    /// The ] key.
+    /// </summary>
+    RightBracket = 0xDD,
+
+    /// <summary>
+    /// The ' key.
+    /// </summary>
+    Quote = 0xDE
 }

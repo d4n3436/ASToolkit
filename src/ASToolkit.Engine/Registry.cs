@@ -42,6 +42,11 @@ public sealed class Registry
     public string DefaultPath { get; }
 
     /// <summary>
+    /// Gets every value of the registry, keyed by its path and name.
+    /// </summary>
+    public IReadOnlyDictionary<string, string> Values => _values;
+
+    /// <summary>
     /// Reads the registry path from the game's configuration file.
     /// </summary>
     /// <param name="configPath">The path of the configuration file.</param>
