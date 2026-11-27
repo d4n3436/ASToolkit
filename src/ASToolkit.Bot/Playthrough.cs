@@ -126,8 +126,7 @@ public sealed class Playthrough
         string scriptPath = Path.ChangeExtension(mapPath, ScriptExtension);
         files.Set(mapPath, File.ReadAllBytes(mapFile));
         files.Set(scriptPath, File.Exists(scriptFile) ? File.ReadAllBytes(scriptFile) : DefaultLevelScript.ToArray());
-        var profile = CreateProfile(gameFolder);
-        var map = new MapSteam(new GameSession(files, GetProgramPath(gameFolder), AdapterModes, profile, new SteppedClock(), writeLog: false) { Objects = objects }, DisplaySettings, "");
+        var map = new MapSteam(new GameSession(files, GetProgramPath(gameFolder), AdapterModes, CreateProfile(gameFolder), new SteppedClock(), writeLog: false) { Objects = objects }, DisplaySettings, "");
         map.Input.PostMessage(WindowMessageId.ActivateApp, 1, 0);
         map.RequestLoad(Encoding.ASCII.GetBytes(mapPath));
         map.TactAt(ViewSeed);
@@ -136,13 +135,14 @@ public sealed class Playthrough
     }
 
     /// <summary>
-    /// Creates the registry of the bot's player profile.
+    /// Creates an in-memory registry with the bot's player profile.
     /// </summary>
     /// <param name="gameFolder">The game folder.</param>
     /// <returns>The registry.</returns>
-    public static Registry CreateProfile(string gameFolder)
+    public static RegistryFile CreateProfile(string gameFolder)
     {
-        var registry = new Registry(Registry.ReadDefaultPath(new GameFolder(gameFolder), GetProgramPath(gameFolder)));
+        var file = new RegistryFile();
+        var registry = new Registry(Registry.ReadDefaultPath(new GameFolder(gameFolder), GetProgramPath(gameFolder)), file);
         registry.Set("PlayerSex", "male");
         registry.Set("StateBar", "1");
         registry.Set("DifficultyLevel", "1");
@@ -150,22 +150,22 @@ public sealed class Playthrough
         registry.SetNumber("ScreenX", ProfileScreenSize.Width);
         registry.SetNumber("ScreenY", ProfileScreenSize.Height);
 
-        return registry;
+        return file;
     }
 
     /// <summary>
-    /// Creates the registry that holds the player's state at the start of a level.
+    /// Creates an in-memory registry with the player's state at the start of a level.
     /// </summary>
     /// <param name="gameFolder">The game folder.</param>
     /// <param name="mapName">The name of the map relative to the maps folder.</param>
     /// <param name="loadout">The equipment the player carries into the level.</param>
     /// <returns>The registry.</returns>
-    public static Registry CreateRegistry(string gameFolder, string mapName, PlayerLoadout loadout)
+    public static RegistryFile CreateRegistry(string gameFolder, string mapName, PlayerLoadout loadout)
     {
-        var registry = CreateProfile(gameFolder);
-        ApplyLoadout(registry, mapName, loadout);
+        var file = CreateProfile(gameFolder);
+        ApplyLoadout(new Registry(Registry.ReadDefaultPath(new GameFolder(gameFolder), GetProgramPath(gameFolder)), file), mapName, loadout);
 
-        return registry;
+        return file;
     }
 
     /// <summary>
@@ -240,8 +240,7 @@ public sealed class Playthrough
 
         if (map is null)
         {
-            var registry = CreateRegistry(_gameFolder, analysis.Name, loadout);
-            map = new MapSteam(new GameSession(_files, GetProgramPath(_gameFolder), AdapterModes, registry, new SteppedClock(), writeLog: false) { Objects = _objects }, DisplaySettings, "");
+            map = new MapSteam(new GameSession(_files, GetProgramPath(_gameFolder), AdapterModes, CreateRegistry(_gameFolder, analysis.Name, loadout), new SteppedClock(), writeLog: false) { Objects = _objects }, DisplaySettings, "");
             map.Input.PostMessage(WindowMessageId.ActivateApp, 1, 0);
         }
         else
@@ -401,8 +400,7 @@ public sealed class Playthrough
         _files.Set(demoPath, demo.Data);
         if (map is null)
         {
-            var registry = CreateRegistry(_gameFolder, analysis.Name, loadout);
-            map = new MapSteam(new GameSession(_files, GetProgramPath(_gameFolder), AdapterModes, registry, new SteppedClock(), writeLog: false) { Objects = _objects }, DisplaySettings, "");
+            map = new MapSteam(new GameSession(_files, GetProgramPath(_gameFolder), AdapterModes, CreateRegistry(_gameFolder, analysis.Name, loadout), new SteppedClock(), writeLog: false) { Objects = _objects }, DisplaySettings, "");
             map.Input.PostMessage(WindowMessageId.ActivateApp, 1, 0);
         }
         else

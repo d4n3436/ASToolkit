@@ -2,7 +2,6 @@ using System.Buffers;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using ASToolkit.Engine.IO;
-using ASToolkit.Formats;
 
 namespace ASToolkit.Engine;
 

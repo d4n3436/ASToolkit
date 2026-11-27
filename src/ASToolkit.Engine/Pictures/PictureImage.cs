@@ -3,7 +3,6 @@ using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Text;
 using ASToolkit.Engine.IO;
-using ASToolkit.Formats;
 
 namespace ASToolkit.Engine;
 

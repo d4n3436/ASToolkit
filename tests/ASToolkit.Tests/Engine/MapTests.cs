@@ -16,7 +16,7 @@ public class MapTests
     public void Constructor_VSyncInTheConfiguration_LogsItInTheCaps()
     {
         var fileSystem = new MemoryWriteOverlay(new GameFolder(TestGameFolder.RequireFolder()));
-        using (var session = new GameSession(fileSystem, EngineTestMap.ProgramPath, Playthrough.AdapterModes, new Registry(""), new FakeTimeProvider(new DateTimeOffset(2026, 1, 1, 12, 0, 0, TimeSpan.Zero))) { Objects = TestGameFolder.Objects })
+        using (var session = new GameSession(fileSystem, EngineTestMap.ProgramPath, Playthrough.AdapterModes, new RegistryFile(), new FakeTimeProvider(new DateTimeOffset(2026, 1, 1, 12, 0, 0, TimeSpan.Zero))) { Objects = TestGameFolder.Objects })
         {
             using var map = new MapSteam(session, Playthrough.DisplaySettings, "");
         }

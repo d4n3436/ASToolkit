@@ -142,7 +142,7 @@ public partial class Map : IDisposable
         Session.Strings.Load(StringsFile);
         var settings = init;
         settings.Title = config.TryGetString(CommonSection, "Title"u8, out var title) ? title : programName.ToArray();
-        Session.Registry = new Registry(Registry.ReadDefaultPath(config, programName), Session.Registry);
+        Session.Registry = new Registry(Registry.ReadDefaultPath(config, programName), Session.RegistryFile);
         if (config.GetInt(GraphSection, "VSync"u8, 1) != 0)
         {
             settings.Flags |= GraphicsInitFlags.VSync;

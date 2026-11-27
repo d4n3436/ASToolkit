@@ -957,17 +957,17 @@ public partial class Map : IScriptFunctionHost
                 string regDefault = ReadText(PopText());
                 Session.ScriptText = CRuntime.GetString(PopText()).ToArray();
                 string regName = ReadText(Session.ScriptText);
-                PushText(GameTextEncoding.Cyrillic.GetBytes(new Registry(ReadText(PopText()), Registry).Get(regName, regDefault)));
+                PushText(GameTextEncoding.Cyrillic.GetBytes(new Registry(ReadText(PopText()), Session.RegistryFile).Get(regName, regDefault)));
                 break;
             case ScriptFunction.SetReg:
                 string regValue = ReadText(PopText());
                 Session.ScriptText = CRuntime.GetString(PopText()).ToArray();
                 string setRegName = ReadText(Session.ScriptText);
-                new Registry(ReadText(PopText()), Registry).Set(setRegName, regValue);
+                new Registry(ReadText(PopText()), Session.RegistryFile).Set(setRegName, regValue);
                 break;
             case ScriptFunction.DelReg:
                 string delRegName = ReadText(PopText());
-                new Registry(ReadText(PopText()), Registry).DeleteKey(delRegName);
+                new Registry(ReadText(PopText()), Session.RegistryFile).DeleteKey(delRegName);
                 break;
             case ScriptFunction.GetDefaultRegPath:
                 PushText(GameTextEncoding.Cyrillic.GetBytes(Registry.DefaultPath));

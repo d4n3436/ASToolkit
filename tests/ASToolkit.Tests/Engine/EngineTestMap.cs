@@ -82,24 +82,25 @@ internal static class EngineTestMap
 
     public static GraphicsInit CaptureDisplaySettings => new(new[] { CaptureScreenSize }, (int[])[32], CaptureScreenSize, 32, true);
 
-    public static Registry CreateCaptureRegistry()
+    public static RegistryFile CreateCaptureRegistry()
     {
-        var registry = new Registry(Registry.ReadDefaultPath(new GameFolder(TestGameFolder.RequireFolder()), ProgramPath));
+        var file = new RegistryFile();
+        var registry = new Registry(Registry.ReadDefaultPath(new GameFolder(TestGameFolder.RequireFolder()), ProgramPath), file);
         registry.SetNumber("ScreenX", CaptureScreenSize.Width);
         registry.SetNumber("ScreenY", CaptureScreenSize.Height);
 
-        return registry;
+        return file;
     }
 
-    public static Registry CreateRegistry(PlayerLoadout? loadout = null, string? blood = null)
+    public static RegistryFile CreateRegistry(PlayerLoadout? loadout = null, string? blood = null)
     {
-        var registry = Playthrough.CreateRegistry(TestGameFolder.RequireFolder(), "Level_02.map", loadout ?? new PlayerLoadout(0, new Dictionary<KnownObject, int>(), default));
+        var file = Playthrough.CreateRegistry(TestGameFolder.RequireFolder(), "Level_02.map", loadout ?? new PlayerLoadout(0, new Dictionary<KnownObject, int>(), default));
         if (blood is not null)
         {
-            registry.Set("Blood", blood);
+            new Registry(Registry.ReadDefaultPath(new GameFolder(TestGameFolder.RequireFolder()), ProgramPath), file).Set("Blood", blood);
         }
 
-        return registry;
+        return file;
     }
 
     public static Map CreateMap(PlayerLoadout? loadout = null, IReadOnlyList<MergedMapSprite>? sprites = null, int frameTime = FramePacer.DefaultFrameTime,

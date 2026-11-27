@@ -1,7 +1,6 @@
 using System.Globalization;
 using System.Numerics;
 using ASToolkit.Engine.IO;
-using ASToolkit.Formats;
 
 namespace ASToolkit.Engine;
 

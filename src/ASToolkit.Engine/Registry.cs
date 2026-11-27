@@ -6,44 +6,30 @@ using ASToolkit.Formats;
 namespace ASToolkit.Engine;
 
 /// <summary>
-/// Represents the registry values that carry the player's state between levels.
+/// Represents a key of the registry, identified by its path.
 /// </summary>
 public sealed class Registry
 {
     private const int MaxStackText = 256;
 
-    private readonly Dictionary<string, string> _values;
+    private readonly RegistryFile _file;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="Registry"/> class as an empty registry.
+    /// Initializes a new instance of the <see cref="Registry"/> class.
     /// </summary>
-    /// <param name="defaultPath">The registry path named in the game's configuration.</param>
-    public Registry(string defaultPath)
-    {
-        DefaultPath = defaultPath;
-        _values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-    }
-
-    /// <summary>
-    /// Initializes a new instance of the <see cref="Registry"/> class that reads and writes the values of another registry under a different path.
-    /// </summary>
-    /// <param name="path">The registry path.</param>
-    /// <param name="registry">The registry whose values are shared.</param>
-    public Registry(string path, Registry registry)
+    /// <param name="path">The path of the key the registry reads and writes.</param>
+    /// <param name="file">The registry of the game.</param>
+    [EngineRoutine(0x00408430)]
+    public Registry(string path, RegistryFile file)
     {
         DefaultPath = path;
-        _values = registry._values;
+        _file = file;
     }
 
     /// <summary>
-    /// Gets the registry path named in the game's configuration.
+    /// Gets the path of the key the registry reads and writes.
     /// </summary>
     public string DefaultPath { get; }
-
-    /// <summary>
-    /// Gets every value of the registry, keyed by its path and name.
-    /// </summary>
-    public IReadOnlyDictionary<string, string> Values => _values;
 
     /// <summary>
     /// Reads the registry path from the game's configuration file.
@@ -70,7 +56,7 @@ public sealed class Registry
     /// <param name="defaultValue">The text to return if no value is stored.</param>
     /// <returns>The stored text, or <paramref name="defaultValue"/> if no value is stored.</returns>
     [EngineRoutine(0x0042cf70)]
-    public string Get(string name, string defaultValue) => _values.GetValueOrDefault(GetKey(name), defaultValue);
+    public string Get(string name, string defaultValue) => _file.TryGetValue(DefaultPath, name, out string? value) ? value : defaultValue;
 
     /// <summary>
     /// Gets the value stored under a name of the default path, as a number.
@@ -93,7 +79,7 @@ public sealed class Registry
     /// <param name="name">The value name.</param>
     /// <param name="value">The text to store.</param>
     [EngineRoutine(0x0042d1f0)]
-    public void Set(string name, string value) => _values[GetKey(name)] = value;
+    public void Set(string name, string value) => _file.SetValue(DefaultPath, name, value);
 
     /// <summary>
     /// Stores a number under a name of the default path.
@@ -108,7 +94,5 @@ public sealed class Registry
     /// </summary>
     /// <param name="name">The value name.</param>
     [EngineRoutine(0x0042d310)]
-    public void DeleteKey(string name) => _values.Remove(GetKey(name));
-
-    private string GetKey(string name) => $"{DefaultPath}\\{name}";
+    public void DeleteKey(string name) => _file.DeleteValue(DefaultPath, name);
 }

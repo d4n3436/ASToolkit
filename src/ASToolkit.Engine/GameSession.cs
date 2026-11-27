@@ -60,17 +60,17 @@ public sealed class GameSession : IDisposable
     /// <param name="fileSystem">The file system that holds the game's files.</param>
     /// <param name="programPath">The path of the game's executable.</param>
     /// <param name="displayModes">The display modes the display adapter offers, in the adapter's order.</param>
-    /// <param name="registry">The registry that holds the game's settings, or <see langword="null"/> for an empty one.</param>
+    /// <param name="registry">The registry of the game, or <see langword="null"/> for an empty, in-memory one.</param>
     /// <param name="time">The clock used for the log's file name and timestamps and for the real time, or <see langword="null"/> for the system clock.</param>
     /// <param name="writeLog"><see langword="true"/> to write the log to the file system; otherwise, <see langword="false"/>.</param>
-    public GameSession(IGameFileSystem fileSystem, string programPath, ReadOnlyMemory<DisplayMode> displayModes, Registry? registry = null, TimeProvider? time = null, bool writeLog = true)
+    public GameSession(IGameFileSystem fileSystem, string programPath, ReadOnlyMemory<DisplayMode> displayModes, RegistryFile? registry = null, TimeProvider? time = null, bool writeLog = true)
     {
         FileSystem = fileSystem;
         ProgramPath = programPath;
         DisplayModes = displayModes;
         Time = time ?? TimeProvider.System;
         Error = new MyError(writeLog ? fileSystem : null, Time);
-        Registry = registry ?? new Registry("");
+        RegistryFile = registry ?? new RegistryFile();
     }
 
     /// <summary>
@@ -114,6 +114,11 @@ public sealed class GameSession : IDisposable
     public IGameFileSystem FileSystem { get; }
 
     /// <summary>
+    /// Gets the registry of the game.
+    /// </summary>
+    public RegistryFile RegistryFile { get; }
+
+    /// <summary>
     /// Gets the path of the game's executable.
     /// </summary>
     public string ProgramPath { get; }
@@ -142,7 +147,7 @@ public sealed class GameSession : IDisposable
 
     internal uint FadeStartedAt { get; set; }
 
-    internal Registry Registry { get; set; }
+    internal Registry Registry { get; set; } = null!;
 
     internal uint MouseTipMovedAt { get; set; }
 
