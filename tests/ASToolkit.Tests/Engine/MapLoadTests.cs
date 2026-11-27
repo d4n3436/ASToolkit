@@ -18,6 +18,23 @@ public class MapLoadTests
     private const int EndHandle = -1;
 
     [Fact]
+    public void Load_SpritesCreatedAfterTheLoad_KeepTheMouseHandle()
+    {
+        var map = EngineTestMap.CreateMap();
+        int mouseHandle = map.GetSpriteHandle(map.Mouse);
+        map.LoadAt(EngineTestMap.MapName, EngineTestMap.StartRealTime);
+        var vid = map.FindVid(KnownObject.Crate)!;
+        for (int i = 0; i <= mouseHandle; i++)
+        {
+            var sprite = map.CreateSprite(vid, new Vector3(1000, 1000, 0), default)!;
+            map.GetSpriteHandle(sprite);
+            map.DeleteSprite(sprite);
+        }
+
+        Assert.Same(map.Mouse, map.FindSprite(mouseHandle));
+    }
+
+    [Fact]
     public void LoadVid_ObjectIdsSharingASpriteFile_JoinOneMirrorRing()
     {
         var map = EngineTestMap.CreateMap();

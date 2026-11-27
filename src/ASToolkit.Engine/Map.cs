@@ -389,7 +389,6 @@ public partial class Map : IDisposable
             Release();
         }
 
-        _lastHandle = 0;
         Menu.Clicks = default;
         _livingFences.Clear();
         _livingSites.Clear();
