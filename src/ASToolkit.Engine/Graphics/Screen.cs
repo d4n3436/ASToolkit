@@ -1,6 +1,5 @@
 using System.Drawing;
 using System.Runtime.InteropServices;
-using SixLabors.ImageSharp.PixelFormats;
 
 namespace ASToolkit.Engine;
 
@@ -96,36 +95,5 @@ public sealed class Screen
 
     internal GammaTable GammaTable { get; } = new();
 
-    /// <summary>
-    /// Writes the back buffer as opaque pixels, row by row from the top.
-    /// </summary>
-    /// <param name="pixels">The pixels to write, at least as many as the screen holds.</param>
-    /// <exception cref="ArgumentException"><paramref name="pixels"/> is smaller than the screen.</exception>
-    public void CopyTo(Span<Bgra32> pixels)
-    {
-        int count = Size.Width * Size.Height;
-        if (pixels.Length < count)
-            throw new ArgumentException("The pixel buffer is smaller than the screen.", nameof(pixels));
-
-        if (IsTrueColor)
-        {
-            var colors = TrueColorPixels[..count];
-            for (int i = 0; i < count; i++)
-            {
-                pixels[i] = ToBgra(colors[i]);
-            }
-        }
-        else
-        {
-            var colors = HighColorPixels[..count];
-            for (int i = 0; i < count; i++)
-            {
-                pixels[i] = ToBgra(Format.Expand(colors[i]));
-            }
-        }
-    }
-
     internal void CopyColorsTo(Screen target) => _colors.CopyTo(target._colors, 0);
-
-    private static Bgra32 ToBgra(uint color) => new((byte)(color >> 16), (byte)(color >> 8), (byte)color, byte.MaxValue);
 }
