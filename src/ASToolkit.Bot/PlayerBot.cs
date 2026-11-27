@@ -1307,7 +1307,7 @@ internal sealed class PlayerBot
     }
 
     private static bool IsPool(Sprite sprite) =>
-        sprite.Army == Army.Monsters && sprite.Vid.Class == SpriteClass.Unit && sprite.Vid.Speed <= 0 && sprite.Vid.MaxHp == 0 && sprite.Vid.FightChild != 0 && sprite.Vid.Lifetime < Vid.Unlimited;
+        sprite is { Army: Army.Monsters, Vid: { Class: SpriteClass.Unit, Speed: <= 0, MaxHp: 0 } } && sprite.Vid.FightChild != 0 && sprite.Vid.Lifetime < Vid.Unlimited;
 
     private Vector2? FindPoolDodge(Vector2? goal)
     {

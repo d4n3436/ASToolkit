@@ -325,7 +325,7 @@ internal sealed class Gunnery
 
             if (_field.CanStand(bullet, point))
                 continue;
-            
+
             var offset = Vector2.Abs(point.AsVector2() - aim.AsVector2());
 
             return offset.X < targetHalf.X + bullet.Half.X && offset.Y < targetHalf.Y + bullet.Half.Y;
