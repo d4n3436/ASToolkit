@@ -10,6 +10,40 @@ namespace ASToolkit.Tests.Engine;
 
 internal static class EngineTestMap
 {
+    private static readonly DisplayMode[] CaptureAdapterModes =
+    [
+        new(new Size(320, 200), VidPixelFormat.X8R8G8B8),
+        new(new Size(320, 240), VidPixelFormat.X8R8G8B8),
+        new(new Size(640, 350), VidPixelFormat.X8R8G8B8),
+        new(new Size(640, 400), VidPixelFormat.X8R8G8B8),
+        new(new Size(640, 480), VidPixelFormat.X8R8G8B8),
+        new(new Size(720, 400), VidPixelFormat.X8R8G8B8),
+        new(new Size(720, 480), VidPixelFormat.X8R8G8B8),
+        new(new Size(768, 480), VidPixelFormat.X8R8G8B8),
+        new(new Size(800, 500), VidPixelFormat.X8R8G8B8),
+        new(new Size(800, 600), VidPixelFormat.X8R8G8B8),
+        new(new Size(864, 486), VidPixelFormat.X8R8G8B8),
+        new(new Size(928, 580), VidPixelFormat.X8R8G8B8),
+        new(new Size(960, 600), VidPixelFormat.X8R8G8B8),
+        new(new Size(1024, 576), VidPixelFormat.X8R8G8B8),
+        new(new Size(1024, 768), VidPixelFormat.X8R8G8B8),
+        new(new Size(320, 200), VidPixelFormat.R5G6B5),
+        new(new Size(320, 240), VidPixelFormat.R5G6B5),
+        new(new Size(640, 350), VidPixelFormat.R5G6B5),
+        new(new Size(640, 400), VidPixelFormat.R5G6B5),
+        new(new Size(640, 480), VidPixelFormat.R5G6B5),
+        new(new Size(720, 400), VidPixelFormat.R5G6B5),
+        new(new Size(720, 480), VidPixelFormat.R5G6B5),
+        new(new Size(768, 480), VidPixelFormat.R5G6B5),
+        new(new Size(800, 500), VidPixelFormat.R5G6B5),
+        new(new Size(800, 600), VidPixelFormat.R5G6B5),
+        new(new Size(864, 486), VidPixelFormat.R5G6B5),
+        new(new Size(928, 580), VidPixelFormat.R5G6B5),
+        new(new Size(960, 600), VidPixelFormat.R5G6B5),
+        new(new Size(1024, 576), VidPixelFormat.R5G6B5),
+        new(new Size(1024, 768), VidPixelFormat.R5G6B5)
+    ];
+
     public const string MapPath = "maps\\engine_test.map";
     private const string ScriptPath = "maps\\engine_test.lgc";
     public const uint StartRealTime = 1;
@@ -40,6 +74,21 @@ internal static class EngineTestMap
         sprite.Vid.Class is not (SpriteClass.Man or SpriteClass.Frame or SpriteClass.Text) && sprite.Vid.Id is not (KnownObject.HardwareGround or KnownObject.SmallShadow) &&
         !SpriteCollector.IsListed(sprite.Vid) && sprite.Owner?.Vid.Class != SpriteClass.Man);
 
+    public static Size CaptureScreenSize => new(1024, 768);
+
+    public static ReadOnlyMemory<DisplayMode> CaptureDisplayModes => CaptureAdapterModes;
+
+    public static GraphicsInit CaptureDisplaySettings => new(new[] { CaptureScreenSize }, (int[])[32], CaptureScreenSize, 32, true);
+
+    public static Registry CreateCaptureRegistry()
+    {
+        var registry = new Registry("");
+        registry.SetNumber("ScreenX", CaptureScreenSize.Width);
+        registry.SetNumber("ScreenY", CaptureScreenSize.Height);
+
+        return registry;
+    }
+
     public static Registry CreateRegistry(PlayerLoadout? loadout = null, string? blood = null)
     {
         var registry = Playthrough.CreateRegistry(TestGameFolder.RequireFolder(), "Level_02.map", loadout ?? new PlayerLoadout(0, new Dictionary<KnownObject, int>(), default));
@@ -56,7 +105,7 @@ internal static class EngineTestMap
     {
         var files = CreateFiles(sprites, environment, script, ambient, placePlayer, camera);
 
-        var map = new MapSteam(TestGameFolder.Objects, files, session ?? new GameSession(CreateRegistry(loadout, blood), time: new SteppedClock()));
+        var map = new MapSteam(TestGameFolder.Objects, files, session ?? new GameSession(Playthrough.DisplaySettings, Playthrough.AdapterModes, CreateRegistry(loadout, blood), time: new SteppedClock()));
         map.Pace([frameTime]);
         map.Input.PostMessage(WindowMessageId.ActivateApp, 1, 0);
         if (recordDemo)

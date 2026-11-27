@@ -1,4 +1,5 @@
 using System.Numerics;
+using ASToolkit.Bot;
 using ASToolkit.Engine;
 using ASToolkit.Engine.IO;
 using Xunit;
@@ -12,7 +13,7 @@ public class SoundTests
     private const int FrameTime = 17;
     private const int MaxDraws = 1000;
 
-    private readonly GameSession _session = new();
+    private readonly GameSession _session = new(Playthrough.DisplaySettings, Playthrough.AdapterModes);
 
     private Sound CreateSound() => Sound.Create(new GameFolder(TestGameFolder.RequireFolder()), _session);
 

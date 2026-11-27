@@ -80,7 +80,7 @@ public class MyErrorTests
     public void Map_LoadAndEnd_LogTheScriptAndTheDefinitionsLeft()
     {
         var fileSystem = new MemoryWriteOverlay();
-        using (var session = new GameSession(EngineTestMap.CreateRegistry(), fileSystem, new SteppedClock(new FakeTimeProvider(StartTime))))
+        using (var session = new GameSession(Playthrough.DisplaySettings, Playthrough.AdapterModes, EngineTestMap.CreateRegistry(), fileSystem, new SteppedClock(new FakeTimeProvider(StartTime))))
         {
             using var map = EngineTestMap.CreateMap(session: session);
             var scriptFileSystem = (MemoryWriteOverlay)map.FileSystem;
@@ -90,7 +90,7 @@ public class MyErrorTests
         }
 
         string[] lines = Read(fileSystem, "logs\\error.log").Split("\r\n");
-        int error = Array.IndexOf(lines, "!!!ERROR 12:00:00!!!MAP: 0x0 Section can't found (load 'VID')");
+        int error = Array.LastIndexOf(lines, "!!!ERROR 12:00:00!!!MAP: 0x0 Section can't found (load 'VID')");
         Assert.True(error > 0);
         Assert.Equal(["Player release", "Sprite release", "Menu   release", "Average fps=0", "Script release", "!!!ERROR 12:00:00!!!RES 'maps\\engine_test.map' 'MAP ': 0x0 Invalid resource type"],
             lines[(error - 6)..error]);
@@ -99,7 +99,7 @@ public class MyErrorTests
         Assert.Contains("from the script", lines);
         Assert.Contains(lines, line => line.StartsWith("NoVid[  9]="));
         Assert.Equal(["Player release", "Sprite release", "Menu   release"], lines.SkipWhile(line => line != "Player release").Take(3));
-        Assert.Equal(2, lines.Count(line => line.StartsWith("Vid    release ", StringComparison.Ordinal)));
+        Assert.Equal(3, lines.Count(line => line.StartsWith("Vid    release ", StringComparison.Ordinal)));
         Assert.StartsWith("Vid    release ", lines.Last(line => line.Length != 0));
     }
 

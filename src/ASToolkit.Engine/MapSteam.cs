@@ -31,12 +31,17 @@ public sealed class MapSteam : Map
     /// </summary>
     /// <param name="objects">The object table.</param>
     /// <param name="fileSystem">The file system that holds the game's files.</param>
-    /// <param name="session">The session the map belongs to, or null to start one.</param>
+    /// <param name="session">The session the map belongs to.</param>
     /// <param name="commandLine">The game's command line.</param>
     [EngineRoutine(0x00405060)]
-    public MapSteam(ObjectTable objects, IGameFileSystem fileSystem, GameSession? session = null, string commandLine = "")
+    public MapSteam(ObjectTable objects, IGameFileSystem fileSystem, GameSession session, string commandLine = "")
         : base(objects, fileSystem, session, commandLine)
     {
+        if (!_flags.HasFlag(MapFlags.Initialized))
+            return;
+
+        _debug &= ~(StepFlags.SingleStep | StepFlags.RunInBackground | StepFlags.DrawHashedNumbers | StepFlags.DrawHashedSprites);
+        Load(_pendingMapName.Span);
     }
 
     /// <summary>

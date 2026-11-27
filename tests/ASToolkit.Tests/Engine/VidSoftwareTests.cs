@@ -1,4 +1,5 @@
 using System.Numerics;
+using ASToolkit.Bot;
 using ASToolkit.Engine;
 using ASToolkit.Engine.IO;
 using ASToolkit.Formats;
@@ -15,7 +16,7 @@ public sealed class VidSoftwareTests
     [Fact]
     public void Load_RangeCodedFrames_MatchTheUncodedFrames()
     {
-        using var session = new GameSession();
+        using var session = new GameSession(Playthrough.DisplaySettings, Playthrough.AdapterModes);
         var map = CreateMap(session);
         string folder = Path.Combine(TestGameFolder.RequireFolder(), "Vid");
         int checkedFiles = 0;
@@ -47,7 +48,7 @@ public sealed class VidSoftwareTests
         byte[] data = File.ReadAllBytes(Path.Combine(TestGameFolder.RequireFolder(), "Vid", "926.vid"));
         var file = new VidResource(data);
         var fileSystem = new MemoryWriteOverlay();
-        using var session = new GameSession(fileSystem: fileSystem, time: new FakeTimeProvider(StartTime));
+        using var session = new GameSession(Playthrough.DisplaySettings, Playthrough.AdapterModes, fileSystem: fileSystem, time: new FakeTimeProvider(StartTime));
         var map = CreateMap(session);
         int logged = ReadLog(fileSystem).Length;
         var vid = LoadSoftware(file, data, map);
@@ -78,7 +79,7 @@ public sealed class VidSoftwareTests
     [Fact]
     public void Load_RangeCodedFramesPastTheDataChunk_Throw()
     {
-        using var session = new GameSession();
+        using var session = new GameSession(Playthrough.DisplaySettings, Playthrough.AdapterModes);
         var map = CreateMap(session);
         string folder = Path.Combine(TestGameFolder.RequireFolder(), "Vid");
         foreach (string path in Directory.EnumerateFiles(folder, "*.vid"))

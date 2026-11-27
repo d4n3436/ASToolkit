@@ -106,9 +106,49 @@ public enum VidPixelFormat
     W11V11U10 = 0x41,
 
     /// <summary>
+    /// 16-bit depth values the CPU can lock.
+    /// </summary>
+    D16Lockable = 0x46,
+
+    /// <summary>
+    /// 32-bit depth values.
+    /// </summary>
+    D32 = 0x47,
+
+    /// <summary>
+    /// 15-bit depth values with a 1-bit stencil.
+    /// </summary>
+    D15S1 = 0x49,
+
+    /// <summary>
+    /// 24-bit depth values with an 8-bit stencil.
+    /// </summary>
+    D24S8 = 0x4B,
+
+    /// <summary>
+    /// 24-bit depth values in 32 bits.
+    /// </summary>
+    D24X8 = 0x4D,
+
+    /// <summary>
     /// 16-bit depth values.
     /// </summary>
     D16 = 0x50,
+
+    /// <summary>
+    /// Vertex buffer data.
+    /// </summary>
+    VertexData = 0x64,
+
+    /// <summary>
+    /// 16-bit vertex indexes.
+    /// </summary>
+    Index16 = 0x65,
+
+    /// <summary>
+    /// 32-bit vertex indexes.
+    /// </summary>
+    Index32 = 0x66,
 
     /// <summary>
     /// DXT1 compressed blocks.

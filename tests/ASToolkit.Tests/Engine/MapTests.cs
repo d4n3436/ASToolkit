@@ -128,7 +128,7 @@ public class MapTests
     [Fact]
     public void Step_PlayerCommand_MovesThePlayerWithoutRouteOrBot()
     {
-        var map = EngineTestMap.CreateMap(camera: new Vector2(1000 - Graphics.DefaultScreenWidth / 2f, 1000 - Graphics.DefaultScreenHeight / 2f));
+        var map = EngineTestMap.CreateMap(camera: new Vector2(1000 - Playthrough.ProfileScreenSize.Width / 2f, 1000 - Playthrough.ProfileScreenSize.Height / 2f));
         map.Play(default);
         var destination = map.Flagman(0)!.Position.AsVector2() + new Vector2(300, 0);
         var command = new PlayerCommand(destination, PlayerCommand.GetCursor(map.Flagman(0)!.Position), false, Sprite.Pistols);

@@ -1,3 +1,4 @@
+using System.Drawing;
 using System.Globalization;
 using System.Text;
 using ASToolkit.Analysis.Levels;
@@ -30,6 +31,10 @@ public sealed class Playthrough
     private const int FlashlightItem = 8;
     private const int RescueKitItem = 10;
     private const int DroneItem = 11;
+    
+    private static readonly Size[] AcceptedSizes = [new(1280, 720)];
+    private static readonly int[] AcceptedBitDepths = [32];
+    private static readonly DisplayMode[] BotAdapterModes = [new(new Size(1280, 720), VidPixelFormat.X8R8G8B8)];
 
     private readonly ShopBot _shop;
     private readonly string _gameFolder;
@@ -51,9 +56,24 @@ public sealed class Playthrough
         _fileSystem = new GameFolder(gameFolder);
         _files = new MemoryWriteOverlay(_fileSystem);
         _objects = objects;
-        _map = new MapSteam(objects, _fileSystem);
+        _map = new MapSteam(objects, _fileSystem, new GameSession(DisplaySettings, AdapterModes));
         _shop = new ShopBot(objects, _map, table);
     }
+
+    /// <summary>
+    /// Gets the display settings the bot starts the game with (1280×720 in 32 bits, full screen).
+    /// </summary>
+    public static GraphicsInit DisplaySettings => new(AcceptedSizes, AcceptedBitDepths, ProfileScreenSize, 32, true);
+
+    /// <summary>
+    /// Gets the display modes the bot's display adapter offers.
+    /// </summary>
+    public static ReadOnlyMemory<DisplayMode> AdapterModes => BotAdapterModes;
+
+    /// <summary>
+    /// Gets the screen size of the bot's player profile.
+    /// </summary>
+    public static Size ProfileScreenSize => new(1280, 720);
 
     /// <summary>
     /// Gets the frame lengths in milliseconds, repeated in order.
@@ -100,7 +120,7 @@ public sealed class Playthrough
         files.Set(mapPath, File.ReadAllBytes(mapFile));
         files.Set(scriptPath, File.Exists(scriptFile) ? File.ReadAllBytes(scriptFile) : DefaultLevelScript.ToArray());
         var profile = CreateProfile(gameFolder);
-        var map = new MapSteam(objects, files, new GameSession(profile, time: new SteppedClock()));
+        var map = new MapSteam(objects, files, new GameSession(DisplaySettings, AdapterModes, profile, time: new SteppedClock()));
         map.Input.PostMessage(WindowMessageId.ActivateApp, 1, 0);
         map.RequestLoad(Encoding.ASCII.GetBytes(mapPath));
         map.TactAt(ViewSeed);
@@ -120,6 +140,8 @@ public sealed class Playthrough
         registry.Set("StateBar", "1");
         registry.Set("DifficultyLevel", "1");
         registry.Set("Blood", "1");
+        registry.SetNumber("ScreenX", ProfileScreenSize.Width);
+        registry.SetNumber("ScreenY", ProfileScreenSize.Height);
 
         return registry;
     }
@@ -212,7 +234,7 @@ public sealed class Playthrough
         if (map is null)
         {
             var registry = CreateRegistry(_gameFolder, analysis.Name, loadout);
-            map = new MapSteam(_objects, _files, new GameSession(registry, time: new SteppedClock()));
+            map = new MapSteam(_objects, _files, new GameSession(DisplaySettings, AdapterModes, registry, time: new SteppedClock()));
             map.Input.PostMessage(WindowMessageId.ActivateApp, 1, 0);
         }
         else
@@ -373,7 +395,7 @@ public sealed class Playthrough
         if (map is null)
         {
             var registry = CreateRegistry(_gameFolder, analysis.Name, loadout);
-            map = new MapSteam(_objects, _files, new GameSession(registry, time: new SteppedClock()));
+            map = new MapSteam(_objects, _files, new GameSession(DisplaySettings, AdapterModes, registry, time: new SteppedClock()));
             map.Input.PostMessage(WindowMessageId.ActivateApp, 1, 0);
         }
         else

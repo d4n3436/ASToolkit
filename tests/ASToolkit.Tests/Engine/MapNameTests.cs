@@ -9,7 +9,7 @@ public class MapNameTests
     [Fact]
     public void Load_SecondLevel_KeepsThePreviousName()
     {
-        var session = new GameSession(EngineTestMap.CreateRegistry(), time: new SteppedClock());
+        var session = new GameSession(Playthrough.DisplaySettings, Playthrough.AdapterModes, EngineTestMap.CreateRegistry(), time: new SteppedClock());
 
         var map = EngineTestMap.CreateMap(session: session);
         map.LoadAt(EngineTestMap.MapName, EngineTestMap.StartRealTime);

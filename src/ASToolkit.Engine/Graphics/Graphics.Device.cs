@@ -30,41 +30,7 @@ public sealed partial class Graphics
 
     private static readonly TextureStage DefaultStage = new(TextureOperation.Modulate, TextureArgument.Texture, TextureArgument.Current, TextureOperation.SelectFirst, TextureArgument.Texture, TextureArgument.Current);
 
-    private static readonly DisplayMode[] DeviceDisplayModes =
-    [
-        new(new Size(320, 200), VidPixelFormat.X8R8G8B8),
-        new(new Size(320, 240), VidPixelFormat.X8R8G8B8),
-        new(new Size(640, 350), VidPixelFormat.X8R8G8B8),
-        new(new Size(640, 400), VidPixelFormat.X8R8G8B8),
-        new(new Size(640, 480), VidPixelFormat.X8R8G8B8),
-        new(new Size(720, 400), VidPixelFormat.X8R8G8B8),
-        new(new Size(720, 480), VidPixelFormat.X8R8G8B8),
-        new(new Size(768, 480), VidPixelFormat.X8R8G8B8),
-        new(new Size(800, 500), VidPixelFormat.X8R8G8B8),
-        new(new Size(800, 600), VidPixelFormat.X8R8G8B8),
-        new(new Size(864, 486), VidPixelFormat.X8R8G8B8),
-        new(new Size(928, 580), VidPixelFormat.X8R8G8B8),
-        new(new Size(960, 600), VidPixelFormat.X8R8G8B8),
-        new(new Size(1024, 576), VidPixelFormat.X8R8G8B8),
-        new(new Size(1024, 768), VidPixelFormat.X8R8G8B8),
-        new(new Size(320, 200), VidPixelFormat.R5G6B5),
-        new(new Size(320, 240), VidPixelFormat.R5G6B5),
-        new(new Size(640, 350), VidPixelFormat.R5G6B5),
-        new(new Size(640, 400), VidPixelFormat.R5G6B5),
-        new(new Size(640, 480), VidPixelFormat.R5G6B5),
-        new(new Size(720, 400), VidPixelFormat.R5G6B5),
-        new(new Size(720, 480), VidPixelFormat.R5G6B5),
-        new(new Size(768, 480), VidPixelFormat.R5G6B5),
-        new(new Size(800, 500), VidPixelFormat.R5G6B5),
-        new(new Size(800, 600), VidPixelFormat.R5G6B5),
-        new(new Size(864, 486), VidPixelFormat.R5G6B5),
-        new(new Size(928, 580), VidPixelFormat.R5G6B5),
-        new(new Size(960, 600), VidPixelFormat.R5G6B5),
-        new(new Size(1024, 576), VidPixelFormat.R5G6B5),
-        new(new Size(1024, 768), VidPixelFormat.R5G6B5)
-    ];
-
-    private readonly DdDriver _driver = new(DeviceDisplayModes);
+    private readonly DdDriver _driver = new();
 
     internal static Size DeviceMaxTextureSize => new(0x8000, 0x8000);
 
@@ -135,6 +101,8 @@ public sealed partial class Graphics
     internal bool IsAlphaModulated => DeviceStage.AlphaOperation == TextureOperation.Modulate;
 
     private static uint[] GrayPalette { get; } = CreateGrayPalette();
+
+    internal static bool IsDepthStencilMatched(VidPixelFormat adapterFormat, VidPixelFormat depthFormat) => true;
 
     internal static int GetDisplayBits(VidPixelFormat format) => format switch
     {
@@ -255,7 +223,7 @@ public sealed partial class Graphics
     }
 
     [EngineRoutine(0x00401070)]
-    private static ReadOnlySpan<byte> GetFormatName(VidPixelFormat format) => format switch
+    internal static ReadOnlySpan<byte> GetFormatName(VidPixelFormat format) => format switch
     {
         VidPixelFormat.R8G8B8 => "R8G8B8"u8,
         VidPixelFormat.A8R8G8B8 => "A8R8G8B8"u8,
@@ -271,6 +239,15 @@ public sealed partial class Graphics
         VidPixelFormat.A8L8 => "A8L8"u8,
         VidPixelFormat.A4L4 => "A4L4"u8,
         VidPixelFormat.V8U8 => "V8U8"u8,
+        VidPixelFormat.D16Lockable => "D16_LOCKABLE"u8,
+        VidPixelFormat.D32 => "D32"u8,
+        VidPixelFormat.D15S1 => "D15S1"u8,
+        VidPixelFormat.D24S8 => "D24S8"u8,
+        VidPixelFormat.D24X8 => "D24X8"u8,
+        VidPixelFormat.D16 => "D16"u8,
+        VidPixelFormat.VertexData => "VERTEXDATA"u8,
+        VidPixelFormat.Index16 => "INDEX16"u8,
+        VidPixelFormat.Index32 => "INDEX32"u8,
         VidPixelFormat.Dxt1 => "DXT1"u8,
         VidPixelFormat.Dxt2 => "DXT2"u8,
         VidPixelFormat.Dxt3 => "DXT3"u8,

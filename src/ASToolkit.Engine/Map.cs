@@ -42,6 +42,7 @@ public partial class Map : IDisposable
     private protected readonly MouseTips _mouseTips;
 
     private protected MapFlags _flags;
+    private protected ReadOnlyMemory<byte> _pendingMapName;
     private protected int _stepCount;
     private const string ConfigExtension = ".cfg";
     private const string DefaultFont = "Arial";
@@ -76,7 +77,6 @@ public partial class Map : IDisposable
     private int _framesThisSecond;
     private float _speed;
     private ReadOnlyMemory<byte> _mapName;
-    private ReadOnlyMemory<byte> _pendingMapName;
     private ReadOnlyMemory<byte> _previousMapName;
     private int _levelStartTime;
     private ScrollType _scrollType = ScrollType.FromBorder;
@@ -108,14 +108,14 @@ public partial class Map : IDisposable
     /// </summary>
     /// <param name="objects">The object table.</param>
     /// <param name="fileSystem">The file system that holds the game's files.</param>
-    /// <param name="session">The session the map belongs to, or null to start one.</param>
+    /// <param name="session">The session the map belongs to.</param>
     /// <param name="commandLine">The game's command line.</param>
     [EngineRoutine(0x00408ff0)]
-    protected Map(ObjectTable objects, IGameFileSystem fileSystem, GameSession? session = null, string commandLine = "")
+    protected Map(ObjectTable objects, IGameFileSystem fileSystem, GameSession session, string commandLine = "")
     {
         _mouseTips = new MouseTips(this);
         Menu = new Menu(this);
-        Session = session ?? new GameSession();
+        Session = session;
         Session.Map = this;
         EmptyVid = ASToolkit.Engine.Vid.CreateDefault(this);
         Session.RealCurrentTime = Session.TimeGetTime();
@@ -177,6 +177,9 @@ public partial class Map : IDisposable
             _players[slot] = new PlayerArcade(Session, slot);
         }
 
+        _pendingMapName = commandLine.Length == 0 || commandLine.Contains(ConfigExtension, StringComparison.Ordinal)
+            ? config.TryGetString(GameSection, "StartMap"u8, out var startMap) ? startMap : "maps\\logo.map"u8.ToArray()
+            : GameTextEncoding.Cyrillic.GetBytes(commandLine);
         _flags |= MapFlags.Initialized;
     }
 
@@ -193,6 +196,11 @@ public partial class Map : IDisposable
             }
         }
     }
+
+    /// <summary>
+    /// Gets a value indicating whether the map finished its setup and can run frames.
+    /// </summary>
+    public bool IsInitialized => _flags.HasFlag(MapFlags.Initialized);
 
     /// <summary>
     /// Gets a value indicating whether the controllers act on the input.

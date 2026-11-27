@@ -57,7 +57,7 @@ public class MapLoadTests
     public void Load_MissingFile_LogsTheInvalidMapAndStaysLoading()
     {
         var logs = new MemoryWriteOverlay();
-        using (var session = new GameSession(EngineTestMap.CreateRegistry(), logs, new SteppedClock()))
+        using (var session = new GameSession(Playthrough.DisplaySettings, Playthrough.AdapterModes, EngineTestMap.CreateRegistry(), logs, new SteppedClock()))
         {
             var map = EngineTestMap.CreateMap(session: session);
             map.LoadAt("maps\\missing.map"u8, EngineTestMap.StartRealTime);
@@ -76,8 +76,8 @@ public class MapLoadTests
         Assert.True(files.TryRead("maps\\engine_test.lgc", out var script));
         files.Set("maps\\old.lgc", script);
         files.Set(OldMapPath, CreateOldMap());
-        var registry = new Registry("");
-        var map = new MapSteam(TestGameFolder.Objects, files, new GameSession(registry, time: new SteppedClock()));
+        var registry = EngineTestMap.CreateCaptureRegistry();
+        var map = new MapSteam(TestGameFolder.Objects, files, new GameSession(EngineTestMap.CaptureDisplaySettings, EngineTestMap.CaptureDisplayModes, registry, time: new SteppedClock()));
 
         map.LoadAt("maps\\old.map"u8, EngineTestMap.StartRealTime);
 
@@ -100,8 +100,8 @@ public class MapLoadTests
         map.Chunks.Add(new ResChunkBuilder { Tag = "OBJ ", Records = [record] });
         files.Set(ExtraMapPath, map.Build());
         files.Set("maps\\extra.lgc", script);
-        var registry = new Registry("");
-        var steam = new MapSteam(TestGameFolder.Objects, files, new GameSession(registry, time: new SteppedClock()));
+        var registry = EngineTestMap.CreateCaptureRegistry();
+        var steam = new MapSteam(TestGameFolder.Objects, files, new GameSession(EngineTestMap.CaptureDisplaySettings, EngineTestMap.CaptureDisplayModes, registry, time: new SteppedClock()));
 
         steam.LoadAt("maps\\extra.map"u8, EngineTestMap.StartRealTime);
         var extra = steam.FindVid(ExtraId);

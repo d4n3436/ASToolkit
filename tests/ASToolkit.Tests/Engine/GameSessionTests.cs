@@ -23,6 +23,7 @@ public sealed class GameSessionTests
         [
             "Vid    release 8134656 97710889",
             "Vid    release 8134656 97710889",
+            "Vid    release 8134656 97710889",
             "Vid    release 16523264 97710889",
             "Vid    release 8134656 97710889",
         ];
@@ -34,7 +35,7 @@ public sealed class GameSessionTests
     public void Constructor_VSyncInTheConfiguration_LogsItInTheCaps()
     {
         var fileSystem = new MemoryWriteOverlay(new GameFolder(TestGameFolder.RequireFolder()));
-        using (new GameSession(new Registry(""), fileSystem, new FakeTimeProvider(new DateTimeOffset(2026, 1, 1, 12, 0, 0, TimeSpan.Zero))))
+        using (new GameSession(Playthrough.DisplaySettings, Playthrough.AdapterModes, new Registry(""), fileSystem, new FakeTimeProvider(new DateTimeOffset(2026, 1, 1, 12, 0, 0, TimeSpan.Zero))))
         {
         }
 
@@ -46,7 +47,7 @@ public sealed class GameSessionTests
     private static string[] LoadMaps()
     {
         var fileSystem = new MemoryWriteOverlay();
-        using (var session = new GameSession(EngineTestMap.CreateRegistry(), fileSystem, new SteppedClock(new FakeTimeProvider(new DateTimeOffset(2026, 1, 1, 12, 0, 0, TimeSpan.Zero)))))
+        using (var session = new GameSession(Playthrough.DisplaySettings, Playthrough.AdapterModes, EngineTestMap.CreateRegistry(), fileSystem, new SteppedClock(new FakeTimeProvider(new DateTimeOffset(2026, 1, 1, 12, 0, 0, TimeSpan.Zero)))))
         {
             var map = EngineTestMap.CreateMap(session: session);
             foreach (string name in Maps)

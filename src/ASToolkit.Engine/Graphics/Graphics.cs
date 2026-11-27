@@ -13,16 +13,6 @@ namespace ASToolkit.Engine;
 public sealed partial class Graphics
 {
     /// <summary>
-    /// Represents the screen width used when the registry doesn't hold one.
-    /// </summary>
-    public const int DefaultScreenWidth = 1024;
-
-    /// <summary>
-    /// Represents the screen height used when the registry doesn't hold one.
-    /// </summary>
-    public const int DefaultScreenHeight = 768;
-
-    /// <summary>
     /// Represents the number of screen effects.
     /// </summary>
     public const int EffectCount = 16;
@@ -42,38 +32,49 @@ public sealed partial class Graphics
     private bool _areBuffersCreated;
 
     [EngineRoutine(0x004018f0)]
-    internal Graphics(GameSession session, SizeF screenSize, bool hasAppMenu, bool isVSync, bool isColor32, bool isFullScreen)
+    internal Graphics(GameSession session, in GraphicsInit init, ReadOnlyMemory<DisplayMode> displayModes)
     {
         _session = session;
         Movie = new Movie(session);
-        if (hasAppMenu)
+        if (init.Flags.HasFlag(GraphicsInitFlags.AppMenu))
         {
             Flags |= GraphicsFlags.WindowViewport;
         }
 
-        if (isVSync)
+        if (init.Flags.HasFlag(GraphicsInitFlags.VSync))
         {
             Flags |= GraphicsFlags.VSync;
         }
 
         Effect((int)ScreenEffect.None, 0, 0, 0);
-        ScreenSize = screenSize;
-        if (isColor32)
+        _driver.FillParameters(displayModes.Span, init, Error);
+        ScreenSize = init.ScreenSize;
+        if (init.BitsPerPixel == 32)
         {
             Flags |= GraphicsFlags.Color32;
         }
 
-        if (isFullScreen)
+        if (init.IsFullScreen)
         {
             Flags |= GraphicsFlags.FullScreen;
         }
     }
 
     /// <summary>
-    /// Gets a value indicating whether the game is running full screen.
+    /// Gets a value indicating whether the game is running in full screen.
     /// </summary>
     /// <remarks>When running in a window, the screen size is limited to the desktop size.</remarks>
     public bool IsFullScreen => Flags.HasFlag(GraphicsFlags.FullScreen);
+
+    /// <summary>
+    /// Gets a value indicating whether the screen holds 32-bit pixels.
+    /// </summary>
+    public bool IsColor32 => Flags.HasFlag(GraphicsFlags.Color32);
+
+    /// <summary>
+    /// Gets a value indicating whether presents wait for the display's vertical sync.
+    /// </summary>
+    public bool IsVSync => Flags.HasFlag(GraphicsFlags.VSync);
 
     /// <summary>
     /// Gets the 16-bit colors of the brightness levels, in the layout of the device's textures.

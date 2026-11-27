@@ -56,7 +56,7 @@ public class DemoTests
 
         Assert.False(drawn);
         Assert.False(player.IsPlayingDemo);
-        Assert.Empty(player.PreviousMapName.ToArray());
+        Assert.Equal("maps\\logo.map"u8.ToArray(), player.PreviousMapName.ToArray());
         Assert.False(player.StartPacedTact());
         Assert.Equal("maps\\engine_test.map"u8.ToArray(), player.PreviousMapName.ToArray());
     }
