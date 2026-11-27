@@ -71,7 +71,7 @@ public partial class Map
             menuSprite.ChangeCoor(new Vector3(menuSprite.Position.X + delta.X, menuSprite.Position.Y + delta.Y, menuSprite.Position.Z));
         }
 
-        Mouse.ChangeCoor(new Vector3(Mouse.Position.AsVector2() + delta, Mouse.Position.Z));
+        Mouse!.ChangeCoor(new Vector3(Mouse.Position.AsVector2() + delta, Mouse.Position.Z));
 
         Input.Cursor += delta;
     }

@@ -31,6 +31,11 @@ public struct GraphicsInit
     }
 
     /// <summary>
+    /// Gets or sets the title of the game window.
+    /// </summary>
+    public ReadOnlyMemory<byte> Title { get; set; }
+
+    /// <summary>
     /// Gets the screen sizes the game accepts.
     /// </summary>
     public readonly ReadOnlyMemory<Size> Modes { get; }

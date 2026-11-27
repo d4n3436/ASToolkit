@@ -13,9 +13,9 @@ public class SoundTests
     private const int FrameTime = 17;
     private const int MaxDraws = 1000;
 
-    private readonly GameSession _session = new(Playthrough.DisplaySettings, Playthrough.AdapterModes);
+    private readonly GameSession _session = new(new GameFolder(TestGameFolder.RequireFolder()), EngineTestMap.ProgramPath, Playthrough.AdapterModes, writeLog: false);
 
-    private Sound CreateSound() => Sound.Create(new GameFolder(TestGameFolder.RequireFolder()), _session);
+    private Sound CreateSound() => Sound.Create(_session, "objects.res"u8);
 
     private void Tact(Sound sound, int time, uint realTime)
     {
@@ -60,7 +60,7 @@ public class SoundTests
     public void Tact_DeviceEndsAVoice_StopsAskingAboutIt()
     {
         var device = new EndingDevice();
-        var sound = Sound.Create(new GameFolder(TestGameFolder.RequireFolder()), _session, device);
+        var sound = Sound.Create(_session, "objects.res"u8, device);
         var random = _session.Random;
         random.Seed(7);
 

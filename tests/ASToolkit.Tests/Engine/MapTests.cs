@@ -1,7 +1,9 @@
 using System.Numerics;
 using ASToolkit.Bot;
 using ASToolkit.Engine;
+using ASToolkit.Engine.IO;
 using ASToolkit.Formats;
+using Microsoft.Extensions.Time.Testing;
 using Xunit;
 
 namespace ASToolkit.Tests.Engine;
@@ -9,6 +11,20 @@ namespace ASToolkit.Tests.Engine;
 public class MapTests
 {
     private const int DroppedItemMaxLifetime = 22000;
+
+    [Fact]
+    public void Constructor_VSyncInTheConfiguration_LogsItInTheCaps()
+    {
+        var fileSystem = new MemoryWriteOverlay(new GameFolder(TestGameFolder.RequireFolder()));
+        using (var session = new GameSession(fileSystem, EngineTestMap.ProgramPath, Playthrough.AdapterModes, new Registry(""), new FakeTimeProvider(new DateTimeOffset(2026, 1, 1, 12, 0, 0, TimeSpan.Zero))) { Objects = TestGameFolder.Objects })
+        {
+            using var map = new MapSteam(session, Playthrough.DisplaySettings, "");
+        }
+
+        Assert.True(fileSystem.TryRead("logs\\error.log", out var log));
+        string caps = Assert.Single(GameTextEncoding.Cyrillic.GetString(log.Span).Split("\r\n"), line => line.StartsWith("caps=", StringComparison.Ordinal));
+        Assert.Equal("caps=ALPHAPALETTE HARDWARE DOUBLEBUFFER DOTPRODUCT3 CAN'T_Z_BLT COLOR32 VSYNC PIXELSHADER=-65276", caps);
+    }
 
     [Fact]
     public void Map_WithoutAPlacedMan_HasNoPlayerUntilTheScriptCreatesOne()

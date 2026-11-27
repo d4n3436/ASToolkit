@@ -68,6 +68,8 @@ public partial class Map
                 break;
             case WindowMessageId.ActivateApp:
                 SetFlag(MapFlags.WindowActive, message.WParam != 0);
+                if (Session.Sound is null || Mouse is null)
+                    break;
 
                 if (_flags.HasFlag(MapFlags.WindowActive))
                 {
@@ -85,8 +87,8 @@ public partial class Map
                 if (!Session.Graphics.Flags.HasFlag(GraphicsFlags.FullScreen))
                 {
                     var position = Session.Graphics.WindowPosition;
-                    Registry.SetNumber("WindowPositionX", position.X);
-                    Registry.SetNumber("WindowPositionY", position.Y);
+                    Registry.SetNumber(WindowPositionXValue, position.X);
+                    Registry.SetNumber(WindowPositionYValue, position.Y);
                 }
 
                 _hasWindow = false;

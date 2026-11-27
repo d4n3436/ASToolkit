@@ -155,19 +155,19 @@ public sealed class Sound
     /// <summary>
     /// Creates the sound system with the sounds of the game's object resource and loads the samples of every sound.
     /// </summary>
-    /// <param name="fileSystem">The file system that holds the samples and tracks.</param>
-    /// <param name="session">The session that holds the game's clock and log.</param>
+    /// <param name="session">The session that holds the game's files, clock and log.</param>
+    /// <param name="resourceName">The name of the objects file.</param>
     /// <param name="device">The sound device, or <see langword="null"/> to time voices and music from their lengths.</param>
     /// <param name="isDisabled"><see langword="true"/> to load nothing and ignore every request; otherwise, <see langword="false"/>.</param>
     /// <param name="isHighQuality"><see langword="true"/> for high-quality sound; otherwise, <see langword="false"/>.</param>
     /// <param name="window">The window handle to notify when a track ends.</param>
     /// <returns>The sound system.</returns>
-    public static Sound Create(IGameFileSystem fileSystem, GameSession session, ISoundDevice? device = null, bool isDisabled = false, bool isHighQuality = false, nint window = 0)
+    public static Sound Create(GameSession session, ReadOnlySpan<byte> resourceName, ISoundDevice? device = null, bool isDisabled = false, bool isHighQuality = false, nint window = 0)
     {
-        var resource = new Resource(null, fileSystem);
-        Map.OpenObjects(fileSystem, ref resource);
+        var resource = new Resource(null, session.FileSystem);
+        resource.Open(resourceName, "DATA"u8);
 
-        return new Sound(ref resource, fileSystem, session, device, isDisabled, isHighQuality, window);
+        return new Sound(ref resource, session.FileSystem, session, device, isDisabled, isHighQuality, window);
     }
 
     /// <summary>

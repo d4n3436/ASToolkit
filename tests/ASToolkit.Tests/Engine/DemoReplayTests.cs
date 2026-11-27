@@ -103,7 +103,7 @@ public class DemoReplayTests
 
         var clock = new SteppedClock();
         var registry = EngineTestMap.CreateCaptureRegistry();
-        var map = new MapSteam(TestGameFolder.Objects, files, new GameSession(EngineTestMap.CaptureDisplaySettings, EngineTestMap.CaptureDisplayModes, registry, time: clock));
+        var map = new MapSteam(new GameSession(files, EngineTestMap.ProgramPath, EngineTestMap.CaptureDisplayModes, registry, clock, writeLog: false) { Objects = TestGameFolder.Objects }, EngineTestMap.CaptureDisplaySettings, "");
         clock.Schedule((loadingScreenRecords ?? []).Select(record => record + ClockReadsBeforeTheLoadBar));
         map.Input.PostMessage(WindowMessageId.ActivateApp, 1, 0);
         if (isRequested)

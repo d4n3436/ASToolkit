@@ -667,23 +667,23 @@ public partial class Map : IScriptFunctionHost
                 int cursorType = PopInt();
                 if (cursorType == CursorOff)
                 {
-                    Mouse.Disable();
+                    Mouse!.Disable();
                     break;
                 }
 
                 if (cursorType == HardwareCursor)
                 {
-                    Mouse.HardwareOn();
+                    Mouse!.HardwareOn();
                     break;
                 }
 
                 if (cursorType == SoftwareCursor)
                 {
-                    Mouse.HardwareOff();
+                    Mouse!.HardwareOff();
                     break;
                 }
 
-                if (!Mouse.IsCursorLoaded)
+                if (!Mouse!.IsCursorLoaded)
                 {
                     Mouse.Enable();
                 }
@@ -719,7 +719,7 @@ public partial class Map : IScriptFunctionHost
             case ScriptFunction.SetCursorPosition:
                 int cursorY = PopInt();
                 var cursorTarget = new Point(PopInt(), cursorY);
-                Action(Mouse, ActionCode.ChangeCoor, cursorTarget.X, cursorTarget.Y);
+                Action(Mouse!, ActionCode.ChangeCoor, cursorTarget.X, cursorTarget.Y);
                 break;
             case ScriptFunction.SetWind:
                 var windDirection = new Angle((byte)PopInt());
@@ -865,7 +865,7 @@ public partial class Map : IScriptFunctionHost
                 if (PopInt() != 0)
                 {
                     PauseOn();
-                    Mouse.ChangeAnimation(0);
+                    Mouse!.ChangeAnimation(0);
                 }
                 else
                 {

@@ -50,7 +50,7 @@ public partial class Map
             }
         }
 
-        if (!Mouse.IsHardwareCursor && !Mouse.Vid.Properties.HasFlag(ObjectProperties.AlwaysTop))
+        if (!Mouse!.IsHardwareCursor && !Mouse.Vid.Properties.HasFlag(ObjectProperties.AlwaysTop))
         {
             DrawCursorChain(screen, layer);
         }
@@ -63,9 +63,9 @@ public partial class Map
     /// <param name="layer">The layer whose chain sprites are drawn, or null to draw the whole chain.</param>
     public void DrawCursorChain(Screen screen, ObjectLayer? layer)
     {
-        DrawChainSprite(screen, Mouse, layer);
+        DrawChainSprite(screen, Mouse!, layer);
 
-        foreach (var link in Mouse.EnumerateLinks())
+        foreach (var link in Mouse!.EnumerateLinks())
         {
             DrawChainSprite(screen, link, layer);
         }

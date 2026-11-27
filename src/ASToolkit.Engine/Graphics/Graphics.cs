@@ -30,11 +30,13 @@ public sealed partial class Graphics
     private readonly ushort[] _colorTable = new ushort[ColorTableLength];
     private readonly GameSession _session;
     private bool _areBuffersCreated;
+    private IWindowDevice? _window;
 
     [EngineRoutine(0x004018f0)]
-    internal Graphics(GameSession session, in GraphicsInit init, ReadOnlyMemory<DisplayMode> displayModes)
+    internal Graphics(GameSession session, in GraphicsInit init)
     {
         _session = session;
+        Device = session.GraphicsDevice;
         Movie = new Movie(session);
         if (init.Flags.HasFlag(GraphicsInitFlags.AppMenu))
         {
@@ -47,7 +49,7 @@ public sealed partial class Graphics
         }
 
         Effect((int)ScreenEffect.None, 0, 0, 0);
-        _driver.FillParameters(displayModes.Span, init, Error);
+        _driver.FillParameters(session.DisplayModes.Span, init, Error);
         ScreenSize = init.ScreenSize;
         if (init.BitsPerPixel == 32)
         {
@@ -153,17 +155,17 @@ public sealed partial class Graphics
     public float WindSpeed { get; private set; } = StartWindSpeed;
 
     /// <summary>
-    /// Gets or sets the device that frames are drawn on, or <see langword="null"/> to draw without one.
+    /// Gets or sets the device that frames are drawn on.
     /// </summary>
     public IGraphicsDevice? Device { get; set; }
 
     /// <summary>
-    /// Gets the copy of the screen that an alpha appearance fades from, or <see langword="null"/> until one has started.
+    /// Gets the copy of the screen that an alpha appearance fades from.
     /// </summary>
     public Screen? Capture { get; private set; }
 
     /// <summary>
-    /// Gets the font that the device draws text with, or <see langword="null"/> if the font hasn't been created yet.
+    /// Gets the font that the device draws text with.
     /// </summary>
     public D3DFont? DeviceFont { get; private set; }
 
@@ -179,7 +181,7 @@ public sealed partial class Graphics
     public Matrix4x4 Projection { get; private set; }
 
     /// <summary>
-    /// Gets or sets the screen that the frame is drawn into, or <see langword="null"/> to run without drawing.
+    /// Gets or sets the screen that the frame is drawn into.
     /// </summary>
     public Screen? Screen
     {

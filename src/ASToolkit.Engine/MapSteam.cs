@@ -29,13 +29,12 @@ public sealed class MapSteam : Map
     /// <summary>
     /// Initializes a new instance of the <see cref="MapSteam"/> class with no level loaded.
     /// </summary>
-    /// <param name="objects">The object table.</param>
-    /// <param name="fileSystem">The file system that holds the game's files.</param>
     /// <param name="session">The session the map belongs to.</param>
+    /// <param name="init">The display settings the game starts with and the display modes it accepts.</param>
     /// <param name="commandLine">The game's command line.</param>
     [EngineRoutine(0x00405060)]
-    public MapSteam(ObjectTable objects, IGameFileSystem fileSystem, GameSession session, string commandLine = "")
-        : base(objects, fileSystem, session, commandLine)
+    public MapSteam(GameSession session, in GraphicsInit init, string commandLine)
+        : base(session, init, commandLine)
     {
         if (!_flags.HasFlag(MapFlags.Initialized))
             return;

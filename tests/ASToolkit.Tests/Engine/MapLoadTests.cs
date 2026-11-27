@@ -4,7 +4,6 @@ using System.Numerics;
 using System.Runtime.InteropServices;
 using ASToolkit.Bot;
 using ASToolkit.Engine;
-using ASToolkit.Engine.IO;
 using ASToolkit.Formats;
 using Xunit;
 
@@ -73,10 +72,10 @@ public class MapLoadTests
     [Fact]
     public void Load_MissingFile_LogsTheInvalidMapAndStaysLoading()
     {
-        var logs = new MemoryWriteOverlay();
-        using (var session = new GameSession(Playthrough.DisplaySettings, Playthrough.AdapterModes, EngineTestMap.CreateRegistry(), logs, new SteppedClock()))
+        var map = EngineTestMap.CreateMap(writeLog: true);
+        var logs = map.Session.FileSystem;
+        using (map.Session)
         {
-            var map = EngineTestMap.CreateMap(session: session);
             map.LoadAt("maps\\missing.map"u8, EngineTestMap.StartRealTime);
 
             Assert.True(map.IsLoading);
@@ -94,7 +93,7 @@ public class MapLoadTests
         files.Set("maps\\old.lgc", script);
         files.Set(OldMapPath, CreateOldMap());
         var registry = EngineTestMap.CreateCaptureRegistry();
-        var map = new MapSteam(TestGameFolder.Objects, files, new GameSession(EngineTestMap.CaptureDisplaySettings, EngineTestMap.CaptureDisplayModes, registry, time: new SteppedClock()));
+        var map = new MapSteam(new GameSession(files, EngineTestMap.ProgramPath, EngineTestMap.CaptureDisplayModes, registry, new SteppedClock(), writeLog: false) { Objects = TestGameFolder.Objects }, EngineTestMap.CaptureDisplaySettings, "");
 
         map.LoadAt("maps\\old.map"u8, EngineTestMap.StartRealTime);
 
@@ -118,7 +117,7 @@ public class MapLoadTests
         files.Set(ExtraMapPath, map.Build());
         files.Set("maps\\extra.lgc", script);
         var registry = EngineTestMap.CreateCaptureRegistry();
-        var steam = new MapSteam(TestGameFolder.Objects, files, new GameSession(EngineTestMap.CaptureDisplaySettings, EngineTestMap.CaptureDisplayModes, registry, time: new SteppedClock()));
+        var steam = new MapSteam(new GameSession(files, EngineTestMap.ProgramPath, EngineTestMap.CaptureDisplayModes, registry, new SteppedClock(), writeLog: false) { Objects = TestGameFolder.Objects }, EngineTestMap.CaptureDisplaySettings, "");
 
         steam.LoadAt("maps\\extra.map"u8, EngineTestMap.StartRealTime);
         var extra = steam.FindVid(ExtraId);

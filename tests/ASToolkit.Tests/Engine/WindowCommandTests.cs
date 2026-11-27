@@ -71,7 +71,7 @@ public class WindowCommandTests
     {
         var files = EngineTestMap.CreateFiles();
         var registry = Playthrough.CreateRegistry(TestGameFolder.RequireFolder(), "Level_02.map", new PlayerLoadout(0, new Dictionary<KnownObject, int>(), default));
-        var map = new MapSteam(TestGameFolder.Objects, files, new GameSession(Playthrough.DisplaySettings, Playthrough.AdapterModes, registry, time: new SteppedClock(new FakeTimeProvider(StartTime))));
+        var map = new MapSteam(new GameSession(files, EngineTestMap.ProgramPath, Playthrough.AdapterModes, registry, new SteppedClock(new FakeTimeProvider(StartTime)), writeLog: false) { Objects = TestGameFolder.Objects }, Playthrough.DisplaySettings, "");
         map.Input.PostMessage(WindowMessageId.ActivateApp, 1, 0);
         map.Pace([FramePacer.DefaultFrameTime]);
         map.LoadAt(EngineTestMap.MapName, EngineTestMap.StartRealTime);

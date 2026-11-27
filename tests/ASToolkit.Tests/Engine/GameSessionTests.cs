@@ -1,7 +1,5 @@
 using System.Text;
 using ASToolkit.Bot;
-using ASToolkit.Engine;
-using ASToolkit.Engine.IO;
 using ASToolkit.Formats;
 using Microsoft.Extensions.Time.Testing;
 using Xunit;
@@ -31,25 +29,12 @@ public sealed class GameSessionTests
         Assert.Equal(expected, logs[1]);
     }
 
-    [Fact]
-    public void Constructor_VSyncInTheConfiguration_LogsItInTheCaps()
-    {
-        var fileSystem = new MemoryWriteOverlay(new GameFolder(TestGameFolder.RequireFolder()));
-        using (new GameSession(Playthrough.DisplaySettings, Playthrough.AdapterModes, new Registry(""), fileSystem, new FakeTimeProvider(new DateTimeOffset(2026, 1, 1, 12, 0, 0, TimeSpan.Zero))))
-        {
-        }
-
-        Assert.True(fileSystem.TryRead("logs\\error.log", out var log));
-        string caps = Assert.Single(GameTextEncoding.Cyrillic.GetString(log.Span).Split("\r\n"), line => line.StartsWith("caps=", StringComparison.Ordinal));
-        Assert.Equal("caps=ALPHAPALETTE HARDWARE DOUBLEBUFFER DOTPRODUCT3 CAN'T_Z_BLT COLOR32 VSYNC PIXELSHADER=-65276", caps);
-    }
-
     private static string[] LoadMaps()
     {
-        var fileSystem = new MemoryWriteOverlay();
-        using (var session = new GameSession(Playthrough.DisplaySettings, Playthrough.AdapterModes, EngineTestMap.CreateRegistry(), fileSystem, new SteppedClock(new FakeTimeProvider(new DateTimeOffset(2026, 1, 1, 12, 0, 0, TimeSpan.Zero)))))
+        var map = EngineTestMap.CreateMap(time: new SteppedClock(new FakeTimeProvider(new DateTimeOffset(2026, 1, 1, 12, 0, 0, TimeSpan.Zero))), writeLog: true);
+        var fileSystem = map.Session.FileSystem;
+        using (map.Session)
         {
-            var map = EngineTestMap.CreateMap(session: session);
             foreach (string name in Maps)
             {
                 map.LoadAt(Encoding.ASCII.GetBytes($"maps\\{name}.map"), EngineTestMap.StartRealTime);

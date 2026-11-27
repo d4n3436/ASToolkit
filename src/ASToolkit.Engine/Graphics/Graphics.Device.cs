@@ -149,8 +149,8 @@ public sealed partial class Graphics
             int index = _driver.GetMode(Size.Truncate(screenSize), bits);
             if (index < 0)
             {
-                Error?.Log($"Selected display mode {screenSize.Width:F0}x{screenSize.Height:F0}");
-                Error?.Error(GraphicsLogTag, LogError.Text, 0, "Unsupported resolution"u8);
+                Error.Log($"Selected display mode {screenSize.Width:F0}x{screenSize.Height:F0}");
+                Error.Error(GraphicsLogTag, LogError.Text, 0, "Unsupported resolution"u8);
                 return DeviceFailure;
             }
 
@@ -158,7 +158,12 @@ public sealed partial class Graphics
         }
 
         DisplayFormat = format;
-        Error?.Log($"Selected display mode {screenSize.Width:F0}x{screenSize.Height:F0} {MyError.Decode(GetFormatName(format))} desktop {MyError.Decode(GetFormatName(DesktopFormat))} zbuffer {MyError.Decode(GetFormatName(VidPixelFormat.None))}");
+        Error.Log($"Selected display mode {screenSize.Width:F0}x{screenSize.Height:F0} {MyError.Decode(GetFormatName(format))} desktop {MyError.Decode(GetFormatName(DesktopFormat))} zbuffer {MyError.Decode(GetFormatName(VidPixelFormat.None))}");
+        if (Device is not null)
+        {
+            Screen = new Screen(Size.Ceiling(screenSize), Flags.HasFlag(GraphicsFlags.Color32), format == VidPixelFormat.X1R5G5B5 ? HighColorFormat.Rgb555 : HighColorFormat.Rgb565);
+            Device.CreateDevice(Screen, !Flags.HasFlag(GraphicsFlags.FullScreen), Flags.HasFlag(GraphicsFlags.VSync));
+        }
         Flags &= ~deviceMask;
         if (IsDotProduct3Supported)
         {
@@ -216,10 +221,10 @@ public sealed partial class Graphics
         LightBuffer = CreateBufferTexture(VidPixelFormat.P8);
         if (LightBuffer.IsEmpty)
         {
-            Error?.Error(GraphicsLogTag, LogError.Create, 0, "Light at RelodPalette()"u8);
+            Error.Error(GraphicsLogTag, LogError.Create, 0, "Light at RelodPalette()"u8);
         }
 
-        Error?.Log("ReloadPalettes"u8);
+        Error.Log("ReloadPalettes"u8);
     }
 
     [EngineRoutine(0x00401070)]
@@ -352,7 +357,7 @@ public sealed partial class Graphics
         var texture = CreateBufferTexture(format);
         if (texture.IsEmpty)
         {
-            Error?.Error("GRAPH"u8, LogError.Create, 0, name);
+            Error.Error("GRAPH"u8, LogError.Create, 0, name);
         }
 
         return texture;

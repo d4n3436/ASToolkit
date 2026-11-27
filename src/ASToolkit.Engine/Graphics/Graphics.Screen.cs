@@ -156,7 +156,7 @@ public sealed partial class Graphics
         int begun = Device?.BeginScene() ?? 0;
         if (begun != 0)
         {
-            Error?.Error(GraphicsLogTag, LogError.Text, begun, "3dBeginScene for PreTact"u8);
+            Error.Error(GraphicsLogTag, LogError.Text, begun, "3dBeginScene for PreTact"u8);
             return 4;
         }
 
@@ -175,7 +175,7 @@ public sealed partial class Graphics
         int ended = Device?.EndScene() ?? 0;
         if (ended != 0)
         {
-            Error?.Error(GraphicsLogTag, LogError.Text, ended, "3dEndScene for PostTact"u8);
+            Error.Error(GraphicsLogTag, LogError.Text, ended, "3dEndScene for PostTact"u8);
         }
 
         if (present && EffectStartTimes[(int)ScreenEffect.PixelAppear] == 0 && EffectStartTimes[(int)ScreenEffect.LineShift] == 0)
@@ -317,7 +317,7 @@ public sealed partial class Graphics
             IsDepthLocked = false;
             map.DrawLayer(Screen, ObjectLayer.Cursor);
 
-            if (Screen is not null && !map.Mouse.IsHardwareCursor && map.Mouse.Vid.Properties.HasFlag(ObjectProperties.AlwaysTop))
+            if (Screen is not null && !map.Mouse!.IsHardwareCursor && map.Mouse.Vid.Properties.HasFlag(ObjectProperties.AlwaysTop))
             {
                 map.DrawCursorChain(Screen, null);
             }

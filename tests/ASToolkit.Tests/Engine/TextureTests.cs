@@ -2,6 +2,7 @@ using System.Drawing;
 using System.Runtime.InteropServices;
 using ASToolkit.Bot;
 using ASToolkit.Engine;
+using ASToolkit.Engine.IO;
 using ASToolkit.Formats;
 using Xunit;
 
@@ -12,7 +13,7 @@ public sealed class TextureTests
     [Fact]
     public void Constructor_PaletteTexelsWithAlphaPalette_LookUpThePalette()
     {
-        using var session = new GameSession(Playthrough.DisplaySettings, Playthrough.AdapterModes);
+        using var session = new GameSession(new MemoryWriteOverlay(), EngineTestMap.ProgramPath, Playthrough.AdapterModes, writeLog: false);
         uint[] palette = new uint[256];
         for (int i = 0; i < palette.Length; i++)
         {
@@ -38,7 +39,7 @@ public sealed class TextureTests
     [Fact]
     public void Constructor_PaletteTexelsWithoutPalette_Throws()
     {
-        using var session = new GameSession(Playthrough.DisplaySettings, Playthrough.AdapterModes);
+        using var session = new GameSession(new MemoryWriteOverlay(), EngineTestMap.ProgramPath, Playthrough.AdapterModes, writeLog: false);
         Assert.Throws<NotSupportedException>(() => new Texture(new byte[16], new Size(4, 4), VidPixelFormat.P8, default, TextureFlags.HasAlpha | TextureFlags.AlphaPalette, session));
     }
 }

@@ -11,7 +11,6 @@ namespace ASToolkit.Engine;
 public sealed class Registry
 {
     private const int MaxStackText = 256;
-    private const string RegPathSetting = "RegPath=";
 
     private readonly Dictionary<string, string> _values;
 
@@ -49,20 +48,20 @@ public sealed class Registry
     /// <summary>
     /// Reads the registry path from the game's configuration file.
     /// </summary>
-    /// <param name="configPath">The path of the configuration file.</param>
-    /// <returns>The registry path, or an empty string if the file doesn't name one.</returns>
-    public static string ReadDefaultPath(string configPath)
+    /// <param name="fileSystem">The file system that holds the configuration file.</param>
+    /// <param name="programPath">The path of the game's executable.</param>
+    /// <returns>The registry path, or SOFTWARE\Gromada\ and the executable's name if the file doesn't set one.</returns>
+    public static string ReadDefaultPath(IGameFileSystem fileSystem, string programPath)
     {
-        foreach (string line in File.ReadLines(configPath, GameTextEncoding.Cyrillic))
-        {
-            var text = line.AsSpan().Trim();
+        var programName = Map.GetProgramName(programPath);
 
-            if (text.StartsWith(RegPathSetting, StringComparison.OrdinalIgnoreCase))
-                return text[RegPathSetting.Length..].Trim().ToString();
-        }
-
-        return string.Empty;
+        return ReadDefaultPath(Map.LoadConfig(fileSystem, programName), programName);
     }
+
+    internal static string ReadDefaultPath(Profile config, ReadOnlySpan<byte> programName) =>
+        config.TryGetString(Map.CommonSection, "RegPath"u8, out var path)
+            ? GameTextEncoding.Cyrillic.GetString(path.Span)
+            : $@"SOFTWARE\Gromada\{GameTextEncoding.Cyrillic.GetString(programName)}";
 
     /// <summary>
     /// Gets the value stored under a name of the path.

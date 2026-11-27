@@ -1,4 +1,3 @@
-using System.Numerics;
 using ASToolkit.Bot;
 using ASToolkit.Engine;
 using ASToolkit.Engine.IO;
@@ -16,8 +15,8 @@ public sealed class VidSoftwareTests
     [Fact]
     public void Load_RangeCodedFrames_MatchTheUncodedFrames()
     {
-        using var session = new GameSession(Playthrough.DisplaySettings, Playthrough.AdapterModes);
-        var map = CreateMap(session);
+        var map = CreateMap(new GameFolder(TestGameFolder.RequireFolder()));
+        using var session = map.Session;
         string folder = Path.Combine(TestGameFolder.RequireFolder(), "Vid");
         int checkedFiles = 0;
         foreach (string path in Directory.EnumerateFiles(folder, "*.vid"))
@@ -47,9 +46,9 @@ public sealed class VidSoftwareTests
     {
         byte[] data = File.ReadAllBytes(Path.Combine(TestGameFolder.RequireFolder(), "Vid", "926.vid"));
         var file = new VidResource(data);
-        var fileSystem = new MemoryWriteOverlay();
-        using var session = new GameSession(Playthrough.DisplaySettings, Playthrough.AdapterModes, fileSystem: fileSystem, time: new FakeTimeProvider(StartTime));
-        var map = CreateMap(session);
+        var fileSystem = new MemoryWriteOverlay(new GameFolder(TestGameFolder.RequireFolder()));
+        var map = CreateMap(fileSystem, new FakeTimeProvider(StartTime), writeLog: true);
+        using var session = map.Session;
         int logged = ReadLog(fileSystem).Length;
         var vid = LoadSoftware(file, data, map);
 
@@ -59,7 +58,8 @@ public sealed class VidSoftwareTests
         Assert.Equal(new int[file.FrameCount], vid.FrameOffsets);
     }
 
-    private static Map CreateMap(GameSession session) => new MapSteam(TestGameFolder.Objects, new GameFolder(TestGameFolder.RequireFolder()), session);
+    private static Map CreateMap(IGameFileSystem fileSystem, TimeProvider? time = null, bool writeLog = false) =>
+        new MapSteam(new GameSession(fileSystem, EngineTestMap.ProgramPath, Playthrough.AdapterModes, time: time, writeLog: writeLog) { Objects = TestGameFolder.Objects }, Playthrough.DisplaySettings, "");
 
     private static string[] ReadLog(MemoryWriteOverlay fileSystem)
     {
@@ -79,8 +79,8 @@ public sealed class VidSoftwareTests
     [Fact]
     public void Load_RangeCodedFramesPastTheDataChunk_Throw()
     {
-        using var session = new GameSession(Playthrough.DisplaySettings, Playthrough.AdapterModes);
-        var map = CreateMap(session);
+        var map = CreateMap(new GameFolder(TestGameFolder.RequireFolder()));
+        using var session = map.Session;
         string folder = Path.Combine(TestGameFolder.RequireFolder(), "Vid");
         foreach (string path in Directory.EnumerateFiles(folder, "*.vid"))
         {

@@ -5,14 +5,14 @@ namespace ASToolkit.Engine;
 public sealed partial class Graphics
 {
     /// <summary>
-    /// Gets or sets the top-left corner of the window on the screen.
+    /// Gets the top-left corner of the window on the screen.
     /// </summary>
-    public Point WindowPosition { get; set; }
+    public Point WindowPosition => _window?.WindowRect.Location ?? Point.Empty;
 
     /// <summary>
-    /// Gets or sets the top-left corner of the window's client area on the screen.
+    /// Gets the top-left corner of the window's client area on the screen.
     /// </summary>
-    public Point ClientPosition { get; set; }
+    public Point ClientPosition => _window?.ClientRect.Location ?? Point.Empty;
 
     internal bool IsMenuLoopActive => Flags.HasFlag(GraphicsFlags.MenuLoop);
 

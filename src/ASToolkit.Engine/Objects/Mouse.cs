@@ -198,7 +198,7 @@ public sealed class Mouse : Sprite
         switch (act)
         {
             case ActionCode.ChangeAnimation:
-                Map.Mouse.ChangeAnimation((SpriteAnimation)var1);
+                Map.Mouse!.ChangeAnimation((SpriteAnimation)var1);
                 return 0;
             case ActionCode.ChangeVid:
                 if (Map.FindVid((KnownObject)var1) is null || (KnownObject)var1 == Vid.Id)

@@ -299,7 +299,7 @@ public class Vid
     public Span<int> Children => _children;
 
     /// <summary>
-    /// Gets the shared data of the child object of each state, or <see langword="null"/> where the state has none.
+    /// Gets the shared data of the child object of each state.
     /// </summary>
     public Span<Vid?> ChildVids => _childVids;
 
@@ -989,7 +989,7 @@ public class Vid
         {
             IsBuiltTerrainClass = true;
 
-            if (_map.Session.HasAppMenu)
+            if (_map.HasFlag(MapFlags.AppMenu))
             {
                 Class = SpriteClass.Terrain;
             }

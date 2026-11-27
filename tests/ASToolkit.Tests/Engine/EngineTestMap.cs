@@ -74,6 +74,8 @@ internal static class EngineTestMap
         sprite.Vid.Class is not (SpriteClass.Man or SpriteClass.Frame or SpriteClass.Text) && sprite.Vid.Id is not (KnownObject.HardwareGround or KnownObject.SmallShadow) &&
         !SpriteCollector.IsListed(sprite.Vid) && sprite.Owner?.Vid.Class != SpriteClass.Man);
 
+    public static string ProgramPath => Playthrough.GetProgramPath(TestGameFolder.RequireFolder());
+
     public static Size CaptureScreenSize => new(1024, 768);
 
     public static ReadOnlyMemory<DisplayMode> CaptureDisplayModes => CaptureAdapterModes;
@@ -82,7 +84,7 @@ internal static class EngineTestMap
 
     public static Registry CreateCaptureRegistry()
     {
-        var registry = new Registry("");
+        var registry = new Registry(Registry.ReadDefaultPath(new GameFolder(TestGameFolder.RequireFolder()), ProgramPath));
         registry.SetNumber("ScreenX", CaptureScreenSize.Width);
         registry.SetNumber("ScreenY", CaptureScreenSize.Height);
 
@@ -101,11 +103,11 @@ internal static class EngineTestMap
     }
 
     public static Map CreateMap(PlayerLoadout? loadout = null, IReadOnlyList<MergedMapSprite>? sprites = null, int frameTime = FramePacer.DefaultFrameTime,
-        MapEnvironment environment = MapEnvironment.None, DemoResource? demo = null, string? blood = null, GameSession? session = null, string script = Script, Gamma ambient = default, bool placePlayer = true, Vector2 camera = default, bool recordDemo = false)
+        MapEnvironment environment = MapEnvironment.None, DemoResource? demo = null, string? blood = null, TimeProvider? time = null, bool writeLog = false, string script = Script, Gamma ambient = default, bool placePlayer = true, Vector2 camera = default, bool recordDemo = false)
     {
         var files = CreateFiles(sprites, environment, script, ambient, placePlayer, camera);
 
-        var map = new MapSteam(TestGameFolder.Objects, files, session ?? new GameSession(Playthrough.DisplaySettings, Playthrough.AdapterModes, CreateRegistry(loadout, blood), time: new SteppedClock()));
+        var map = new MapSteam(new GameSession(files, ProgramPath, Playthrough.AdapterModes, CreateRegistry(loadout, blood), time ?? new SteppedClock(), writeLog) { Objects = TestGameFolder.Objects }, Playthrough.DisplaySettings, "");
         map.Pace([frameTime]);
         map.Input.PostMessage(WindowMessageId.ActivateApp, 1, 0);
         if (recordDemo)

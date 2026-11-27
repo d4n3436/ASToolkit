@@ -1,5 +1,4 @@
 using ASToolkit.Bot;
-using ASToolkit.Engine;
 using ASToolkit.Engine.IO;
 using ASToolkit.Formats;
 using Microsoft.Extensions.Time.Testing;
@@ -79,12 +78,12 @@ public class MyErrorTests
     [Fact]
     public void Map_LoadAndEnd_LogTheScriptAndTheDefinitionsLeft()
     {
-        var fileSystem = new MemoryWriteOverlay();
-        using (var session = new GameSession(Playthrough.DisplaySettings, Playthrough.AdapterModes, EngineTestMap.CreateRegistry(), fileSystem, new SteppedClock(new FakeTimeProvider(StartTime))))
+        var map = EngineTestMap.CreateMap(time: new SteppedClock(new FakeTimeProvider(StartTime)), writeLog: true);
+        var fileSystem = (MemoryWriteOverlay)map.Session.FileSystem;
+        using (map.Session)
+        using (map)
         {
-            using var map = EngineTestMap.CreateMap(session: session);
-            var scriptFileSystem = (MemoryWriteOverlay)map.FileSystem;
-            scriptFileSystem.Set("maps\\log.lgc", "#include \"maps\\export.lgc\"\nmain()\n{\n  Log(\"from the script\");\n}\n"u8.ToArray());
+            fileSystem.Set("maps\\log.lgc", "#include \"maps\\export.lgc\"\nmain()\n{\n  Log(\"from the script\");\n}\n"u8.ToArray());
             Assert.True(map.Script.Load("maps\\log.lgc"));
             map.Script.CallFunction(-1, 0, 0, 0);
         }

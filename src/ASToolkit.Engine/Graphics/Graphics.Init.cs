@@ -21,8 +21,9 @@ public sealed partial class Graphics
     private static readonly Size SetupFontSize = new(7, 8);
 
     [EngineRoutine(0x0042f4b0)]
-    internal int Init(Size desktop, Rectangle windowRect, Rectangle clientRect)
+    internal int Init(IWindowDevice? window)
     {
+        _window = window;
         _session.Registry.SetNumber(ScreenWidthValue, (int)ScreenSize.Width);
         _session.Registry.SetNumber(ScreenHeightValue, (int)ScreenSize.Height);
         _session.Registry.SetNumber(BitsPerPixelValue, ((Flags.HasFlag(GraphicsFlags.Color32) ? 2 : 0) + 2) << 3);
@@ -45,6 +46,7 @@ public sealed partial class Graphics
         }
 
         var screenSize = ScreenSize;
+        var desktop = window?.DesktopSize ?? Size.Ceiling(screenSize);
         if (!Flags.HasFlag(GraphicsFlags.FullScreen) && desktop.Width < screenSize.Width)
         {
             screenSize = screenSize with { Width = desktop.Width };
@@ -74,6 +76,8 @@ public sealed partial class Graphics
 
         if (!Flags.HasFlag(GraphicsFlags.FullScreen) || Flags.HasFlag(GraphicsFlags.WindowViewport))
         {
+            var windowRect = window?.WindowRect ?? new Rectangle(Point.Empty, Size.Ceiling(ScreenSize));
+            var clientRect = window?.ClientRect ?? windowRect;
             SetViewport(RectangleF.FromLTRB(clientRect.Left - windowRect.Left, clientRect.Top - windowRect.Top, clientRect.Right - windowRect.Left, clientRect.Bottom - windowRect.Top));
         }
         else

@@ -124,7 +124,7 @@ public partial class Map
         }
 
         var objectsFile = new Resource(Session.Error, FileSystem);
-        if (OpenObjects(FileSystem, ref objectsFile) != 0)
+        if (objectsFile.Open(_resourceName.Span, "DATA"u8) != 0)
         {
             Session.Error.Error(MapLogTag, LogError.Open, 0, "resource file"u8);
             return;
@@ -137,7 +137,7 @@ public partial class Map
             return;
         }
 
-        if (!FileSystem.TryRead(Encoding.ASCII.GetString(GetObjectsFileName(FileSystem).Span), out var objectsData))
+        if (!FileSystem.TryRead(Encoding.ASCII.GetString(_resourceName.Span), out var objectsData))
         {
             Session.Error.Error(MapLogTag, LogError.Open, 0, "resource file"u8);
             return;

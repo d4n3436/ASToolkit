@@ -15,20 +15,17 @@ public sealed class Input
     private const int KeyShift = 8;
     private const int CharacterMask = 0xFF;
 
-    private readonly ControlSettings _settings;
     private readonly Map _map;
     private readonly Queue<WindowMessage> _messages = [];
     private readonly HashSet<VirtualKey> _heldKeys = [];
     private bool _isQuitPosted;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="Input"/> class for a set of controls.
+    /// Initializes a new instance of the <see cref="Input"/> class.
     /// </summary>
-    /// <param name="settings">The controls.</param>
     /// <param name="map">The map whose cursor and view the input moves.</param>
-    public Input(ControlSettings settings, Map map)
+    public Input(Map map)
     {
-        _settings = settings;
         _map = map;
     }
 
@@ -66,6 +63,8 @@ public sealed class Input
     /// Gets the window's top-left corner on the screen.
     /// </summary>
     public Point WindowOrigin { get; private set; }
+
+    private ControlSettings Settings => _map.Session.Controls!;
 
     /// <summary>
     /// Returns the input as a demo frame.
@@ -120,12 +119,12 @@ public sealed class Input
         VirtualKey = 0;
         Wheel = 0;
 
-        if (!_settings.IsFirstRepeatedWhileHeld)
+        if (!Settings.IsFirstRepeatedWhileHeld)
         {
             Flags = flags & ~(FrameFlags | InputFlags.First);
         }
 
-        if (!_settings.IsSecondRepeatedWhileHeld)
+        if (!Settings.IsSecondRepeatedWhileHeld)
         {
             Flags &= ~InputFlags.Second;
         }
@@ -174,7 +173,7 @@ public sealed class Input
                 }
 
                 Cursor = clamped + shift;
-                cursorSprite.ChangeCoor(new Vector3(Cursor, cursorSprite.Position.Z));
+                cursorSprite!.ChangeCoor(new Vector3(Cursor, cursorSprite.Position.Z));
 
                 return view.Left <= point.X && point.X < view.Right && view.Top <= point.Y && point.Y < view.Bottom;
             case WindowMessageId.KeyDown:
@@ -206,12 +205,12 @@ public sealed class Input
                 var pressed = pressedButton == VirtualKey.LeftButton ? InputFlags.LeftClick | InputFlags.LeftDown : InputFlags.RightClick | InputFlags.RightDown;
                 Flags = pressedFlags | pressed;
 
-                if (_settings.First.Primary == pressedButton)
+                if (Settings.First.Primary == pressedButton)
                 {
                     Flags = pressedFlags | pressed | InputFlags.First;
                 }
 
-                if (_settings.Second.Primary == pressedButton)
+                if (Settings.Second.Primary == pressedButton)
                 {
                     Flags |= InputFlags.Second;
                 }
@@ -224,12 +223,12 @@ public sealed class Input
                 var released = releasedButton == VirtualKey.LeftButton ? InputFlags.LeftClickRelease : InputFlags.RightClickRelease;
                 Flags = (releasedFlags & ~down) | released;
 
-                if (_settings.First.Primary == releasedButton && _settings.IsFirstRepeatedWhileHeld)
+                if (Settings.First.Primary == releasedButton && Settings.IsFirstRepeatedWhileHeld)
                 {
                     Flags = (releasedFlags & ~(down | InputFlags.First)) | released;
                 }
 
-                if (_settings.Second.Primary == releasedButton && _settings.IsSecondRepeatedWhileHeld)
+                if (Settings.Second.Primary == releasedButton && Settings.IsSecondRepeatedWhileHeld)
                 {
                     Flags &= ~InputFlags.Second;
                 }
@@ -250,9 +249,9 @@ public sealed class Input
 
     internal bool IsKeyHeld(VirtualKey virtualKey) => _heldKeys.Contains(virtualKey);
 
-    internal bool TryPeekMessage(out WindowMessage message)
+    internal bool TryPeekMessage(IWindowDevice? window, out WindowMessage message)
     {
-        if (_messages.TryDequeue(out message))
+        if (_messages.TryDequeue(out message) || window is not null && window.TryPeekMessage(out message))
         {
             if (message.Id is WindowMessageId.KeyDown or WindowMessageId.SysKeyDown)
             {
@@ -283,22 +282,22 @@ public sealed class Input
 
     private InputFlags GetKeyFlag(VirtualKey virtualKey)
     {
-        if (_settings.Left.Matches(virtualKey))
+        if (Settings.Left.IsMatch(virtualKey))
             return InputFlags.Left;
 
-        if (_settings.Right.Matches(virtualKey))
+        if (Settings.Right.IsMatch(virtualKey))
             return InputFlags.Right;
 
-        if (_settings.Up.Matches(virtualKey))
+        if (Settings.Up.IsMatch(virtualKey))
             return InputFlags.Up;
 
-        if (_settings.Down.Matches(virtualKey))
+        if (Settings.Down.IsMatch(virtualKey))
             return InputFlags.Down;
 
-        if (_settings.First.Matches(virtualKey))
+        if (Settings.First.IsMatch(virtualKey))
             return InputFlags.First;
 
-        if (_settings.Second.Matches(virtualKey))
+        if (Settings.Second.IsMatch(virtualKey))
             return InputFlags.Second;
 
         if (virtualKey == VirtualKey.Shift)
@@ -311,12 +310,12 @@ public sealed class Input
     {
         var flags = Flags;
         Flags = flags & ~click;
-        if (_settings.First.Primary == button)
+        if (Settings.First.Primary == button)
         {
             Flags = flags & ~(click | InputFlags.First);
         }
 
-        if (_settings.Second.Primary == button)
+        if (Settings.Second.Primary == button)
         {
             Flags &= ~InputFlags.Second;
         }

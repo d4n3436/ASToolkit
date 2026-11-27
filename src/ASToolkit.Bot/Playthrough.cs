@@ -18,10 +18,10 @@ public sealed class Playthrough
     private const int MaxAttempts = 3;
     private const string MapsFolder = "maps";
     private const string ScriptExtension = ".lgc";
+    private const string ProgramFile = "AlienShooter.exe";
     private const string DemoExtension = ".dem";
     private const int ViewSeed = 1;
     private const int SeedLevels = 64;
-    private const string ConfigFile = "AlienShooter.cfg";
     private const int RegistryItemCount = 12;
     private const int LifeImplantItem = 0;
     private const int StrengthImplantItem = 1;
@@ -56,7 +56,7 @@ public sealed class Playthrough
         _fileSystem = new GameFolder(gameFolder);
         _files = new MemoryWriteOverlay(_fileSystem);
         _objects = objects;
-        _map = new MapSteam(objects, _fileSystem, new GameSession(DisplaySettings, AdapterModes));
+        _map = new MapSteam(new GameSession(_fileSystem, GetProgramPath(gameFolder), AdapterModes, writeLog: false) { Objects = objects }, DisplaySettings, "");
         _shop = new ShopBot(objects, _map, table);
     }
 
@@ -74,6 +74,13 @@ public sealed class Playthrough
     /// Gets the screen size of the bot's player profile.
     /// </summary>
     public static Size ProfileScreenSize => new(1280, 720);
+
+    /// <summary>
+    /// Returns the path of the game's executable in a game folder, with backslashes as separators.
+    /// </summary>
+    /// <param name="gameFolder">The game folder.</param>
+    /// <returns>The path of AlienShooter.exe in the folder.</returns>
+    public static string GetProgramPath(string gameFolder) => Path.Combine(gameFolder, ProgramFile).Replace(Path.DirectorySeparatorChar, '\\');
 
     /// <summary>
     /// Gets the frame lengths in milliseconds, repeated in order.
@@ -120,7 +127,7 @@ public sealed class Playthrough
         files.Set(mapPath, File.ReadAllBytes(mapFile));
         files.Set(scriptPath, File.Exists(scriptFile) ? File.ReadAllBytes(scriptFile) : DefaultLevelScript.ToArray());
         var profile = CreateProfile(gameFolder);
-        var map = new MapSteam(objects, files, new GameSession(DisplaySettings, AdapterModes, profile, time: new SteppedClock()));
+        var map = new MapSteam(new GameSession(files, GetProgramPath(gameFolder), AdapterModes, profile, new SteppedClock(), writeLog: false) { Objects = objects }, DisplaySettings, "");
         map.Input.PostMessage(WindowMessageId.ActivateApp, 1, 0);
         map.RequestLoad(Encoding.ASCII.GetBytes(mapPath));
         map.TactAt(ViewSeed);
@@ -135,7 +142,7 @@ public sealed class Playthrough
     /// <returns>The registry.</returns>
     public static Registry CreateProfile(string gameFolder)
     {
-        var registry = new Registry(Registry.ReadDefaultPath(Path.Combine(gameFolder, ConfigFile)));
+        var registry = new Registry(Registry.ReadDefaultPath(new GameFolder(gameFolder), GetProgramPath(gameFolder)));
         registry.Set("PlayerSex", "male");
         registry.Set("StateBar", "1");
         registry.Set("DifficultyLevel", "1");
@@ -234,7 +241,7 @@ public sealed class Playthrough
         if (map is null)
         {
             var registry = CreateRegistry(_gameFolder, analysis.Name, loadout);
-            map = new MapSteam(_objects, _files, new GameSession(DisplaySettings, AdapterModes, registry, time: new SteppedClock()));
+            map = new MapSteam(new GameSession(_files, GetProgramPath(_gameFolder), AdapterModes, registry, new SteppedClock(), writeLog: false) { Objects = _objects }, DisplaySettings, "");
             map.Input.PostMessage(WindowMessageId.ActivateApp, 1, 0);
         }
         else
@@ -395,7 +402,7 @@ public sealed class Playthrough
         if (map is null)
         {
             var registry = CreateRegistry(_gameFolder, analysis.Name, loadout);
-            map = new MapSteam(_objects, _files, new GameSession(DisplaySettings, AdapterModes, registry, time: new SteppedClock()));
+            map = new MapSteam(new GameSession(_files, GetProgramPath(_gameFolder), AdapterModes, registry, new SteppedClock(), writeLog: false) { Objects = _objects }, DisplaySettings, "");
             map.Input.PostMessage(WindowMessageId.ActivateApp, 1, 0);
         }
         else

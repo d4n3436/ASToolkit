@@ -1,6 +1,7 @@
 using System.Drawing;
 using System.Numerics;
 using ASToolkit.Engine.IO;
+using ASToolkit.Formats;
 
 namespace ASToolkit.Engine;
 
@@ -52,65 +53,24 @@ public sealed class GameSession : IDisposable
     internal int SnowflakeCount;
     internal int LightPhase;
     private const long MillisecondsPerSecond = 1000;
-    private const string ScreenWidthValue = "ScreenX";
-    private const string ScreenHeightValue = "ScreenY";
-    private const string FullScreenValue = "FullScreen";
-    private const string BitsPerPixelValue = "BPP";
-    private const string DeviceValue = "Device";
-    private const int DefaultVSync = 1;
-    private const int DefaultFullStartDialog = 0;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="GameSession"/> class, reading the display settings from the configuration and the registry.
+    /// Initializes a new instance of the <see cref="GameSession"/> class.
     /// </summary>
-    /// <param name="init">The display settings the game starts with and the display modes it accepts.</param>
+    /// <param name="fileSystem">The file system that holds the game's files.</param>
+    /// <param name="programPath">The path of the game's executable.</param>
     /// <param name="displayModes">The display modes the display adapter offers, in the adapter's order.</param>
-    /// <param name="registry">The registry that holds the game's settings, or null for an empty one.</param>
-    /// <param name="fileSystem">The file system that holds the configuration file and gets the log, or <see langword="null"/> to not write logs and use the default configuration.</param>
+    /// <param name="registry">The registry that holds the game's settings, or <see langword="null"/> for an empty one.</param>
     /// <param name="time">The clock used for the log's file name and timestamps and for the real time, or <see langword="null"/> for the system clock.</param>
-    /// <param name="desktop">The size of the desktop, or <see langword="null"/> if it is at least as large as the screen.</param>
-    /// <param name="windowRect">The bounds of the game window on the desktop, or <see langword="null"/> if it covers the screen.</param>
-    /// <param name="clientRect">The bounds of the client area of the game window on the desktop, or <see langword="null"/> if it covers the screen.</param>
-    /// <param name="hasAppMenu"><see langword="true"/> if the game window has the application menu; otherwise, <see langword="false"/>.</param>
-    public GameSession(GraphicsInit init, ReadOnlyMemory<DisplayMode> displayModes, Registry? registry = null, IGameFileSystem? fileSystem = null, TimeProvider? time = null, Size? desktop = null, Rectangle? windowRect = null, Rectangle? clientRect = null, bool hasAppMenu = false)
+    /// <param name="writeLog"><see langword="true"/> to write the log to the file system; otherwise, <see langword="false"/>.</param>
+    public GameSession(IGameFileSystem fileSystem, string programPath, ReadOnlyMemory<DisplayMode> displayModes, Registry? registry = null, TimeProvider? time = null, bool writeLog = true)
     {
+        FileSystem = fileSystem;
+        ProgramPath = programPath;
+        DisplayModes = displayModes;
         Time = time ?? TimeProvider.System;
-        Error = new MyError(fileSystem, Time);
-        HasAppMenu = hasAppMenu;
-        var settings = init;
-        if (hasAppMenu)
-        {
-            settings.Flags |= GraphicsInitFlags.AppMenu;
-        }
-
-        int vSync = DefaultVSync;
-        int fullStartDialog = DefaultFullStartDialog;
-        if (fileSystem is not null)
-        {
-            var config = new Profile(fileSystem);
-            config.Load(Map.ConfigFile);
-            vSync = config.GetInt(Map.GraphSection, "VSync"u8, DefaultVSync);
-            fullStartDialog = config.GetInt(Map.GameSection, "StartDialogIsFull"u8, DefaultFullStartDialog);
-        }
-
-        if (vSync != 0)
-        {
-            settings.Flags |= GraphicsInitFlags.VSync;
-        }
-
-        if (fullStartDialog != 0)
-        {
-            settings.Flags |= GraphicsInitFlags.FullStartDialog;
-        }
-
+        Error = new MyError(writeLog ? fileSystem : null, Time);
         Registry = registry ?? new Registry("");
-        settings.Device = Registry.GetInt(DeviceValue, settings.Device);
-        settings.ScreenSize = new Size(Registry.GetInt(ScreenWidthValue, settings.ScreenSize.Width), Registry.GetInt(ScreenHeightValue, settings.ScreenSize.Height));
-        settings.BitsPerPixel = Registry.GetInt(BitsPerPixelValue, settings.BitsPerPixel);
-        settings.IsFullScreen = Registry.GetInt(FullScreenValue, settings.IsFullScreen ? 1 : 0) != 0;
-        Graphics = new Graphics(this, settings, displayModes);
-        var screen = Size.Ceiling(Graphics.ScreenSize);
-        Graphics.Init(desktop ?? screen, windowRect ?? new Rectangle(Point.Empty, screen), clientRect ?? new Rectangle(Point.Empty, screen));
     }
 
     /// <summary>
@@ -134,6 +94,36 @@ public sealed class GameSession : IDisposable
     public IShellDevice? Shell { get; set; }
 
     /// <summary>
+    /// Gets the window the game runs in.
+    /// </summary>
+    public IWindowDevice? Window { get; init; }
+
+    /// <summary>
+    /// Gets the device that frames are drawn on.
+    /// </summary>
+    public IGraphicsDevice? GraphicsDevice { get; init; }
+
+    /// <summary>
+    /// Gets the object table the map starts with.
+    /// </summary>
+    public ObjectTable? Objects { get; init; }
+
+    /// <summary>
+    /// Gets the file system that holds the game's files.
+    /// </summary>
+    public IGameFileSystem FileSystem { get; }
+
+    /// <summary>
+    /// Gets the path of the game's executable.
+    /// </summary>
+    public string ProgramPath { get; }
+
+    /// <summary>
+    /// Gets the display modes the display adapter offers, in the adapter's order.
+    /// </summary>
+    public ReadOnlyMemory<DisplayMode> DisplayModes { get; }
+
+    /// <summary>
     /// Gets or sets the real time, in milliseconds, when the current frame rate measurement started.
     /// </summary>
     public uint FrameRateStartedAt { get; set; }
@@ -141,12 +131,7 @@ public sealed class GameSession : IDisposable
     /// <summary>
     /// Gets the graphics state that persists across levels.
     /// </summary>
-    public Graphics Graphics { get; }
-
-    /// <summary>
-    /// Gets a value indicating whether the game window has the application menu.
-    /// </summary>
-    public bool HasAppMenu { get; }
+    public Graphics Graphics { get; internal set; } = null!;
 
     /// <summary>
     /// Gets the clock the game reads its real time from and the log takes its timestamps from.
@@ -157,7 +142,7 @@ public sealed class GameSession : IDisposable
 
     internal uint FadeStartedAt { get; set; }
 
-    internal Registry Registry { get; }
+    internal Registry Registry { get; set; }
 
     internal uint MouseTipMovedAt { get; set; }
 

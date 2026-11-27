@@ -115,7 +115,7 @@ public sealed class ReplayPlayback
         var size = screen.Size;
 
         var point = _map.Input.Cursor - _map.ViewCenter + new Vector2(size.Width, size.Height) * 0.5f;
-        _map.Mouse.ShownCursorImage.Draw(pixels.AsSpan(0, size.Width * size.Height), size, new Point((int)MathF.Round(point.X), (int)MathF.Round(point.Y)));
+        _map.Mouse!.ShownCursorImage.Draw(pixels.AsSpan(0, size.Width * size.Height), size, new Point((int)MathF.Round(point.X), (int)MathF.Round(point.Y)));
         _rendered = pixels;
         _renderedTime = _shownTime;
         return true;

@@ -1,4 +1,3 @@
-using ASToolkit.Engine;
 using ASToolkit.Formats;
 using ASToolkit.Analysis.Reference;
 using ASToolkit.Analysis.Scripting;

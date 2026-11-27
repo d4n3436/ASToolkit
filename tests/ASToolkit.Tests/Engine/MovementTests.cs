@@ -1,4 +1,3 @@
-using System.Drawing;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using ASToolkit.Analysis.Levels;

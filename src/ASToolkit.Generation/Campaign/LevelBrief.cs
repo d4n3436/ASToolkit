@@ -111,7 +111,7 @@ public sealed record LevelBrief
     public required int DynamiteSites { get; init; }
 
     /// <summary>
-    /// Gets the second wing of a lab level, which the campaign never repeats, or <see langword="null"/> when the building draws it.
+    /// Gets the second wing of a lab level, which the campaign never repeats.
     /// </summary>
     public LabWing? SecondWing { get; init; }
 

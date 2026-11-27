@@ -4,11 +4,10 @@ using ASToolkit.Engine.IO;
 namespace ASToolkit.Engine;
 
 /// <summary>
-/// Represents the [control] section of AlienShooter.cfg, with defaults for missing keys.
+/// Represents the [control] section of the game's configuration file, with defaults for missing keys.
 /// </summary>
 public sealed class ControlSettings
 {
-    private const string ConfigFile = "AlienShooter.cfg";
     private const int MaxKeyNameLength = 16;
 
     private ControlSettings()
@@ -54,15 +53,8 @@ public sealed class ControlSettings
 
     private static ReadOnlySpan<byte> Section => "control"u8;
 
-    /// <summary>
-    /// Reads the controls from a game's AlienShooter.cfg, using defaults for missing keys.
-    /// </summary>
-    /// <param name="fileSystem">The file system that holds the game's files.</param>
-    /// <returns>The controls.</returns>
-    public static ControlSettings Read(IGameFileSystem fileSystem)
+    internal static ControlSettings Read(Profile config)
     {
-        var config = new Profile(fileSystem);
-        config.Load(ConfigFile);
         return new ControlSettings
         {
             Left = new ControlBinding(VirtualKey.Left, GetFirstCharacter(config, "Left"u8, "%"u8)),

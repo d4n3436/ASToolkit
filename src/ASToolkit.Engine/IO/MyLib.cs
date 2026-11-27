@@ -129,6 +129,14 @@ internal static class MyLib
 
     extension(ReadOnlySpan<byte> text)
     {
+        [EngineRoutine(0x00406fc0)]
+        public ReadOnlySpan<byte> AfterLast(ReadOnlySpan<byte> delimiter)
+        {
+            int index = text.LastIndexOf(delimiter);
+
+            return index < 0 ? [] : text[(index + delimiter.Length)..];
+        }
+
         [EngineRoutine(0x00406f20)]
         public ReadOnlySpan<byte> BeforeLast(ReadOnlySpan<byte> delimiter)
         {

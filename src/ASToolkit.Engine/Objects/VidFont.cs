@@ -38,7 +38,7 @@ public sealed class VidFont : Vid
     }
 
     /// <summary>
-    /// Gets the font of this object ID, or <see langword="null"/> before the sprite file loads.
+    /// Gets the font of this object ID.
     /// </summary>
     public D3DFont? Font { get; private set; }
 

@@ -34,7 +34,6 @@ public partial class Map : IDisposable
     public const int LevelStartPreviousTime = 1;
 
     internal const int UpdatedLayerCount = 16;
-    internal const string ConfigFile = "AlienShooter.cfg";
     internal const string StringsFile = "Strings.ini";
     internal const int ControlledPlayer = 0;
     private protected readonly MyList<Sprite?>[] _layers = new MyList<Sprite?>[LayerCount];
@@ -45,6 +44,13 @@ public partial class Map : IDisposable
     private protected ReadOnlyMemory<byte> _pendingMapName;
     private protected int _stepCount;
     private const string ConfigExtension = ".cfg";
+    private const string DeviceValue = "Device";
+    private const string ScreenWidthValue = "ScreenX";
+    private const string ScreenHeightValue = "ScreenY";
+    private const string BitsPerPixelValue = "BPP";
+    private const string FullScreenValue = "FullScreen";
+    private const string WindowPositionXValue = "WindowPositionX";
+    private const string WindowPositionYValue = "WindowPositionY";
     private const string DefaultFont = "Arial";
     private const int DefaultFontWidth = 0;
     private const int DefaultFontHeight = 8;
@@ -90,6 +96,8 @@ public partial class Map : IDisposable
     private int _gridColumns;
     private int _gridRows;
     private bool _hasWindow;
+    private IWindowDevice? _window;
+    private ReadOnlyMemory<byte> _resourceName;
     private int _weaponCount;
     private AlienShooterWeaponRecord[]? _weapons;
     private int _vidCount;
@@ -106,39 +114,78 @@ public partial class Map : IDisposable
     /// <summary>
     /// Initializes a new instance of the <see cref="Map"/> class with no level loaded.
     /// </summary>
-    /// <param name="objects">The object table.</param>
-    /// <param name="fileSystem">The file system that holds the game's files.</param>
     /// <param name="session">The session the map belongs to.</param>
+    /// <param name="init">The display settings the game starts with and the display modes it accepts.</param>
     /// <param name="commandLine">The game's command line.</param>
     [EngineRoutine(0x00408ff0)]
-    protected Map(ObjectTable objects, IGameFileSystem fileSystem, GameSession session, string commandLine = "")
+    protected Map(GameSession session, in GraphicsInit init, string commandLine)
     {
         _mouseTips = new MouseTips(this);
         Menu = new Menu(this);
+        Input = new Input(this);
         Session = session;
         Session.Map = this;
         EmptyVid = ASToolkit.Engine.Vid.CreateDefault(this);
         Session.RealCurrentTime = Session.TimeGetTime();
         Session.PreviousRealCurrentTime = Session.RealCurrentTime - StartPreviousRealTimeOffset;
         _levelStartTime = (int)Session.RealCurrentTime;
-        SetFlag(MapFlags.AppMenu, Session.HasAppMenu);
+        SetFlag(MapFlags.AppMenu, init.Flags.HasFlag(GraphicsInitFlags.AppMenu));
         _flags |= MapFlags.PlayerControlled | MapFlags.DrawFlagman | MapFlags.DrawSoundCount | MapFlags.MouseTips;
-        var config = new Profile(fileSystem);
-        config.Load(ConfigFile);
+        var programName = GetProgramName(Session.ProgramPath);
+        var config = LoadConfig(FileSystem, programName);
         if (commandLine.Contains(ConfigExtension, StringComparison.Ordinal))
         {
             config.Load(commandLine);
         }
 
+        Session.Strings = new Profile(FileSystem);
+        Session.Strings.Load(StringsFile);
+        var settings = init;
+        settings.Title = config.TryGetString(CommonSection, "Title"u8, out var title) ? title : programName.ToArray();
+        Session.Registry = new Registry(Registry.ReadDefaultPath(config, programName), Session.Registry);
+        if (config.GetInt(GraphSection, "VSync"u8, 1) != 0)
+        {
+            settings.Flags |= GraphicsInitFlags.VSync;
+        }
+
+        if (config.GetInt(GameSection, "StartDialogIsFull"u8, 0) != 0)
+        {
+            settings.Flags |= GraphicsInitFlags.FullStartDialog;
+        }
+
+        settings.Device = Registry.GetInt(DeviceValue, settings.Device);
+        settings.ScreenSize = new Size(Registry.GetInt(ScreenWidthValue, settings.ScreenSize.Width), Registry.GetInt(ScreenHeightValue, settings.ScreenSize.Height));
+        settings.BitsPerPixel = Registry.GetInt(BitsPerPixelValue, settings.BitsPerPixel);
+        settings.IsFullScreen = Registry.GetInt(FullScreenValue, settings.IsFullScreen ? 1 : 0) != 0;
+        Session.Graphics = new Graphics(Session, settings);
+        _hasWindow = true;
+        var window = Session.Window;
+        if (window is not null)
+        {
+            bool isFullScreen = Session.Graphics.IsFullScreen;
+            var position = isFullScreen ? Point.Empty : new Point(Registry.GetInt(WindowPositionXValue, 0), Registry.GetInt(WindowPositionYValue, 0));
+            window.CreateWindowEx(ExtendedWindowStyles.AppWindow, settings.Title.Span, isFullScreen ? WindowStyles.Popup : WindowStyles.Popup | WindowStyles.Visible,
+                new Rectangle(position, System.Drawing.Size.Truncate(Session.Graphics.ScreenSize)));
+            _window = window;
+            foreach (var message in window.ShowWindow())
+            {
+                DispatchMessage(message);
+            }
+
+            foreach (var message in window.UpdateWindow())
+            {
+                DispatchMessage(message);
+            }
+
+            window.ShowCursor(false);
+        }
+
+        bool isGraphicsReady = Session.Graphics.Init(window) == 0;
         int fontHeight = config.GetInt(GraphSection, "FontSizeY"u8, DefaultFontHeight);
         int fontWidth = config.GetInt(GraphSection, "FontSizeX"u8, DefaultFontWidth);
         string font = config.TryGetString(GraphSection, "Font"u8, out var fontName) ? Encoding.ASCII.GetString(fontName.Span) : DefaultFont;
         Session.Graphics.CreateDeviceFont(font, new Size(fontWidth, fontHeight), DefaultMaxTextureSize);
-        _hasWindow = true;
-        FileSystem = fileSystem;
-        Script = new Script(fileSystem);
-        _objects = objects;
-        Parts = new SpritePartReader(fileSystem, objects);
+        Script = new Script(FileSystem);
         Session.Random.Seed(StartRandomState);
         Script.Error = Session.Error;
         Script.Host = this;
@@ -150,28 +197,30 @@ public partial class Map : IDisposable
         Size = StartMapSize;
         Shift = StartShift;
         ResetGroundZ();
-        var objectsFile = new Resource(Session.Error, fileSystem);
-        if (OpenObjects(fileSystem, ref objectsFile) != 0)
+        _resourceName = config.TryGetString(GameSection, "Resource"u8, out var resourceName) ? resourceName : "objects.res"u8.ToArray();
+        string resourceFile = Encoding.ASCII.GetString(_resourceName.Span);
+        _objects = Session.Objects ?? (FileSystem.TryRead(resourceFile, out var objectsData) ? ObjectTable.Load(objectsData, resourceFile) : throw new FileNotFoundException($"Could not find '{resourceFile}'."));
+        Parts = new SpritePartReader(FileSystem, _objects);
+        var objectsFile = new Resource(Session.Error, FileSystem);
+        if (objectsFile.Open(_resourceName.Span, "DATA"u8) != 0)
         {
             Session.Error.Error(MapLogTag, LogError.Open, 0, "resource file"u8);
         }
 
-        Session.Sound ??= new Sound(ref objectsFile, fileSystem, Session, isHighQuality: Session.Registry.GetInt("SoundHighQuality", 0) != 0);
+        Session.Sound ??= new Sound(ref objectsFile, FileSystem, Session, isHighQuality: Session.Registry.GetInt("SoundHighQuality", 0) != 0);
         Session.Constant ??= new Constant(ref objectsFile, Session.Error);
         Constant.IsDebugMode = config.GetInt(GameSection, "DebugMode"u8, 0) != 0;
         SetFlag(MapFlags.DrawFps, config.GetInt(GameSection, "DrawFPS"u8, 0) != 0);
         SetFlag(MapFlags.DrawPresentation, config.GetInt(GameSection, "DrawPresentation"u8, 1) != 0);
-        Session.Strings = new Profile(fileSystem);
-        Session.Strings.Load(StringsFile);
         Sprites = new SpriteCollector(this);
         LoadVid(ref objectsFile);
+        _window?.ShowCursor(true);
 
         EmptyVid.SetWeapons(_weapons!);
         Sprites = new SpriteCollector(Size, Vids, this);
         Mouse = new Mouse(EmptyVid, new Vector3(Session.Graphics.ScreenSize.ToVector2() * HalfShare, 0), default, null, this);
         Mouse.Enable();
-        Session.Controls = ControlSettings.Read(fileSystem);
-        Input = new Input(Session.Controls, this);
+        Session.Controls = ControlSettings.Read(config);
         for (int slot = 0; slot < ASToolkit.Engine.Vid.ArmyCount; slot++)
         {
             _players[slot] = new PlayerArcade(Session, slot);
@@ -180,7 +229,7 @@ public partial class Map : IDisposable
         _pendingMapName = commandLine.Length == 0 || commandLine.Contains(ConfigExtension, StringComparison.Ordinal)
             ? config.TryGetString(GameSection, "StartMap"u8, out var startMap) ? startMap : "maps\\logo.map"u8.ToArray()
             : GameTextEncoding.Cyrillic.GetBytes(commandLine);
-        _flags |= MapFlags.Initialized;
+        SetFlag(MapFlags.Initialized, isGraphicsReady);
     }
 
     /// <summary>
@@ -210,7 +259,12 @@ public partial class Map : IDisposable
     /// <summary>
     /// Gets the sprite of the mouse cursor.
     /// </summary>
-    public Mouse Mouse { get; }
+    public Mouse? Mouse { get; }
+
+    /// <summary>
+    /// Gets the object table of the game.
+    /// </summary>
+    public ObjectTable Objects => _objects;
 
     /// <summary>
     /// Gets the game time in milliseconds.
@@ -304,6 +358,8 @@ public partial class Map : IDisposable
 
     internal static ReadOnlySpan<byte> GameSection => "game"u8;
 
+    internal static ReadOnlySpan<byte> CommonSection => "common"u8;
+
     internal static ReadOnlySpan<byte> GraphSection => "graph"u8;
 
     internal RailMap RailMap { get; } = new();
@@ -314,7 +370,7 @@ public partial class Map : IDisposable
 
     internal Menu Menu { get; }
 
-    internal IGameFileSystem FileSystem { get; }
+    internal IGameFileSystem FileSystem => Session.FileSystem;
 
     internal GameRandom Random => Session.Random;
 
@@ -412,7 +468,7 @@ public partial class Map : IDisposable
             return;
         }
 
-        Mouse.Disable();
+        Mouse!.Disable();
         _previousMapName = _mapName;
         _mapName = name.ToArray();
         int seed = IsPlayingDemo ? _playedDemo!.Value.Seed : (int)Session.TimeGetTime();
@@ -927,7 +983,7 @@ public partial class Map : IDisposable
             Load(_pendingMapName.Span);
         }
 
-        while (Input.TryPeekMessage(out var message))
+        while (Input.TryPeekMessage(_window, out var message))
         {
             if (message.Id == WindowMessageId.Quit)
                 return true;
@@ -992,17 +1048,15 @@ public partial class Map : IDisposable
     /// <param name="sprite">The sprite.</param>
     public void DeleteSprite(Sprite sprite) => sprite.Destruct();
 
-    internal static int OpenObjects(IGameFileSystem fileSystem, ref Resource resource)
-    {
-        return resource.Open(GetObjectsFileName(fileSystem).Span, "DATA"u8);
-    }
+    internal static ReadOnlySpan<byte> GetProgramName(string programPath) =>
+        GameTextEncoding.Cyrillic.GetBytes(programPath).AsSpan().AfterLast("\\"u8).BeforeLast("."u8);
 
-    internal static ReadOnlyMemory<byte> GetObjectsFileName(IGameFileSystem fileSystem)
+    internal static Profile LoadConfig(IGameFileSystem fileSystem, ReadOnlySpan<byte> programName)
     {
         var config = new Profile(fileSystem);
-        config.Load(ConfigFile);
+        config.Load(GameTextEncoding.Cyrillic.GetString(programName) + ConfigExtension);
 
-        return config.TryGetString(GameSection, "Resource"u8, out var configured) ? configured : "objects.res"u8.ToArray();
+        return config;
     }
 
     [EngineRoutine(0x0040b4b0)]
@@ -1074,7 +1128,7 @@ public partial class Map : IDisposable
         Session.Graphics.SetEnvironment((MapEnvironment)(-1));
         if (IsPlayingDemo)
         {
-            Mouse.Enable();
+            Mouse!.Enable();
         }
 
         _playedDemo = null;
@@ -1181,7 +1235,7 @@ public partial class Map : IDisposable
     [EngineRoutine(0x0040b180)]
     private protected virtual void Destruct()
     {
-        Mouse.Destruct();
+        Mouse?.Destruct();
         foreach (var player in _players)
         {
             player.Destruct();

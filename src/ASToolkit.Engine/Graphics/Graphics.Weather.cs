@@ -96,7 +96,7 @@ public sealed partial class Graphics
         var buffer = light.Lock(null, out _);
         if (buffer.IsEmpty)
         {
-            Error?.Error(GraphicsLogTag, LogError.Lock, 0, "fog buffer"u8);
+            Error.Error(GraphicsLogTag, LogError.Lock, 0, "fog buffer"u8);
             return;
         }
 
@@ -168,7 +168,7 @@ public sealed partial class Graphics
         var texture = light.Lock(null, out _);
         if (texture.IsEmpty)
         {
-            Error?.Error(GraphicsLogTag, LogError.Lock, 0, "snow buffer"u8);
+            Error.Error(GraphicsLogTag, LogError.Lock, 0, "snow buffer"u8);
             return;
         }
 

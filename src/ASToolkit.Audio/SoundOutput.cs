@@ -11,7 +11,7 @@ namespace ASToolkit.Audio;
 /// Plays the sound effects and music of a game session on the default audio device.
 /// </summary>
 /// <remarks>
-/// The output plays whatever the session's sound state is playing. It plays nothing if no audio device or SDL library is available.
+/// The output plays whatever the session's sound state is playing. Nothing is played if there's no audio device or the SDL library isn't available.
 /// </remarks>
 public sealed unsafe class SoundOutput : IDisposable
 {
@@ -74,6 +74,13 @@ public sealed unsafe class SoundOutput : IDisposable
     public bool IsAvailable { get; }
 
     /// <summary>
+    /// Updates the output to match a session's sound state, starting the sounds that play once.
+    /// </summary>
+    /// <param name="sound">The session's sound state.</param>
+    /// <param name="realTime">The session's real time in milliseconds.</param>
+    public void Sync(Sound sound, uint realTime) => Sync(sound, realTime, false, Volatile.Read(ref _generation));
+
+    /// <summary>
     /// Updates the output to match a session's sound state.
     /// </summary>
     /// <param name="sound">The session's sound state.</param>
@@ -128,7 +135,7 @@ public sealed unsafe class SoundOutput : IDisposable
     /// <summary>
     /// Stops all sounds and music.
     /// </summary>
-    /// <returns>A new playback number to pass to <see cref="Sync"/>.</returns>
+    /// <returns>A new playback number to pass to <see cref="Sync(Sound, uint, bool, int)"/>.</returns>
     public int Silence()
     {
         lock (_syncGate)
