@@ -1,4 +1,5 @@
 using System.Drawing;
+using System.Runtime.InteropServices;
 using ASToolkit.Formats;
 using SixLabors.ImageSharp.PixelFormats;
 
@@ -9,6 +10,9 @@ namespace ASToolkit.Bot.Rendering;
 /// </summary>
 public static class CursorImageExtensions
 {
+    private const int MaxStackPixels = 4096;
+    private const int AlphaShift = 24;
+
     /// <summary>
     /// Draws the cursor with its hotspot at a pixel of a frame, clipped to the frame.
     /// </summary>
@@ -21,16 +25,22 @@ public static class CursorImageExtensions
         if (!cursor.IsValid)
             return;
 
+        var size = cursor.Size;
+        int count = size.Width * size.Height;
+        var image = count <= MaxStackPixels ? stackalloc uint[count] : new uint[count];
+        cursor.CopyTo(image);
+        var target = MemoryMarshal.Cast<Bgra32, uint>(pixels);
         var corner = new Point(hotspot.X - cursor.Hotspot.X, hotspot.Y - cursor.Hotspot.Y);
-        for (int row = 0; row < cursor.Size.Height; row++)
+        for (int row = 0; row < size.Height; row++)
         {
-            for (int column = 0; column < cursor.Size.Width; column++)
+            for (int column = 0; column < size.Width; column++)
             {
-                var target = new Point(corner.X + column, corner.Y + row);
+                var point = new Point(corner.X + column, corner.Y + row);
+                uint color = image[row * size.Width + column];
 
-                if (target.X >= 0 && target.X < frame.Width && target.Y >= 0 && target.Y < frame.Height && cursor.TryGetPixel(new Point(column, row), out var color))
+                if (color >> AlphaShift != 0 && point.X >= 0 && point.X < frame.Width && point.Y >= 0 && point.Y < frame.Height)
                 {
-                    pixels[target.Y * frame.Width + target.X] = new Bgra32(color.R, color.G, color.B, byte.MaxValue);
+                    target[point.Y * frame.Width + point.X] = color;
                 }
             }
         }

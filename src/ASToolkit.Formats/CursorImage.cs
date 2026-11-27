@@ -133,6 +133,24 @@ public readonly struct CursorImage
         return true;
     }
 
+    /// <summary>
+    /// Copies the pixels of the cursor as 32-bit 0xAARRGGBB colors, row by row from the top, with the pixels that aren't drawn left fully transparent.
+    /// </summary>
+    /// <param name="pixels">The buffer that receives the pixels, at least as many as the cursor has.</param>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="pixels"/> is shorter than the cursor.</exception>
+    public void CopyTo(Span<uint> pixels)
+    {
+        var size = Size;
+        ArgumentOutOfRangeException.ThrowIfLessThan(pixels.Length, size.Width * size.Height, nameof(pixels));
+        for (int y = 0; y < size.Height; y++)
+        {
+            for (int x = 0; x < size.Width; x++)
+            {
+                pixels[y * size.Width + x] = TryGetPixel(new Point(x, y), out var color) ? (uint)color.ToArgb() : 0;
+            }
+        }
+    }
+
     private static int GetStride(int bytes) => (bytes + RowAlignment - 1) / RowAlignment * RowAlignment;
 
     private static bool IsPlainCursor(ReadOnlySpan<byte> data) =>
