@@ -9,6 +9,7 @@
     <Project Path="src/ASToolkit.Audio/ASToolkit.Audio.csproj" />
     <Project Path="src/ASToolkit.Cli/ASToolkit.Cli.csproj" />
     <Project Path="src/ASToolkit.Gui/ASToolkit.Gui.csproj" />
+    <Project Path="src/ASToolkit.Game/ASToolkit.Game.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/ASToolkit.Tests/ASToolkit.Tests.csproj" />

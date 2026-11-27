@@ -74,6 +74,7 @@ src/ASToolkit.Engine     Port of the Alien Shooter engine
   Spatial/               Collision and spatial queries, also used by the route analysis
   Resources/             The sprite catalog and the geometry read from sprite files
   State/                 Screen effect states and the 16-bit color layout
+src/ASToolkit.Audio      Sound and music playback for the engine, mixed in software and played through SDL3
 src/ASToolkit.Analysis   Route analysis and the models of the original levels
   Scripting/             Level scripts and the common table
   Levels/                Cells, walls and objects of a level, shared by analysis and generation
@@ -89,6 +90,7 @@ src/ASToolkit.Bot        The bot player, navigation, campaign play, replay captu
   Rendering/             Map images
 src/ASToolkit.Cli        The ascli program
 src/ASToolkit.Gui        A GUI for the toolkit
+src/ASToolkit.Game       The playable game with the window, input and graphics on SDL3
 tests/                   Unit tests
 docs/                    Documentation
 ```

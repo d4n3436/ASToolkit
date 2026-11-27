@@ -94,14 +94,14 @@ public sealed class GameSession : IDisposable
     public IShellDevice? Shell { get; set; }
 
     /// <summary>
-    /// Gets the window the game runs in.
+    /// Gets or sets the window the game runs in.
     /// </summary>
-    public IWindowDevice? Window { get; init; }
+    public IWindowDevice? Window { get; set; }
 
     /// <summary>
-    /// Gets the device that frames are drawn on.
+    /// Gets or sets the device that frames are drawn on.
     /// </summary>
-    public IGraphicsDevice? GraphicsDevice { get; init; }
+    public IGraphicsDevice? GraphicsDevice { get; set; }
 
     /// <summary>
     /// Gets the object table the map starts with.
