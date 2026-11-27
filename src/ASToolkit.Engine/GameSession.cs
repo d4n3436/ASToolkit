@@ -37,7 +37,6 @@ public sealed class GameSession : IDisposable
     internal ReadOnlyMemory<byte> ScriptText;
     internal Map? Map;
     internal int VidMemoryInUse;
-    internal ControlSettings? Controls;
     internal GameRandom Random = new(0);
     internal byte SnowWindDirection;
     internal byte RainWindDirection;
@@ -137,6 +136,11 @@ public sealed class GameSession : IDisposable
     /// Gets the graphics state that persists across levels.
     /// </summary>
     public Graphics Graphics { get; internal set; } = null!;
+
+    /// <summary>
+    /// Gets the controls of the game.
+    /// </summary>
+    public ControlSettings Controls { get; internal set; } = null!;
 
     /// <summary>
     /// Gets the clock the game reads its real time from and the log takes its timestamps from.

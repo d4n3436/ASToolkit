@@ -31,18 +31,18 @@ public sealed class Playthrough
     private const int FlashlightItem = 8;
     private const int RescueKitItem = 10;
     private const int DroneItem = 11;
-    
+
     private static readonly Size[] AcceptedSizes = [new(1280, 720)];
     private static readonly int[] AcceptedBitDepths = [32];
     private static readonly DisplayMode[] BotAdapterModes = [new(new Size(1280, 720), VidPixelFormat.X8R8G8B8)];
 
-    private readonly ShopBot _shop;
     private readonly string _gameFolder;
     private readonly GameFolder _fileSystem;
     private readonly MemoryWriteOverlay _files;
     private readonly ObjectTable _objects;
-    private readonly Map _map;
+    private readonly GameTable _table;
     private readonly Dictionary<RouteAnalysis, LevelSetup> _setups = [];
+    private ShopBot? _shop;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="Playthrough"/> class.
@@ -56,8 +56,7 @@ public sealed class Playthrough
         _fileSystem = new GameFolder(gameFolder);
         _files = new MemoryWriteOverlay(_fileSystem);
         _objects = objects;
-        _map = new MapSteam(new GameSession(_fileSystem, GetProgramPath(gameFolder), AdapterModes, writeLog: false) { Objects = objects }, DisplaySettings, "");
-        _shop = new ShopBot(objects, _map, table);
+        _table = table;
     }
 
     /// <summary>
@@ -240,8 +239,7 @@ public sealed class Playthrough
 
         if (map is null)
         {
-            map = new MapSteam(new GameSession(_files, GetProgramPath(_gameFolder), AdapterModes, CreateRegistry(_gameFolder, analysis.Name, loadout), new SteppedClock(), writeLog: false) { Objects = _objects }, DisplaySettings, "");
-            map.Input.PostMessage(WindowMessageId.ActivateApp, 1, 0);
+            map = CreateMap(analysis, loadout);
         }
         else
         {
@@ -256,7 +254,7 @@ public sealed class Playthrough
         map.RequestLoad(setup.MapName);
         map.TactAt((uint)seed);
         var field = new WalkField(analysis.Grid, setup.DoorsLocked, map, map.Sprites, map.FindVid(KnownObject.PlayerLegs)!);
-        var bot = new PlayerBot(map, new FramePacer(FrameTimes), analysis, field);
+        var bot = new PlayerBot(map, new FramePacer(FrameTimes), analysis, field, map.Session.Controls);
 
         return new PlaySession(map, bot, analysis.Exit is null && !analysis.ShouldClearMonsters);
     }
@@ -351,9 +349,16 @@ public sealed class Playthrough
             int money = state.Money;
             int reward = level < endMoney.Count ? endMoney[level] : 0;
             int firstSeed = (seed * SeedLevels + level) * MaxAttempts;
-            var loadout = (level > 0 || shouldShopFirst
-                ? _shop.Shop(ref money, state.Loadout.Ammo, state.Loadout.Implants, state.Loadout.Items, reward)
-                : state.Loadout) with { Money = money };
+            var loadout = state.Loadout;
+
+            if (level > 0 || shouldShopFirst)
+            {
+                map ??= CreateMap(levels[level], state.Loadout);
+                _shop ??= new ShopBot(_objects, map, _table);
+                loadout = _shop.Shop(ref money, state.Loadout.Ammo, state.Loadout.Implants, state.Loadout.Items, reward);
+            }
+
+            loadout = loadout with { Money = money };
             bool recordLevel = record && (recordedLevel is null || recordedLevel == level);
             if (stop == (level, 0))
                 return new CampaignResult(results, state, false);
@@ -400,8 +405,7 @@ public sealed class Playthrough
         _files.Set(demoPath, demo.Data);
         if (map is null)
         {
-            map = new MapSteam(new GameSession(_files, GetProgramPath(_gameFolder), AdapterModes, CreateRegistry(_gameFolder, analysis.Name, loadout), new SteppedClock(), writeLog: false) { Objects = _objects }, DisplaySettings, "");
-            map.Input.PostMessage(WindowMessageId.ActivateApp, 1, 0);
+            map = CreateMap(analysis, loadout);
         }
         else
         {
@@ -421,6 +425,15 @@ public sealed class Playthrough
         play.Play();
 
         return CreateResult(play, loadout, record);
+    }
+
+    private MapSteam CreateMap(RouteAnalysis analysis, PlayerLoadout loadout)
+    {
+        GetSetup(analysis);
+        var map = new MapSteam(new GameSession(_files, GetProgramPath(_gameFolder), AdapterModes, CreateRegistry(_gameFolder, analysis.Name, loadout), new SteppedClock(), writeLog: false) { Objects = _objects }, DisplaySettings, "");
+        map.Input.PostMessage(WindowMessageId.ActivateApp, 1, 0);
+
+        return map;
     }
 
     private LevelSetup GetSetup(RouteAnalysis analysis)

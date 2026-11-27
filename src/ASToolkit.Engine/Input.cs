@@ -64,7 +64,7 @@ public sealed class Input
     /// </summary>
     public Point WindowOrigin { get; private set; }
 
-    private ControlSettings Settings => _map.Session.Controls!;
+    private ControlSettings Settings => _map.Session.Controls;
 
     /// <summary>
     /// Returns the input as a demo frame.
